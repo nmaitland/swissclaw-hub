@@ -196,17 +196,19 @@ app.post('/api/login', (req, res) => {
   res.json({ token, success: true });
 });
 
-// Apply auth in production
-if (process.env.NODE_ENV === 'production') {
-  app.use(requireAuth);
-}
-
-// Serve static files from React build in production
+// Serve static files from React build in production (BEFORE auth middleware)
+// This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static('client/build', {
     maxAge: '1d', // Cache static assets for 1 day
     etag: true
   }));
+}
+
+// Protect API routes with auth (static files already served above)
+if (process.env.NODE_ENV === 'production') {
+  // Only apply auth to API routes
+  app.use('/api', requireAuth);
 }
 
 // Input validation helpers
