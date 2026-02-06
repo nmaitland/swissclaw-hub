@@ -200,6 +200,7 @@ function parseKanbanMarkdown() {
     };
     
     let currentSection = null;
+    let taskId = 1;
     
     content.split('\n').forEach(line => {
       if (line.includes('## 📋 To Do')) {
@@ -211,13 +212,24 @@ function parseKanbanMarkdown() {
       } else if (line.startsWith('## ')) {
         currentSection = null;
       } else if (currentSection && line.trim().startsWith('- **')) {
-        const title = line.replace(/^- \*\*/, '').replace(/\*\*$/, '').trim();
-        if (title) {
+        // Parse format: - **Title** — description
+        const match = line.match(/^- \*\*(.+?)\*\*\s*[-—]\s*(.+)$/);
+        if (match) {
           kanban[currentSection].push({
-            id: Date.now() + Math.random(),
-            title: title,
-            description: ''
+            id: taskId++,
+            title: match[1].trim(),
+            description: match[2].trim()
           });
+        } else {
+          // Fallback: just extract between **
+          const simpleMatch = line.match(/^- \*\*(.+?)\*\*/);
+          if (simpleMatch) {
+            kanban[currentSection].push({
+              id: taskId++,
+              title: simpleMatch[1].trim(),
+              description: ''
+            });
+          }
         }
       }
     });
@@ -255,16 +267,30 @@ function parseTasksFromKanban() {
       } else if (line.startsWith('## ')) {
         inActionItems = false;
       } else if (inActionItems && line.trim().startsWith('- [ ]')) {
-        const title = line.replace(/^- \[ \]/, '').trim();
-        if (title && !title.startsWith('(')) {
+        // Parse checkbox items: - [ ] **Title** — description
+        const match = line.match(/^- \[ \] \*\*(.+?)\*\*\s*[-—]\s*(.+)$/);
+        if (match) {
           tasks.push({
             id: id++,
-            title: title,
-            description: '',
+            title: match[1].trim(),
+            description: match[2].trim(),
             completed: false,
             priority: 'medium',
             dueDate: null
           });
+        } else {
+          // Simple fallback
+          const simpleMatch = line.match(/^- \[ \] \*\*(.+?)\*\*/);
+          if (simpleMatch) {
+            tasks.push({
+              id: id++,
+              title: simpleMatch[1].trim(),
+              description: '',
+              completed: false,
+              priority: 'medium',
+              dueDate: null
+            });
+          }
         }
       }
     });

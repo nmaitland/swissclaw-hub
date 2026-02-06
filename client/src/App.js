@@ -5,16 +5,15 @@ import './App.css';
 const API_URL = process.env.REACT_APP_API_URL || '';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [status, setStatus] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [socket, setSocket] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [kanban, setKanban] = useState(null);
+  const [showChat, setShowChat] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Connect to WebSocket
   useEffect(() => {
     const newSocket = io(API_URL || window.location.origin);
     setSocket(newSocket);
@@ -23,56 +22,39 @@ function App() {
       setMessages((prev) => [msg, ...prev]);
     });
 
-    newSocket.on('activity', (activity) => {
-      fetchStatus();
+    newSocket.on('activity', () => {
+      fetchData();
     });
 
     return () => newSocket.close();
   }, []);
 
-  // Fetch all data
-  const fetchStatus = async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/status`);
-      const data = await res.json();
-      setStatus(data);
-      if (data.recentMessages) {
-        setMessages(data.recentMessages);
+      const [statusRes, tasksRes, kanbanRes] = await Promise.all([
+        fetch(`${API_URL}/api/status`),
+        fetch(`${API_URL}/api/tasks`),
+        fetch(`${API_URL}/api/kanban`)
+      ]);
+      
+      const statusData = await statusRes.json();
+      const tasksData = await tasksRes.json();
+      const kanbanData = await kanbanRes.json();
+      
+      setStatus(statusData);
+      if (statusData.recentMessages) {
+        setMessages(statusData.recentMessages);
       }
+      setTasks(tasksData);
+      setKanban(kanbanData);
     } catch (err) {
-      console.error('Failed to fetch status:', err);
-    }
-  };
-
-  const fetchTasks = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/tasks`);
-      const data = await res.json();
-      setTasks(data);
-    } catch (err) {
-      console.error('Failed to fetch tasks:', err);
-    }
-  };
-
-  const fetchKanban = async () => {
-    try {
-      const res = await fetch(`${API_URL}/api/kanban`);
-      const data = await res.json();
-      setKanban(data);
-    } catch (err) {
-      console.error('Failed to fetch kanban:', err);
+      console.error('Failed to fetch data:', err);
     }
   };
 
   useEffect(() => {
-    fetchStatus();
-    fetchTasks();
-    fetchKanban();
-    const interval = setInterval(() => {
-      fetchStatus();
-      fetchTasks();
-      fetchKanban();
-    }, 30000);
+    fetchData();
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -101,192 +83,198 @@ function App() {
     }
   };
 
-  const renderDashboard = () => (
-    <div className="dashboard-content">
-      <section className="status-section">
-        <h2>Current Status</h2>
-        {status?.swissclaw && (
-          <div className="status-card">
-            <div className="status-header">
-              <div className="status-dot" style={{ background: getStatusColor(status.swissclaw.state) }} />
-              <span className="status-state">{status.swissclaw.state}</span>
-            </div>
-            <div className="current-task">
-              <strong>Currently:</strong> {status.swissclaw.currentTask}
-            </div>
-            <div className="last-active">
-              Last active: {new Date(status.swissclaw.lastActive).toLocaleString()}
-            </div>
-          </div>
-        )}
-
-        {status?.recentActivities && status.recentActivities.length > 0 && (
-          <div className="activities">
-            <h3>Recent Activity</h3>
-            <ul className="activity-list">
-              {status.recentActivities.slice(0, 5).map((activity) => (
-                <li key={activity.id} className="activity-item">
-                  <span className="activity-type">{activity.type}</span>
-                  <span className="activity-desc">{activity.description}</span>
-                  <span className="activity-time">
-                    {new Date(activity.created_at).toLocaleTimeString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </section>
-    </div>
-  );
-
-  const renderKanban = () => (
-    <div className="kanban-content">
-      <h2>🦀 Swissclaw's Kanban Board</h2>
-      {kanban ? (
-        <div className="kanban-board">
-          <div className="kanban-column">
-            <h3>📋 To Do</h3>
-            <div className="kanban-tasks">
-              {kanban.todo?.map((task) => (
-                <div key={task.id} className="kanban-task">
-                  <div className="task-title">{task.title}</div>
-                  <div className="task-desc">{task.description}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="kanban-column">
-            <h3>🚀 In Progress</h3>
-            <div className="kanban-tasks">
-              {kanban.inProgress?.map((task) => (
-                <div key={task.id} className="kanban-task">
-                  <div className="task-title">{task.title}</div>
-                  <div className="task-desc">{task.description}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="kanban-column">
-            <h3>✅ Done</h3>
-            <div className="kanban-tasks">
-              {kanban.done?.map((task) => (
-                <div key={task.id} className="kanban-task">
-                  <div className="task-title">{task.title}</div>
-                  <div className="task-desc">{task.description}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="loading">Loading kanban...</div>
-      )}
-    </div>
-  );
-
-  const renderTasks = () => (
-    <div className="tasks-content">
-      <h2>👤 Neil's Action Items</h2>
-      {tasks.length > 0 ? (
-        <div className="tasks-list">
-          {tasks.filter(t => !t.completed).map((task) => (
-            <div key={task.id} className={`task-item priority-${task.priority}`}>
-              <div className="task-checkbox">
-                <input type="checkbox" checked={task.completed} readOnly />
-              </div>
-              <div className="task-content">
-                <div className="task-title">{task.title}</div>
-                <div className="task-desc">{task.description}</div>
-                {task.dueDate && (
-                  <div className="task-due">Due: {new Date(task.dueDate).toLocaleDateString()}</div>
-                )}
-              </div>
-              <div className={`task-priority priority-${task.priority}`}>
-                {task.priority}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="no-tasks">No pending action items!</div>
-      )}
-    </div>
-  );
-
-  const renderChat = () => (
-    <div className="chat-content">
-      <h2>Chat</h2>
-      <div className="chat-container">
-        <div className="messages">
-          {messages.length === 0 ? (
-            <div className="no-messages">No messages yet. Start a conversation!</div>
-          ) : (
-            [...messages].reverse().map((msg) => (
-              <div key={msg.id} className={`message ${msg.sender === 'Neil' ? 'message-neil' : 'message-swissclaw'}`}>
-                <div className="message-header">
-                  <span className="message-sender">{msg.sender}</span>
-                  <span className="message-time">
-                    {new Date(msg.created_at).toLocaleTimeString()}
-                  </span>
-                </div>
-                <div className="message-content">{msg.content}</div>
-              </div>
-            ))
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <form className="chat-input" onSubmit={sendMessage}>
-          <input
-            type="text"
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            placeholder="Type a message..."
-            disabled={!socket?.connected}
-          />
-          <button type="submit" disabled={!socket?.connected || !inputMessage.trim()}>
-            Send
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return '#ef4444';
+      case 'medium': return '#fbbf24';
+      case 'low': return '#4ade80';
+      default: return '#9ca3af';
+    }
+  };
 
   return (
     <div className="app">
       <header className="header">
         <h1>🦀 Swissclaw Hub</h1>
-        <div className="connection-status">
+        <div className="header-status">
           <span className="indicator" style={{ background: socket?.connected ? '#4ade80' : '#ef4444' }} />
-          {socket?.connected ? 'Connected' : 'Disconnected'}
+          <span className="version">v2.0</span>
         </div>
       </header>
 
-      <nav className="nav-tabs">
-        <button className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>
-          📊 Dashboard
-        </button>
-        <button className={activeTab === 'kanban' ? 'active' : ''} onClick={() => setActiveTab('kanban')}>
-          🦀 Kanban
-        </button>
-        <button className={activeTab === 'tasks' ? 'active' : ''} onClick={() => setActiveTab('tasks')}>
-          👤 Tasks
-        </button>
-        <button className={activeTab === 'chat' ? 'active' : ''} onClick={() => setActiveTab('chat')}>
-          💬 Chat
-        </button>
-      </nav>
+      <main className="main unified">
+        {/* Top Section: Status & Quick Overview */}
+        <section className="overview-section">
+          <div className="status-card main-status">
+            <div className="status-header">
+              <div className="status-dot" style={{ background: getStatusColor(status?.swissclaw?.state || 'idle') }} />
+              <span className="status-state">{status?.swissclaw?.state || 'idle'}</span>
+            </div>
+            <div className="current-task">
+              {status?.swissclaw?.currentTask || 'Ready to help'}
+            </div>
+            <div className="last-active">
+              Updated: {status?.swissclaw?.lastActive ? new Date(status.swissclaw.lastActive).toLocaleTimeString() : '—'}
+            </div>
+          </div>
 
-      <main className="main">
-        {activeTab === 'dashboard' && renderDashboard()}
-        {activeTab === 'kanban' && renderKanban()}
-        {activeTab === 'tasks' && renderTasks()}
-        {activeTab === 'chat' && renderChat()}
+          {/* Stats Overview */}
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-value">{kanban?.todo?.length || 0}</div>
+              <div className="stat-label">To Do</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{kanban?.inProgress?.length || 0}</div>
+              <div className="stat-label">In Progress</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{tasks?.filter(t => !t.completed).length || 0}</div>
+              <div className="stat-label">Your Tasks</div>
+            </div>
+            <div className="stat-card chat-stat" onClick={() => setShowChat(!showChat)}>
+              <div className="stat-value">{messages.length}</div>
+              <div className="stat-label">{showChat ? 'Hide Chat' : 'Show Chat'}</div>
+            </div>
+          </div>
+        </section>
+
+        {/* Middle Section: Kanban Summary & Tasks */}
+        <div className="content-grid">
+          {/* Kanban Summary */}
+          <section className="kanban-summary">
+            <h2>🦀 My Kanban</h2>
+            
+            {kanban?.inProgress?.length > 0 && (
+              <div className="kanban-section">
+                <h3>🚀 In Progress</h3>
+                <div className="task-list compact">
+                  {kanban.inProgress.slice(0, 3).map(task => (
+                    <div key={task.id} className="task-row">
+                      <span className="task-title">{task.title}</span>
+                      <span className="task-desc">{task.description?.substring(0, 60)}...</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {kanban?.todo?.length > 0 && (
+              <div className="kanban-section">
+                <h3>📋 Next Up</h3>
+                <div className="task-list compact">
+                  {kanban.todo.slice(0, 2).map(task => (
+                    <div key={task.id} className="task-row">
+                      <span className="task-title">{task.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {kanban?.done?.slice(0, 3).length > 0 && (
+              <div className="kanban-section done-section">
+                <h3>✅ Recently Done</h3>
+                <div className="task-list compact">
+                  {kanban.done.slice(0, 3).map(task => (
+                    <div key={task.id} className="task-row done">
+                      <span className="task-title">{task.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Neil's Tasks */}
+          <section className="tasks-section">
+            <h2>👤 Your Action Items</h2>
+            {tasks.filter(t => !t.completed).length === 0 ? (
+              <div className="no-tasks">No pending tasks!</div>
+            ) : (
+              <div className="task-list">
+                {tasks.filter(t => !t.completed).slice(0, 5).map(task => (
+                  <div key={task.id} className={`task-item priority-${task.priority}`}>
+                    <div className="task-checkbox">
+                      <input type="checkbox" checked={task.completed} readOnly />
+                    </div>
+                    <div className="task-content">
+                      <div className="task-title">{task.title}</div>
+                      {task.description && (
+                        <div className="task-desc">{task.description}</div>
+                      )}
+                    </div>
+                    <div className="task-priority" style={{ background: getPriorityColor(task.priority) }}>
+                      {task.priority}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* Recent Activity */}
+        {status?.recentActivities && status.recentActivities.length > 0 && (
+          <section className="activity-section">
+            <h2>📊 Recent Activity</h2>
+            <div className="activity-list horizontal">
+              {status.recentActivities.slice(0, 4).map((activity) => (
+                <div key={activity.id} className="activity-card">
+                  <span className="activity-type">{activity.type}</span>
+                  <span className="activity-desc">{activity.description}</span>
+                  <span className="activity-time">
+                    {new Date(activity.created_at).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Chat Section (Collapsible) */}
+        {showChat && (
+          <section className="chat-section">
+            <h2>💬 Chat</h2>
+            <div className="chat-container">
+              <div className="messages">
+                {messages.length === 0 ? (
+                  <div className="no-messages">No messages yet</div>
+                ) : (
+                  [...messages].reverse().map((msg) => (
+                    <div key={msg.id} className={`message ${msg.sender === 'Neil' ? 'message-neil' : 'message-swissclaw'}`}>
+                      <div className="message-header">
+                        <span className="message-sender">{msg.sender}</span>
+                        <span className="message-time">
+                          {new Date(msg.created_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div className="message-content">{msg.content}</div>
+                    </div>
+                  ))
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <form className="chat-input" onSubmit={sendMessage}>
+                <input
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  disabled={!socket?.connected}
+                />
+                <button type="submit" disabled={!socket?.connected || !inputMessage.trim()}>
+                  Send
+                </button>
+              </form>
+            </div>
+          </section>
+        )}
       </main>
 
       <footer className="footer">
-        <p>Swissclaw Hub v2.0 — Built with 🦀</p>
+        <p>Swissclaw Hub v2.1 — Built with 🦀</p>
       </footer>
     </div>
   );

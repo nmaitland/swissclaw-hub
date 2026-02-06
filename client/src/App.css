@@ -24,12 +24,18 @@
   background-clip: text;
 }
 
-.connection-status {
+.header-status {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: #9ca3af;
+  gap: 0.75rem;
+}
+
+.version {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: rgba(255, 69, 0, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
 }
 
 .indicator {
@@ -44,43 +50,37 @@
   50% { opacity: 0.5; }
 }
 
-.main {
+/* Main Layout - Unified Dashboard */
+.main.unified {
   flex: 1;
-  padding: 2rem;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  padding: 1.5rem;
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Overview Section */
+.overview-section {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 1.5rem;
+  align-items: start;
 }
 
 @media (max-width: 900px) {
-  .main {
+  .overview-section {
     grid-template-columns: 1fr;
-    padding: 1rem;
   }
 }
 
-.status-section, .chat-section {
+.status-card.main-status {
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   padding: 1.5rem;
-  border: 1px solid rgba(255, 69, 0, 0.1);
-}
-
-.status-section h2, .chat-section h2 {
-  margin-top: 0;
-  color: #ff4500;
-  font-size: 1.25rem;
-  margin-bottom: 1rem;
-}
-
-.status-card {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 69, 0, 0.2);
 }
 
 .status-header {
@@ -101,11 +101,13 @@
   font-weight: 600;
   text-transform: capitalize;
   font-size: 1.1rem;
+  color: #e5e7eb;
 }
 
 .current-task {
-  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
   color: #d1d5db;
+  margin-bottom: 0.5rem;
 }
 
 .last-active {
@@ -113,30 +115,218 @@
   color: #6b7280;
 }
 
-.activities h3 {
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 600px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 1rem;
+  text-align: center;
+  border: 1px solid rgba(255, 69, 0, 0.1);
+  transition: all 0.2s;
+}
+
+.stat-card:hover {
+  background: rgba(255, 69, 0, 0.05);
+}
+
+.stat-card.chat-stat {
+  cursor: pointer;
+}
+
+.stat-card.chat-stat:hover {
+  background: rgba(255, 69, 0, 0.1);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ff4500;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.875rem;
   color: #9ca3af;
-  font-size: 1rem;
-  margin-bottom: 0.75rem;
+  margin-top: 0.5rem;
 }
 
-.activity-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+/* Content Grid */
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
 }
 
-.activity-item {
+@media (max-width: 900px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sections */
+.kanban-summary,
+.tasks-section,
+.activity-section,
+.chat-section {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid rgba(255, 69, 0, 0.1);
+}
+
+.kanban-summary h2,
+.tasks-section h2,
+.activity-section h2,
+.chat-section h2 {
+  margin: 0 0 1rem 0;
+  color: #ff4500;
+  font-size: 1.25rem;
+}
+
+.kanban-section {
+  margin-bottom: 1.5rem;
+}
+
+.kanban-section h3 {
+  margin: 0 0 0.75rem 0;
+  color: #9ca3af;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.done-section h3 {
+  color: #4ade80;
+}
+
+/* Task Lists */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.task-list.compact {
+  gap: 0.5rem;
+}
+
+.task-row {
   display: flex;
   flex-direction: column;
   padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.02);
-  border-radius: 6px;
-  margin-bottom: 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 3px solid #ff4500;
+}
+
+.task-row.done {
+  border-left-color: #4ade80;
+  opacity: 0.7;
+}
+
+.task-row .task-title {
+  font-weight: 500;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+}
+
+.task-row .task-desc {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 3px solid #fbbf24;
+}
+
+.task-item.priority-high {
+  border-left-color: #ef4444;
+}
+
+.task-item.priority-medium {
+  border-left-color: #fbbf24;
+}
+
+.task-item.priority-low {
+  border-left-color: #4ade80;
+}
+
+.task-checkbox input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.task-content {
+  flex: 1;
+}
+
+.task-content .task-title {
+  font-weight: 500;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+}
+
+.task-content .task-desc {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
+}
+
+.task-priority {
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: white;
+}
+
+.no-tasks {
+  text-align: center;
+  color: #6b7280;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+}
+
+/* Activity Section */
+.activity-list.horizontal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.activity-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
   border-left: 3px solid #ff4500;
 }
 
 .activity-type {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   color: #ff4500;
   font-weight: 600;
@@ -145,18 +335,22 @@
 
 .activity-desc {
   color: #d1d5db;
-  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
 }
 
 .activity-time {
   font-size: 0.75rem;
   color: #6b7280;
+  margin-top: auto;
 }
 
+/* Chat Section */
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 500px;
+  height: 300px;
 }
 
 .messages {
@@ -175,7 +369,7 @@
 }
 
 .message {
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
   max-width: 80%;
 }
 
@@ -211,11 +405,12 @@
 
 .message-content {
   background: rgba(255, 69, 0, 0.1);
-  padding: 0.75rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 8px;
   display: inline-block;
   text-align: left;
   color: #e5e7eb;
+  font-size: 0.95rem;
 }
 
 .message-neil .message-content {
@@ -242,10 +437,6 @@
   border-color: #ff4500;
 }
 
-.chat-input input::placeholder {
-  color: #6b7280;
-}
-
 .chat-input button {
   padding: 0.75rem 1.5rem;
   background: #ff4500;
@@ -266,6 +457,7 @@
   cursor: not-allowed;
 }
 
+/* Footer */
 .footer {
   text-align: center;
   padding: 1rem;
@@ -274,189 +466,41 @@
   border-top: 1px solid rgba(255, 69, 0, 0.1);
 }
 
-/* Navigation Tabs */
-.nav-tabs {
-  display: flex;
-  gap: 0.5rem;
-  padding: 1rem 2rem;
-  background: rgba(0, 0, 0, 0.3);
-  border-bottom: 1px solid rgba(255, 69, 0, 0.2);
-  overflow-x: auto;
-}
+/* Mobile Optimizations */
+@media (max-width: 600px) {
+  .main.unified {
+    padding: 1rem;
+    gap: 1rem;
+  }
 
-.nav-tabs button {
-  padding: 0.75rem 1.5rem;
-  background: transparent;
-  border: 1px solid rgba(255, 69, 0, 0.3);
-  border-radius: 8px;
-  color: #9ca3af;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
+  .header {
+    padding: 0.75rem 1rem;
+  }
 
-.nav-tabs button:hover {
-  background: rgba(255, 69, 0, 0.1);
-  color: #e5e7eb;
-}
+  .header h1 {
+    font-size: 1.25rem;
+  }
 
-.nav-tabs button.active {
-  background: #ff4500;
-  color: white;
-  border-color: #ff4500;
-}
+  .status-card.main-status {
+    padding: 1rem;
+  }
 
-/* Dashboard Content */
-.dashboard-content {
-  max-width: 800px;
-}
+  .current-task {
+    font-size: 1rem;
+  }
 
-/* Kanban Board */
-.kanban-content h2 {
-  color: #ff4500;
-  margin-bottom: 1.5rem;
-}
+  .kanban-summary,
+  .tasks-section,
+  .activity-section,
+  .chat-section {
+    padding: 1rem;
+  }
 
-.kanban-board {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
+  .activity-list.horizontal {
+    grid-template-columns: 1fr;
+  }
 
-.kanban-column {
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 12px;
-  padding: 1rem;
-  border: 1px solid rgba(255, 69, 0, 0.1);
-}
-
-.kanban-column h3 {
-  margin: 0 0 1rem 0;
-  padding-bottom: 0.5rem;
-  border-bottom: 2px solid rgba(255, 69, 0, 0.3);
-  color: #e5e7eb;
-  font-size: 1.1rem;
-}
-
-.kanban-tasks {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.kanban-task {
-  background: rgba(0, 0, 0, 0.3);
-  padding: 1rem;
-  border-radius: 8px;
-  border-left: 3px solid #ff4500;
-}
-
-.kanban-task .task-title {
-  font-weight: 600;
-  color: #e5e7eb;
-  margin-bottom: 0.25rem;
-}
-
-.kanban-task .task-desc {
-  font-size: 0.875rem;
-  color: #9ca3af;
-}
-
-.loading {
-  text-align: center;
-  color: #6b7280;
-  padding: 2rem;
-}
-
-/* Tasks List */
-.tasks-content h2 {
-  color: #ff4500;
-  margin-bottom: 1.5rem;
-}
-
-.tasks-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.task-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 1rem;
-  border-radius: 8px;
-  border-left: 3px solid #ff4500;
-}
-
-.task-item.priority-high {
-  border-left-color: #ef4444;
-}
-
-.task-item.priority-medium {
-  border-left-color: #fbbf24;
-}
-
-.task-item.priority-low {
-  border-left-color: #4ade80;
-}
-
-.task-checkbox input {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-}
-
-.task-content {
-  flex: 1;
-}
-
-.task-content .task-title {
-  font-weight: 600;
-  color: #e5e7eb;
-  margin-bottom: 0.25rem;
-}
-
-.task-content .task-desc {
-  font-size: 0.875rem;
-  color: #9ca3af;
-  margin-bottom: 0.25rem;
-}
-
-.task-content .task-due {
-  font-size: 0.75rem;
-  color: #fbbf24;
-}
-
-.task-priority {
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.task-priority.priority-high {
-  background: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
-}
-
-.task-priority.priority-medium {
-  background: rgba(251, 191, 36, 0.2);
-  color: #fbbf24;
-}
-
-.task-priority.priority-low {
-  background: rgba(74, 222, 128, 0.2);
-  color: #4ade80;
-}
-
-.no-tasks {
-  text-align: center;
-  color: #6b7280;
-  padding: 2rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
+  .chat-container {
+    height: 250px;
+  }
 }
