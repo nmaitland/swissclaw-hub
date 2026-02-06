@@ -703,6 +703,60 @@ app.get('/api/build', (req, res) => {
   res.json(getBuildInfo());
 });
 
+// Seed endpoint - populate initial kanban data (idempotent)
+app.post('/api/seed', async (req, res) => {
+  try {
+    // Check if we already have tasks
+    const existing = await pool.query('SELECT COUNT(*) as count FROM kanban_tasks');
+    if (existing.rows[0].count > 0) {
+      return res.json({ message: 'Already seeded', count: existing.rows[0].count });
+    }
+
+    // Get column IDs
+    const columns = await pool.query('SELECT id, name FROM kanban_columns');
+    const columnMap = {};
+    columns.rows.forEach(c => columnMap[c.name] = c.id);
+
+    // Seed To Do tasks
+    const todoTasks = [
+      { title: 'Zwift integration', description: 'Credentials now available in 1Password. Scope: pull ride stats, achievements, level progress', priority: 'medium' },
+      { title: 'CV match score calculator', description: 'Rate job postings 1-10 based on CV keyword overlap', priority: 'medium' },
+      { title: 'PDF Morning Report', description: 'Create PDF version of daily morning report, save to Google Drive with date-based filename', priority: 'low' }
+    ];
+
+    for (let i = 0; i < todoTasks.length; i++) {
+      await pool.query(
+        'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5)',
+        [columnMap['todo'], todoTasks[i].title, todoTasks[i].description, todoTasks[i].priority, i]
+      );
+    }
+
+    // Seed In Progress tasks
+    await pool.query(
+      'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5)',
+      [columnMap['inProgress'], 'Swissclaw Hub V3', 'Database-backed kanban + full API', 'high', 0]
+    );
+
+    // Seed Done tasks
+    const doneTasks = [
+      { title: 'Add deepseek-v3.2 to model aliases', description: 'Added as 2nd priority fallback after k2.5', priority: 'medium' },
+      { title: 'Swissclaw Hub: Auth flow + caching fixes', description: 'Fixed login redirect loop, made kanban/tasks public, added cache-busting headers', priority: 'high' }
+    ];
+
+    for (let i = 0; i < doneTasks.length; i++) {
+      await pool.query(
+        'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5)',
+        [columnMap['done'], doneTasks[i].title, doneTasks[i].description, doneTasks[i].priority, i]
+      );
+    }
+
+    res.json({ message: 'Seeded successfully', todo: todoTasks.length, inProgress: 1, done: doneTasks.length });
+  } catch (err) {
+    console.error('Seed error:', err);
+    res.status(500).json({ error: 'Failed to seed' });
+  }
+});
+
 // Serve React app for any non-API routes (must be last)
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
