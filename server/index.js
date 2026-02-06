@@ -19,16 +19,17 @@ const sessions = new Set();
 
 // Auth middleware
 const requireAuth = (req, res, next) => {
-  // Skip auth for health check and login endpoints
-  if (req.path === '/health' || req.path === '/api/login' || req.path.startsWith('/login')) {
+  // Public endpoints that don't require auth
+  const publicPaths = ['/health', '/api/login', '/api/build', '/api/kanban', '/api/tasks'];
+  if (publicPaths.includes(req.path) || req.path.startsWith('/login')) {
     return next();
   }
-  
+
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
   if (!token || !sessions.has(token)) {
     return res.status(401).json({ error: 'Authentication required', loginUrl: '/login' });
   }
-  
+
   next();
 };
 
