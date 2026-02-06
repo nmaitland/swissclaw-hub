@@ -24,6 +24,11 @@ const pool = new Pool({
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from React build in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static('client/build'));
+}
+
 // Initialize database tables
 async function initDb() {
   try {
@@ -138,6 +143,13 @@ io.on('connection', (socket) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Serve React app for any non-API routes (must be last)
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    res.sendFile('client/build/index.html', { root: '.' });
+  });
+}
 
 const PORT = process.env.PORT || 3001;
 
