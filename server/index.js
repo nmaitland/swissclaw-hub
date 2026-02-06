@@ -20,8 +20,11 @@ const sessions = new Set();
 // Auth middleware
 const requireAuth = (req, res, next) => {
   // Public endpoints that don't require auth
-  const publicPaths = ['/health', '/api/login', '/api/build', '/api/kanban', '/api/tasks'];
-  if (publicPaths.includes(req.path) || req.path.startsWith('/login')) {
+  // When mounted at /api, req.path is relative (e.g., /kanban not /api/kanban)
+  const publicApiPaths = ['/login', '/build', '/kanban', '/tasks'];
+  const publicRootPaths = ['/health', '/login'];
+
+  if (publicApiPaths.includes(req.path) || publicRootPaths.includes(req.path)) {
     return next();
   }
 
