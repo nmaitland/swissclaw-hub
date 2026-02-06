@@ -32,20 +32,7 @@ const requireAuth = (req, res, next) => {
   next();
 };
 
-// Login endpoint
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  
-  if (username !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-  
-  const token = Math.random().toString(36).substring(2);
-  sessions.add(token);
-  res.json({ token, success: true });
-});
-
-// Serve login page
+// Serve login page (defined before body parser, uses raw HTML)
 app.get('/login', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -195,6 +182,19 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
+
+// Login endpoint (after body parser so req.body is available)
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  
+  if (username !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  
+  const token = Math.random().toString(36).substring(2);
+  sessions.add(token);
+  res.json({ token, success: true });
+});
 
 // Apply auth in production
 if (process.env.NODE_ENV === 'production') {
