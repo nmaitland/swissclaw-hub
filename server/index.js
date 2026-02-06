@@ -305,11 +305,16 @@ function parseKanbanMarkdown() {
       path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md'),
       path.join(process.cwd(), '..', 'kanban', 'kanban.md'),
       path.join('/home/neil/.openclaw/workspace', 'kanban', 'kanban.md'),
-      '/opt/render/project/src/kanban/kanban.md'
+      '/opt/render/project/src/kanban/kanban.md',
+      '/opt/render/project/kanban/kanban.md'
     ];
+    
+    console.log('CWD:', process.cwd());
+    console.log('Trying paths:', possiblePaths);
     
     let kanbanPath = null;
     for (const p of possiblePaths) {
+      console.log('Checking:', p, 'exists:', fs.existsSync(p));
       if (fs.existsSync(p)) {
         kanbanPath = p;
         break;
@@ -323,6 +328,7 @@ function parseKanbanMarkdown() {
     
     console.log('Reading kanban from:', kanbanPath);
     const content = fs.readFileSync(kanbanPath, 'utf8');
+    console.log('Kanban content length:', content.length);
     
     const kanban = {
       todo: [],
