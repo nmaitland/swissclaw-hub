@@ -200,9 +200,24 @@ app.post('/api/login', (req, res) => {
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static('client/build', {
-    maxAge: '1d', // Cache static assets for 1 day
+  // Cache hashed assets (JS/CSS) aggressively - they have content hashes in filenames
+  app.use('/static', express.static('client/build/static', {
+    maxAge: '1y', // 1 year - hashed assets never change
+    immutable: true,
     etag: true
+  }));
+
+  // Serve other build files (index.html, etc) with no cache
+  app.use(express.static('client/build', {
+    etag: true,
+    setHeaders: (res, path) => {
+      // Never cache index.html - it references the hashed assets
+      if (path.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
   }));
 }
 
