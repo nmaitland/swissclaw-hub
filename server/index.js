@@ -265,10 +265,47 @@ async function initDb() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Kanban tables
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kanban_columns (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(50) NOT NULL UNIQUE,
+        display_name VARCHAR(100) NOT NULL,
+        emoji VARCHAR(10) DEFAULT '',
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kanban_tasks (
+        id SERIAL PRIMARY KEY,
+        column_id INTEGER REFERENCES kanban_columns(id) ON DELETE CASCADE,
+        title VARCHAR(200) NOT NULL,
+        description TEXT,
+        priority VARCHAR(20) DEFAULT 'medium',
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Insert default columns if they don't exist
+    await pool.query(`
+      INSERT INTO kanban_columns (name, display_name, emoji, position)
+      VALUES
+        ('todo', 'To Do', '📋', 0),
+        ('inProgress', 'In Progress', '🚀', 1),
+        ('done', 'Done', '✅', 2)
+      ON CONFLICT (name) DO NOTHING
+    `);
     
     // Create index for performance
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_activities_created_at ON activities(created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_kanban_tasks_column_id ON kanban_tasks(column_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_kanban_tasks_position ON kanban_tasks(position)`);
     
     console.log('Database tables initialized');
   } catch (err) {
@@ -319,37 +356,13 @@ app.get('/api/messages', async (req, res) => {
 const fs = require('fs');
 const path = require('path');
 
-function parseKanbanMarkdown() {
+// Kanban API - database backed
+app.get('/api/kanban', async (req, res) => {
   try {
-    // Try multiple paths to find kanban.md
-    const possiblePaths = [
-      path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md'),
-      path.join(process.cwd(), '..', 'kanban', 'kanban.md'),
-      path.join('/home/neil/.openclaw/workspace', 'kanban', 'kanban.md'),
-      '/opt/render/project/src/kanban/kanban.md',
-      '/opt/render/project/kanban/kanban.md'
-    ];
-    
-    console.log('CWD:', process.cwd());
-    console.log('Trying paths:', possiblePaths);
-    
-    let kanbanPath = null;
-    for (const p of possiblePaths) {
-      console.log('Checking:', p, 'exists:', fs.existsSync(p));
-      if (fs.existsSync(p)) {
-        kanbanPath = p;
-        break;
-      }
-    }
-    
-    if (!kanbanPath) {
-      console.error('Kanban file not found in any of:', possiblePaths);
-      return { todo: [], inProgress: [], done: [] };
-    }
-    
-    console.log('Reading kanban from:', kanbanPath);
-    const content = fs.readFileSync(kanbanPath, 'utf8');
-    console.log('Kanban content length:', content.length);
+    // Get all columns with their tasks
+    const columnsResult = await pool.query(
+      'SELECT * FROM kanban_columns ORDER BY position'
+    );
     
     const kanban = {
       todo: [],
@@ -357,55 +370,147 @@ function parseKanbanMarkdown() {
       done: []
     };
     
-    let currentSection = null;
-    let taskId = 1;
+    for (const column of columnsResult.rows) {
+      const tasksResult = await pool.query(
+        'SELECT * FROM kanban_tasks WHERE column_id = $1 ORDER BY position',
+        [column.id]
+      );
+      
+      kanban[column.name] = tasksResult.rows.map(task => ({
+        id: task.id,
+        title: task.title,
+        description: task.description || '',
+        priority: task.priority
+      }));
+    }
     
-    content.split('\n').forEach(line => {
-      if (line.includes('## 📋 To Do')) {
-        currentSection = 'todo';
-      } else if (line.includes('## 🚀 In Progress')) {
-        currentSection = 'inProgress';
-      } else if (line.includes('## ✅ Done')) {
-        currentSection = 'done';
-      } else if (line.startsWith('## ')) {
-        currentSection = null;
-      } else if (currentSection && line.trim().startsWith('- **')) {
-        // Parse format: - **Title** — description
-        const match = line.match(/^- \*\*(.+?)\*\*\s*[-—]\s*(.+)$/);
-        if (match) {
-          kanban[currentSection].push({
-            id: taskId++,
-            title: match[1].trim(),
-            description: match[2].trim()
-          });
-        } else {
-          // Fallback: just extract between **
-          const simpleMatch = line.match(/^- \*\*(.+?)\*\*/);
-          if (simpleMatch) {
-            kanban[currentSection].push({
-              id: taskId++,
-              title: simpleMatch[1].trim(),
-              description: ''
-            });
-          }
-        }
-      }
-    });
-    
-    return kanban;
-  } catch (err) {
-    console.error('Error parsing kanban:', err);
-    return { todo: [], inProgress: [], done: [] };
-  }
-}
-
-app.get('/api/kanban', async (req, res) => {
-  try {
-    const kanban = parseKanbanMarkdown();
     res.json(kanban);
   } catch (err) {
     console.error('Kanban error:', err);
     res.status(500).json({ error: 'Failed to get kanban' });
+  }
+});
+
+// Create new kanban task
+app.post('/api/kanban/tasks', async (req, res) => {
+  try {
+    const { columnName, title, description, priority = 'medium' } = req.body;
+    
+    if (!columnName || !title) {
+      return res.status(400).json({ error: 'Column name and title required' });
+    }
+    
+    // Get column id
+    const columnResult = await pool.query(
+      'SELECT id FROM kanban_columns WHERE name = $1',
+      [columnName]
+    );
+    
+    if (columnResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Column not found' });
+    }
+    
+    const columnId = columnResult.rows[0].id;
+    
+    // Get max position for this column
+    const posResult = await pool.query(
+      'SELECT MAX(position) as max_pos FROM kanban_tasks WHERE column_id = $1',
+      [columnId]
+    );
+    
+    const position = (posResult.rows[0].max_pos || 0) + 1;
+    
+    const result = await pool.query(
+      'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [columnId, sanitizeString(title), description ? sanitizeString(description) : null, priority, position]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Create task error:', err);
+    res.status(500).json({ error: 'Failed to create task' });
+  }
+});
+
+// Update kanban task (move columns, edit, etc)
+app.put('/api/kanban/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { columnName, title, description, priority, position } = req.body;
+    
+    let columnId = null;
+    if (columnName) {
+      const columnResult = await pool.query(
+        'SELECT id FROM kanban_columns WHERE name = $1',
+        [columnName]
+      );
+      if (columnResult.rows.length > 0) {
+        columnId = columnResult.rows[0].id;
+      }
+    }
+    
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+    
+    if (columnId !== null) {
+      updates.push(`column_id = $${paramCount++}`);
+      values.push(columnId);
+    }
+    if (title !== undefined) {
+      updates.push(`title = $${paramCount++}`);
+      values.push(sanitizeString(title));
+    }
+    if (description !== undefined) {
+      updates.push(`description = $${paramCount++}`);
+      values.push(description ? sanitizeString(description) : null);
+    }
+    if (priority !== undefined) {
+      updates.push(`priority = $${paramCount++}`);
+      values.push(priority);
+    }
+    if (position !== undefined) {
+      updates.push(`position = $${paramCount++}`);
+      values.push(position);
+    }
+    
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+    
+    const result = await pool.query(
+      `UPDATE kanban_tasks SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+      values
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update task error:', err);
+    res.status(500).json({ error: 'Failed to update task' });
+  }
+});
+
+// Delete kanban task
+app.delete('/api/kanban/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'DELETE FROM kanban_tasks WHERE id = $1 RETURNING *',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (err) {
+    console.error('Delete task error:', err);
+    res.status(500).json({ error: 'Failed to delete task' });
   }
 });
 
