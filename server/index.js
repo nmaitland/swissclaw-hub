@@ -184,6 +184,108 @@ app.get('/api/messages', async (req, res) => {
   }
 });
 
+// Kanban API - reads from kanban.md file
+const fs = require('fs');
+const path = require('path');
+
+function parseKanbanMarkdown() {
+  try {
+    const kanbanPath = path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md');
+    const content = fs.readFileSync(kanbanPath, 'utf8');
+    
+    const kanban = {
+      todo: [],
+      inProgress: [],
+      done: []
+    };
+    
+    let currentSection = null;
+    
+    content.split('\n').forEach(line => {
+      if (line.includes('## 📋 To Do')) {
+        currentSection = 'todo';
+      } else if (line.includes('## 🚀 In Progress')) {
+        currentSection = 'inProgress';
+      } else if (line.includes('## ✅ Done')) {
+        currentSection = 'done';
+      } else if (line.startsWith('## ')) {
+        currentSection = null;
+      } else if (currentSection && line.trim().startsWith('- **')) {
+        const title = line.replace(/^- \*\*/, '').replace(/\*\*$/, '').trim();
+        if (title) {
+          kanban[currentSection].push({
+            id: Date.now() + Math.random(),
+            title: title,
+            description: ''
+          });
+        }
+      }
+    });
+    
+    return kanban;
+  } catch (err) {
+    console.error('Error parsing kanban:', err);
+    return { todo: [], inProgress: [], done: [] };
+  }
+}
+
+app.get('/api/kanban', async (req, res) => {
+  try {
+    const kanban = parseKanbanMarkdown();
+    res.json(kanban);
+  } catch (err) {
+    console.error('Kanban error:', err);
+    res.status(500).json({ error: 'Failed to get kanban' });
+  }
+});
+
+// Tasks API - Neil's action items from kanban.md
+function parseTasksFromKanban() {
+  try {
+    const kanbanPath = path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md');
+    const content = fs.readFileSync(kanbanPath, 'utf8');
+    
+    const tasks = [];
+    let inActionItems = false;
+    let id = 1;
+    
+    content.split('\n').forEach(line => {
+      if (line.includes('## 👤 Neil\'s Action Items')) {
+        inActionItems = true;
+      } else if (line.startsWith('## ')) {
+        inActionItems = false;
+      } else if (inActionItems && line.trim().startsWith('- [ ]')) {
+        const title = line.replace(/^- \[ \]/, '').trim();
+        if (title && !title.startsWith('(')) {
+          tasks.push({
+            id: id++,
+            title: title,
+            description: '',
+            completed: false,
+            priority: 'medium',
+            dueDate: null
+          });
+        }
+      }
+    });
+    
+    return tasks;
+  } catch (err) {
+    console.error('Error parsing tasks:', err);
+    return [];
+  }
+}
+
+app.get('/api/tasks', async (req, res) => {
+  try {
+    const tasks = parseTasksFromKanban();
+    res.json(tasks);
+  } catch (err) {
+    console.error('Tasks error:', err);
+    res.status(500).json({ error: 'Failed to get tasks' });
+  }
+});
+
 app.post('/api/activities', async (req, res) => {
   try {
     const { type, description, metadata } = req.body;
