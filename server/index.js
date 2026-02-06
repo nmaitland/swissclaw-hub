@@ -505,13 +505,29 @@ io.on('connection', (socket) => {
   });
 });
 
+// Build info - get commit hash from env or file
+const getBuildInfo = () => {
+  const commitHash = process.env.RENDER_GIT_COMMIT || 
+    require('child_process').execSync('git rev-parse --short HEAD 2>/dev/null || echo "unknown"').toString().trim();
+  return {
+    version: '2.1.0',
+    commit: commitHash,
+    buildTime: new Date().toISOString()
+  };
+};
+
 // Health check (no auth required)
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    version: '2.1.0'
+    ...getBuildInfo()
   });
+});
+
+// Build info endpoint
+app.get('/api/build', (req, res) => {
+  res.json(getBuildInfo());
 });
 
 // Serve React app for any non-API routes (must be last)

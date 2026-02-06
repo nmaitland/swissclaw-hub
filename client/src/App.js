@@ -24,6 +24,7 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [kanban, setKanban] = useState(null);
   const [showChat, setShowChat] = useState(false);
+  const [buildInfo, setBuildInfo] = useState({ version: '2.1.0', commit: 'unknown' });
   const messagesEndRef = useRef(null);
 
   // Check auth on mount
@@ -87,6 +88,22 @@ function App() {
     fetchData();
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Fetch build info
+  useEffect(() => {
+    const fetchBuildInfo = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/build`);
+        if (res.ok) {
+          const data = await res.json();
+          setBuildInfo(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch build info:', err);
+      }
+    };
+    fetchBuildInfo();
   }, []);
 
   useEffect(() => {
@@ -305,7 +322,12 @@ function App() {
       </main>
 
       <footer className="footer">
-        <p>Swissclaw Hub v2.1 — Built with 🦀</p>
+        <p>
+          Swissclaw Hub v{buildInfo.version} — Built with 🦀 —{' '}
+          <a href={`https://github.com/nmaitland/swissclaw-hub/commit/${buildInfo.commit}`} target="_blank" rel="noopener noreferrer">
+            {buildInfo.commit}
+          </a>
+        </p>
       </footer>
     </div>
   );
