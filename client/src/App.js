@@ -4,6 +4,18 @@ import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
+// Get auth token from localStorage or URL
+const getAuthToken = () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlToken = urlParams.get('token');
+  if (urlToken) {
+    localStorage.setItem('authToken', urlToken);
+    window.history.replaceState({}, '', window.location.pathname);
+    return urlToken;
+  }
+  return localStorage.getItem('authToken');
+};
+
 function App() {
   const [status, setStatus] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -14,8 +26,19 @@ function App() {
   const [showChat, setShowChat] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Check auth on mount
   useEffect(() => {
-    const newSocket = io(API_URL || window.location.origin);
+    const token = getAuthToken();
+    if (!token && window.location.pathname !== '/login') {
+      window.location.href = '/login';
+      return;
+    }
+  }, []);
+
+  useEffect(() => {
+    const newSocket = io(API_URL || window.location.origin, {
+      auth: { token: getAuthToken() }
+    });
     setSocket(newSocket);
 
     newSocket.on('message', (msg) => {
@@ -30,12 +53,20 @@ function App() {
   }, []);
 
   const fetchData = async () => {
+    const token = getAuthToken();
     try {
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
       const [statusRes, tasksRes, kanbanRes] = await Promise.all([
-        fetch(`${API_URL}/api/status`),
-        fetch(`${API_URL}/api/tasks`),
-        fetch(`${API_URL}/api/kanban`)
+        fetch(`${API_URL}/api/status`, { headers }),
+        fetch(`${API_URL}/api/tasks`, { headers }),
+        fetch(`${API_URL}/api/kanban`, { headers })
       ]);
+      
+      if (statusRes.status === 401) {
+        localStorage.removeItem('authToken');
+        window.location.href = '/login';
+        return;
+      }
       
       const statusData = await statusRes.json();
       const tasksData = await tasksRes.json();

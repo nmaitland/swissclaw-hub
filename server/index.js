@@ -10,31 +10,141 @@ require('dotenv').config();
 const app = express();
 const httpServer = createServer(app);
 
-// Security: Basic authentication
+// Security: Session-based authentication
 const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme123';
 
-const basicAuth = (req, res, next) => {
-  // Skip auth for health check
-  if (req.path === '/health') return next();
-  
-  const auth = req.headers.authorization;
-  if (!auth) {
-    res.set('WWW-Authenticate', 'Basic realm="Swissclaw Hub"');
-    return res.status(401).send('Authentication required');
+// Simple session store (in-memory, cleared on restart)
+const sessions = new Set();
+
+// Auth middleware
+const requireAuth = (req, res, next) => {
+  // Skip auth for health check and login endpoints
+  if (req.path === '/health' || req.path === '/api/login' || req.path.startsWith('/login')) {
+    return next();
   }
   
-  const [username, password] = Buffer.from(auth.split(' ')[1], 'base64')
-    .toString()
-    .split(':');
-  
-  if (username !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
-    res.set('WWW-Authenticate', 'Basic realm="Swissclaw Hub"');
-    return res.status(401).send('Invalid credentials');
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  if (!token || !sessions.has(token)) {
+    return res.status(401).json({ error: 'Authentication required', loginUrl: '/login' });
   }
   
   next();
 };
+
+// Login endpoint
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  
+  if (username !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  
+  const token = Math.random().toString(36).substring(2);
+  sessions.add(token);
+  res.json({ token, success: true });
+});
+
+// Serve login page
+app.get('/login', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Swissclaw Hub - Login</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+          background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0;
+        }
+        .login-box {
+          background: rgba(255, 255, 255, 0.05);
+          padding: 2rem;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 69, 0, 0.3);
+          width: 100%;
+          max-width: 400px;
+          text-align: center;
+        }
+        h1 {
+          color: #ff4500;
+          margin: 0 0 1.5rem 0;
+        }
+        input {
+          width: 100%;
+          padding: 0.75rem;
+          margin: 0.5rem 0;
+          border: 1px solid rgba(255, 69, 0, 0.3);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.3);
+          color: #e5e7eb;
+          font-size: 1rem;
+          box-sizing: border-box;
+        }
+        input:focus {
+          outline: none;
+          border-color: #ff4500;
+        }
+        button {
+          width: 100%;
+          padding: 0.75rem;
+          margin-top: 1rem;
+          background: #ff4500;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 1rem;
+          cursor: pointer;
+        }
+        button:hover {
+          background: #ff6b35;
+        }
+        .error {
+          color: #ef4444;
+          margin-top: 1rem;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="login-box">
+        <h1>🦀 Swissclaw Hub</h1>
+        <form id="loginForm">
+          <input type="text" id="username" placeholder="Username" required />
+          <input type="password" id="password" placeholder="Password" required />
+          <button type="submit">Login</button>
+        </form>
+        <div id="error" class="error"></div>
+      </div>
+      <script>
+        document.getElementById('loginForm').onsubmit = async (e) => {
+          e.preventDefault();
+          const username = document.getElementById('username').value;
+          const password = document.getElementById('password').value;
+          
+          const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+          
+          const data = await res.json();
+          if (data.token) {
+            localStorage.setItem('authToken', data.token);
+            window.location.href = '/?token=' + data.token;
+          } else {
+            document.getElementById('error').textContent = 'Invalid credentials';
+          }
+        };
+      </script>
+    </body>
+    </html>
+  `);
+});
 
 // Security: Rate limiting
 const limiter = rateLimit({
@@ -86,9 +196,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 
-// Apply basic auth in production
+// Apply auth in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(basicAuth);
+  app.use(requireAuth);
 }
 
 // Serve static files from React build in production
@@ -400,7 +510,7 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '2.1.0'
   });
 });
 
