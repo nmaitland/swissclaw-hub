@@ -300,7 +300,28 @@ const path = require('path');
 
 function parseKanbanMarkdown() {
   try {
-    const kanbanPath = path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md');
+    // Try multiple paths to find kanban.md
+    const possiblePaths = [
+      path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md'),
+      path.join(process.cwd(), '..', 'kanban', 'kanban.md'),
+      path.join('/home/neil/.openclaw/workspace', 'kanban', 'kanban.md'),
+      '/opt/render/project/src/kanban/kanban.md'
+    ];
+    
+    let kanbanPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        kanbanPath = p;
+        break;
+      }
+    }
+    
+    if (!kanbanPath) {
+      console.error('Kanban file not found in any of:', possiblePaths);
+      return { todo: [], inProgress: [], done: [] };
+    }
+    
+    console.log('Reading kanban from:', kanbanPath);
     const content = fs.readFileSync(kanbanPath, 'utf8');
     
     const kanban = {
@@ -364,7 +385,27 @@ app.get('/api/kanban', async (req, res) => {
 // Tasks API - Neil's action items from kanban.md
 function parseTasksFromKanban() {
   try {
-    const kanbanPath = path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md');
+    // Try multiple paths to find kanban.md
+    const possiblePaths = [
+      path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md'),
+      path.join(process.cwd(), '..', 'kanban', 'kanban.md'),
+      path.join('/home/neil/.openclaw/workspace', 'kanban', 'kanban.md'),
+      '/opt/render/project/src/kanban/kanban.md'
+    ];
+    
+    let kanbanPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        kanbanPath = p;
+        break;
+      }
+    }
+    
+    if (!kanbanPath) {
+      console.error('Kanban file not found for tasks');
+      return [];
+    }
+    
     const content = fs.readFileSync(kanbanPath, 'utf8');
     
     const tasks = [];
