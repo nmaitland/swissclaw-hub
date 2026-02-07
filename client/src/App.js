@@ -181,9 +181,9 @@ function App() {
               <div className="stat-value">{tasks?.filter(t => !t.completed).length || 0}</div>
               <div className="stat-label">Your Tasks</div>
             </div>
-            <div className="stat-card chat-stat" onClick={() => setShowChat(!showChat)}>
+            <div className="stat-card">
               <div className="stat-value">{messages.length}</div>
-              <div className="stat-label">{showChat ? 'Hide Chat' : 'Show Chat'}</div>
+              <div className="stat-label">Messages</div>
             </div>
           </div>
         </section>
