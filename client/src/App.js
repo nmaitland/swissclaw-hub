@@ -23,7 +23,7 @@ function App() {
   const [socket, setSocket] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [kanban, setKanban] = useState(null);
-  const [showChat, setShowChat] = useState(false);
+  const [activities, setActivities] = useState([]);
   const [buildInfo, setBuildInfo] = useState({ version: '2.1.0', commit: 'unknown' });
   const messagesEndRef = useRef(null);
 
@@ -46,7 +46,8 @@ function App() {
       setMessages((prev) => [msg, ...prev]);
     });
 
-    newSocket.on('activity', () => {
+    newSocket.on('activity', (activity) => {
+      setActivities(prev => [activity, ...prev].slice(0, 50));
       fetchData();
     });
 
@@ -262,63 +263,56 @@ function App() {
           </section>
         </div>
 
-        {/* Recent Activity */}
-        {status?.recentActivities && status.recentActivities.length > 0 && (
-          <section className="activity-section">
-            <h2>📊 Recent Activity</h2>
-            <div className="activity-list horizontal">
-              {status.recentActivities.slice(0, 4).map((activity) => (
-                <div key={activity.id} className="activity-card">
-                  <span className="activity-type">{activity.type}</span>
-                  <span className="activity-desc">{activity.description}</span>
-                  <span className="activity-time">
-                    {new Date(activity.created_at).toLocaleTimeString()}
-                  </span>
-                </div>
-              ))}
+        {/* Bottom Panels: Activity Feed & Chat side by side */}
+        <div className="bottom-panels">
+          {/* Activity Feed */}
+          <section className="panel activity-panel">
+            <h2>🔍 Live Activity</h2>
+            <div className="panel-content activity-feed">
+              {activities.length === 0 ? (
+                <div className="empty-state">No recent activity</div>
+              ) : (
+                activities.map((activity, i) => (
+                  <div key={i} className="activity-item">
+                    <span className="activity-time">{new Date(activity.timestamp).toLocaleTimeString()}</span>
+                    <span className="activity-text">{activity.description}</span>
+                  </div>
+                ))
+              )}
             </div>
           </section>
-        )}
 
-        {/* Chat Section (Collapsible) */}
-        {showChat && (
-          <section className="chat-section">
+          {/* Chat */}
+          <section className="panel chat-panel">
             <h2>💬 Chat</h2>
-            <div className="chat-container">
-              <div className="messages">
-                {messages.length === 0 ? (
-                  <div className="no-messages">No messages yet</div>
-                ) : (
-                  [...messages].reverse().map((msg) => (
-                    <div key={msg.id} className={`message ${msg.sender === 'Neil' ? 'message-neil' : 'message-swissclaw'}`}>
-                      <div className="message-header">
-                        <span className="message-sender">{msg.sender}</span>
-                        <span className="message-time">
-                          {new Date(msg.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div className="message-content">{msg.content}</div>
-                    </div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              <form className="chat-input" onSubmit={sendMessage}>
-                <input
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  disabled={!socket?.connected}
-                />
-                <button type="submit" disabled={!socket?.connected || !inputMessage.trim()}>
-                  Send
-                </button>
-              </form>
+            <div className="panel-content chat-messages">
+              {messages.length === 0 ? (
+                <div className="empty-state">No messages yet</div>
+              ) : (
+                [...messages].reverse().map((msg) => (
+                  <div key={msg.id} className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}>
+                    <span className="chat-sender">{msg.sender}</span>
+                    <span className="chat-text">{msg.content}</span>
+                    <span className="chat-time">{new Date(msg.created_at).toLocaleTimeString()}</span>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
             </div>
+            <form className="chat-input" onSubmit={sendMessage}>
+              <input
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Type a message..."
+                disabled={!socket?.connected}
+              />
+              <button type="submit" disabled={!socket?.connected || !inputMessage.trim()}>
+                Send
+              </button>
+            </form>
           </section>
-        )}
+        </div>
       </main>
 
       <footer className="footer">
