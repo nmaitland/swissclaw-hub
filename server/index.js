@@ -698,6 +698,13 @@ io.on('connection', (socket) => {
       );
       
       io.emit('message', result.rows[0]);
+      
+      // Also emit as activity for the activity feed
+      const activityResult = await pool.query(
+        'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
+        ['chat', `${sender}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`, JSON.stringify({ sender, messageId: result.rows[0].id })]
+      );
+      io.emit('activity', activityResult.rows[0]);
     } catch (err) {
       console.error('Socket message error:', err);
       socket.emit('error', { message: 'Failed to send message' });
