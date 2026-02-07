@@ -230,6 +230,16 @@ if (process.env.NODE_ENV === 'production') {
   app.use('/api', requireAuth);
 }
 
+// Service token auth for SwissClaw activities
+const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+const serviceAuth = (req, res, next) => {
+  const token = req.headers['x-service-token'];
+  if (token === SWISSCLAW_TOKEN) {
+    return next();
+  }
+  return res.status(401).json({ error: 'Invalid service token' });
+};
+
 // Input validation helpers
 const validateMessage = (data) => {
   if (!data || typeof data !== 'object') return false;
@@ -616,6 +626,28 @@ app.post('/api/activities', async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Activity error:', err);
+    res.status(500).json({ error: 'Failed to create activity' });
+  }
+});
+
+// Service-authenticated activities endpoint for SwissClaw
+app.post('/api/service/activities', serviceAuth, async (req, res) => {
+  try {
+    const { type, description, metadata } = req.body;
+    
+    if (!type || !description) {
+      return res.status(400).json({ error: 'Type and description required' });
+    }
+    
+    const result = await pool.query(
+      'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
+      [sanitizeString(type), sanitizeString(description), JSON.stringify(metadata || {})]
+    );
+    
+    io.emit('activity', result.rows[0]);
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Service activity error:', err);
     res.status(500).json({ error: 'Failed to create activity' });
   }
 });
