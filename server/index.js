@@ -1047,24 +1047,31 @@ app.post('/api/seed', async (req, res) => {
 
 // Serve React app for any non-API routes (must be last)
 if (process.env.NODE_ENV === 'production') {
+  // Manual migration endpoint with service token auth
+  app.get('/api/migrate', async (req, res) => {
+    // Check service token
+    const serviceToken = req.headers['x-service-token'];
+    if (serviceToken !== SWISSCLAW_TOKEN) {
+      return res.status(401).json({ error: 'Invalid service token' });
+    }
+    
+    try {
+      console.log('Manual migration triggered via API at', new Date().toISOString());
+      await migrateDb();
+      res.json({ success: true, message: 'Migration completed' });
+    } catch (err) {
+      console.error('Manual migration error:', err);
+      res.status(500).json({ error: 'Migration failed', details: err.message });
+    }
+  });
+
+  // Serve React app for any non-API routes
   app.get('*', (req, res) => {
     res.sendFile('client/build/index.html', { root: '.' });
   });
 }
 
 const PORT = process.env.PORT || 3001;
-
-// Manual migration endpoint (no auth required for manual triggering)
-app.get('/api/migrate', async (req, res) => {
-  try {
-    console.log('Manual migration triggered via API at', new Date().toISOString());
-    await migrateDb();
-    res.json({ success: true, message: 'Migration completed' });
-  } catch (err) {
-    console.error('Manual migration error:', err);
-    res.status(500).json({ error: 'Migration failed', details: err.message, stack: err.stack });
-  }
-});
 
 initDb().then(() => {
   httpServer.listen(PORT, () => {
