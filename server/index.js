@@ -23,7 +23,7 @@ const sessions = new Set();
 const requireAuth = (req, res, next) => {
   // Public endpoints that don't require auth
   // When mounted at /api, req.path is relative (e.g., /kanban not /api/kanban)
-  const publicApiPaths = ['/login', '/build', '/kanban', '/tasks', '/seed', '/migrate'];
+  const publicApiPaths = ['/login', '/build', '/kanban', '/tasks', '/seed'];
   const publicRootPaths = ['/health', '/login'];
 
   if (publicApiPaths.includes(req.path) || publicRootPaths.includes(req.path)) {
