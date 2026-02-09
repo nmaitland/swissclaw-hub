@@ -261,7 +261,6 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Service token auth for SwissClaw activities
-const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
 const serviceAuth = (req, res, next) => {
   const token = req.headers['x-service-token'];
   if (token === SWISSCLAW_TOKEN) {
@@ -306,13 +305,14 @@ async function initDb() {
       )
     `);
 
-    // Kanban tables
+    // Kanban tables - updated schema for 6-column kanban
     await pool.query(`
       CREATE TABLE IF NOT EXISTS kanban_columns (
         id SERIAL PRIMARY KEY,
         name VARCHAR(50) NOT NULL UNIQUE,
         display_name VARCHAR(100) NOT NULL,
         emoji VARCHAR(10) DEFAULT '',
+        color VARCHAR(20) DEFAULT '',
         position INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -321,23 +321,31 @@ async function initDb() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS kanban_tasks (
         id SERIAL PRIMARY KEY,
+        task_id VARCHAR(20) UNIQUE,
         column_id INTEGER REFERENCES kanban_columns(id) ON DELETE CASCADE,
         title VARCHAR(200) NOT NULL,
         description TEXT,
         priority VARCHAR(20) DEFAULT 'medium',
+        assigned_to VARCHAR(50),
+        tags JSONB DEFAULT '[]',
+        attachment_count INTEGER DEFAULT 0,
+        comment_count INTEGER DEFAULT 0,
         position INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
-    // Insert default columns if they don't exist
+    // Insert default columns if they don't exist (6 columns for new kanban)
     await pool.query(`
-      INSERT INTO kanban_columns (name, display_name, emoji, position)
+      INSERT INTO kanban_columns (name, display_name, emoji, color, position)
       VALUES
-        ('todo', 'To Do', '📋', 0),
-        ('inProgress', 'In Progress', '🚀', 1),
-        ('done', 'Done', '✅', 2)
+        ('backlog', 'Backlog', '📝', '#6b7280', 0),
+        ('todo', 'To Do', '📋', '#3b82f6', 1),
+        ('inProgress', 'In Progress', '🚀', '#f59e0b', 2),
+        ('review', 'Review', '👀', '#8b5cf6', 3),
+        ('done', 'Done', '✅', '#10b981', 4),
+        ('waiting-for-neil', 'Waiting for Neil', '⏸️', '#ef4444', 5)
       ON CONFLICT (name) DO NOTHING
     `);
     
@@ -396,7 +404,13 @@ app.get('/api/messages', async (req, res) => {
 const fs = require('fs');
 const path = require('path');
 
-// Kanban API - database backed
+// Generate task ID like TASK-001
+generateTaskId = () => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  return `TASK-${timestamp.slice(-3)}${Math.floor(Math.random() * 900 + 100)}`;
+};
+
+// Kanban API - database backed with new 6-column schema
 app.get('/api/kanban', async (req, res) => {
   try {
     // Get all columns with their tasks
@@ -404,27 +418,43 @@ app.get('/api/kanban', async (req, res) => {
       'SELECT * FROM kanban_columns ORDER BY position'
     );
     
-    const kanban = {
-      todo: [],
-      inProgress: [],
-      done: []
-    };
+    const kanban = {};
     
     for (const column of columnsResult.rows) {
       const tasksResult = await pool.query(
-        'SELECT * FROM kanban_tasks WHERE column_id = $1 ORDER BY position',
+        `SELECT id, task_id, title, description, priority, assigned_to, tags, 
+                attachment_count, comment_count, position, created_at, updated_at
+         FROM kanban_tasks 
+         WHERE column_id = $1 
+         ORDER BY position`,
         [column.id]
       );
       
       kanban[column.name] = tasksResult.rows.map(task => ({
         id: task.id,
+        taskId: task.task_id || `TASK-${task.id.toString().padStart(3, '0')}`,
         title: task.title,
         description: task.description || '',
-        priority: task.priority
+        priority: task.priority,
+        assignedTo: task.assigned_to,
+        tags: task.tags || [],
+        attachmentCount: task.attachment_count || 0,
+        commentCount: task.comment_count || 0,
+        createdAt: task.created_at,
+        updatedAt: task.updated_at
       }));
     }
     
-    res.json(kanban);
+    // Also include column metadata
+    const columns = columnsResult.rows.map(col => ({
+      name: col.name,
+      displayName: col.display_name,
+      emoji: col.emoji,
+      color: col.color,
+      position: col.position
+    }));
+    
+    res.json({ columns, tasks: kanban });
   } catch (err) {
     console.error('Kanban error:', err);
     res.status(500).json({ error: 'Failed to get kanban' });
@@ -434,7 +464,7 @@ app.get('/api/kanban', async (req, res) => {
 // Create new kanban task
 app.post('/api/kanban/tasks', async (req, res) => {
   try {
-    const { columnName, title, description, priority = 'medium' } = req.body;
+    const { columnName, title, description, priority = 'medium', assignedTo, tags = [] } = req.body;
     
     if (!columnName || !title) {
       return res.status(400).json({ error: 'Column name and title required' });
@@ -459,13 +489,29 @@ app.post('/api/kanban/tasks', async (req, res) => {
     );
     
     const position = (posResult.rows[0].max_pos || 0) + 1;
+    const taskId = generateTaskId();
     
     const result = await pool.query(
-      'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [columnId, sanitizeString(title), description ? sanitizeString(description) : null, priority, position]
+      `INSERT INTO kanban_tasks 
+       (task_id, column_id, title, description, priority, assigned_to, tags, position) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+       RETURNING *`,
+      [taskId, columnId, sanitizeString(title), description ? sanitizeString(description) : null, priority, assignedTo, JSON.stringify(tags), position]
     );
     
-    res.status(201).json(result.rows[0]);
+    const task = result.rows[0];
+    res.status(201).json({
+      id: task.id,
+      taskId: task.task_id,
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      assignedTo: task.assigned_to,
+      tags: task.tags || [],
+      position: task.position,
+      createdAt: task.created_at,
+      updatedAt: task.updated_at
+    });
   } catch (err) {
     console.error('Create task error:', err);
     res.status(500).json({ error: 'Failed to create task' });
@@ -476,7 +522,7 @@ app.post('/api/kanban/tasks', async (req, res) => {
 app.put('/api/kanban/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { columnName, title, description, priority, position } = req.body;
+    const { columnName, title, description, priority, assignedTo, tags, position } = req.body;
     
     let columnId = null;
     if (columnName) {
@@ -509,6 +555,14 @@ app.put('/api/kanban/tasks/:id', async (req, res) => {
       updates.push(`priority = $${paramCount++}`);
       values.push(priority);
     }
+    if (assignedTo !== undefined) {
+      updates.push(`assigned_to = $${paramCount++}`);
+      values.push(assignedTo);
+    }
+    if (tags !== undefined) {
+      updates.push(`tags = $${paramCount++}`);
+      values.push(JSON.stringify(tags));
+    }
     if (position !== undefined) {
       updates.push(`position = $${paramCount++}`);
       values.push(position);
@@ -526,7 +580,19 @@ app.put('/api/kanban/tasks/:id', async (req, res) => {
       return res.status(404).json({ error: 'Task not found' });
     }
     
-    res.json(result.rows[0]);
+    const task = result.rows[0];
+    res.json({
+      id: task.id,
+      taskId: task.task_id,
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      assignedTo: task.assigned_to,
+      tags: task.tags || [],
+      position: task.position,
+      createdAt: task.created_at,
+      updatedAt: task.updated_at
+    });
   } catch (err) {
     console.error('Update task error:', err);
     res.status(500).json({ error: 'Failed to update task' });
@@ -764,40 +830,66 @@ app.post('/api/seed', async (req, res) => {
     const columnMap = {};
     columns.rows.forEach(c => columnMap[c.name] = c.id);
 
-    // Seed To Do tasks
-    const todoTasks = [
-      { title: 'Zwift integration', description: 'Credentials now available in 1Password. Scope: pull ride stats, achievements, level progress', priority: 'medium' },
-      { title: 'CV match score calculator', description: 'Rate job postings 1-10 based on CV keyword overlap', priority: 'medium' },
-      { title: 'PDF Morning Report', description: 'Create PDF version of daily morning report, save to Google Drive with date-based filename', priority: 'low' }
+    // Seed Backlog tasks
+    const backlogTasks = [
+      { title: 'Zwift integration', description: 'Credentials now available in 1Password. Scope: pull ride stats, achievements, level progress', priority: 'medium', tags: ['integration', 'fitness'] },
+      { title: 'CV match score calculator', description: 'Rate job postings 1-10 based on CV keyword overlap', priority: 'medium', tags: ['ai', 'jobs'] },
+      { title: 'PDF Morning Report', description: 'Create PDF version of daily morning report, save to Google Drive', priority: 'low', tags: ['automation', 'reports'] }
     ];
 
-    for (let i = 0; i < todoTasks.length; i++) {
+    for (let i = 0; i < backlogTasks.length; i++) {
       await pool.query(
-        'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5)',
-        [columnMap['todo'], todoTasks[i].title, todoTasks[i].description, todoTasks[i].priority, i]
+        'INSERT INTO kanban_tasks (task_id, column_id, title, description, priority, tags, position) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [generateTaskId(), columnMap['backlog'], backlogTasks[i].title, backlogTasks[i].description, backlogTasks[i].priority, JSON.stringify(backlogTasks[i].tags), i]
       );
     }
 
+    // Seed To Do tasks
+    await pool.query(
+      'INSERT INTO kanban_tasks (task_id, column_id, title, description, priority, assigned_to, tags, position) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [generateTaskId(), columnMap['todo'], 'Job search automation', 'Automated job discovery and ranking', 'medium', 'swissclaw', JSON.stringify(['jobs', 'automation']), 0]
+    );
+
     // Seed In Progress tasks
     await pool.query(
-      'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5)',
-      [columnMap['inProgress'], 'Swissclaw Hub V3', 'Database-backed kanban + full API', 'high', 0]
+      'INSERT INTO kanban_tasks (task_id, column_id, title, description, priority, assigned_to, tags, position) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [generateTaskId(), columnMap['inProgress'], 'Swissclaw Hub Kanban Redesign', 'Replace dashboard sections with unified kanban board with drag-and-drop', 'high', 'swissclaw', JSON.stringify(['kanban', 'ui']), 0]
+    );
+
+    // Seed Review tasks
+    await pool.query(
+      'INSERT INTO kanban_tasks (task_id, column_id, title, description, priority, assigned_to, tags, position) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [generateTaskId(), columnMap['review'], 'Auth flow implementation', 'Login system with session tokens', 'high', 'swissclaw', JSON.stringify(['auth', 'security']), 0]
     );
 
     // Seed Done tasks
     const doneTasks = [
       { title: 'Add deepseek-v3.2 to model aliases', description: 'Added as 2nd priority fallback after k2.5', priority: 'medium' },
-      { title: 'Swissclaw Hub: Auth flow + caching fixes', description: 'Fixed login redirect loop, made kanban/tasks public, added cache-busting headers', priority: 'high' }
+      { title: 'Swissclaw Hub initial setup', description: 'Database backend, auth flow, real-time chat', priority: 'high' }
     ];
 
     for (let i = 0; i < doneTasks.length; i++) {
       await pool.query(
-        'INSERT INTO kanban_tasks (column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5)',
-        [columnMap['done'], doneTasks[i].title, doneTasks[i].description, doneTasks[i].priority, i]
+        'INSERT INTO kanban_tasks (task_id, column_id, title, description, priority, position) VALUES ($1, $2, $3, $4, $5, $6)',
+        [generateTaskId(), columnMap['done'], doneTasks[i].title, doneTasks[i].description, doneTasks[i].priority, i]
       );
     }
 
-    res.json({ message: 'Seeded successfully', todo: todoTasks.length, inProgress: 1, done: doneTasks.length });
+    // Seed Waiting for Neil tasks
+    await pool.query(
+      'INSERT INTO kanban_tasks (task_id, column_id, title, description, priority, assigned_to, tags, position) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [generateTaskId(), columnMap['waiting-for-neil'], 'Review GitHub repo permissions', 'Need access to configure webhooks and secrets', 'medium', 'neil', JSON.stringify(['review', 'infra']), 0]
+    );
+
+    res.json({ 
+      message: 'Seeded successfully', 
+      backlog: backlogTasks.length,
+      todo: 1, 
+      inProgress: 1, 
+      review: 1,
+      done: doneTasks.length,
+      waitingForNeil: 1
+    });
   } catch (err) {
     console.error('Seed error:', err);
     res.status(500).json({ error: 'Failed to seed' });
