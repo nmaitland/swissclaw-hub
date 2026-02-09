@@ -293,10 +293,12 @@ const generateTaskId = () => {
 
 // Database migration - add missing columns to existing tables
 async function migrateDb() {
+  console.log('=== Starting database migration ===');
   try {
     console.log('Running database migrations...');
     
     // Check if kanban_columns table exists
+    console.log('Checking if kanban_columns table exists...');
     const tableCheck = await pool.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -304,7 +306,10 @@ async function migrateDb() {
       )
     `);
     
+    console.log(`Table check result: exists=${tableCheck.rows[0].exists}`);
+    
     if (tableCheck.rows[0].exists) {
+      console.log('kanban_columns table exists, checking for missing columns...');
       // Check and add missing columns to kanban_columns
       const columnsToCheck = [
         { name: 'color', type: 'VARCHAR(20) DEFAULT \'\'' },
@@ -312,20 +317,29 @@ async function migrateDb() {
       ];
       
       for (const col of columnsToCheck) {
-        const colCheck = await pool.query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.columns 
-            WHERE table_name = 'kanban_columns' AND column_name = $1
-          )
-        `, [col.name]);
-        
-        if (!colCheck.rows[0].exists) {
-          console.log(`Adding column '${col.name}' to kanban_columns...`);
-          await pool.query(`ALTER TABLE kanban_columns ADD COLUMN ${col.name} ${col.type}`);
+        try {
+          const colCheck = await pool.query(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.columns 
+              WHERE table_name = 'kanban_columns' AND column_name = $1
+            )
+          `, [col.name]);
+          
+          if (!colCheck.rows[0].exists) {
+            console.log(`Adding column '${col.name}' to kanban_columns...`);
+            await pool.query(`ALTER TABLE kanban_columns ADD COLUMN ${col.name} ${col.type}`);
+            console.log(`Successfully added column '${col.name}'`);
+          } else {
+            console.log(`Column '${col.name}' already exists in kanban_columns`);
+          }
+        } catch (colErr) {
+          console.error(`Error adding column '${col.name}':`, colErr.message);
+          throw colErr;
         }
       }
       
       // Check and add missing columns to kanban_tasks
+      console.log('Checking kanban_tasks columns...');
       const taskColumnsToCheck = [
         { name: 'task_id', type: 'VARCHAR(20) UNIQUE' },
         { name: 'assigned_to', type: 'VARCHAR(50)' },
@@ -335,49 +349,87 @@ async function migrateDb() {
       ];
       
       for (const col of taskColumnsToCheck) {
-        const colCheck = await pool.query(`
-          SELECT EXISTS (
-            SELECT FROM information_schema.columns 
-            WHERE table_name = 'kanban_tasks' AND column_name = $1
-          )
-        `, [col.name]);
-        
-        if (!colCheck.rows[0].exists) {
-          console.log(`Adding column '${col.name}' to kanban_tasks...`);
-          await pool.query(`ALTER TABLE kanban_tasks ADD COLUMN ${col.name} ${col.type}`);
+        try {
+          const colCheck = await pool.query(`
+            SELECT EXISTS (
+              SELECT FROM information_schema.columns 
+              WHERE table_name = 'kanban_tasks' AND column_name = $1
+            )
+          `, [col.name]);
+          
+          if (!colCheck.rows[0].exists) {
+            console.log(`Adding column '${col.name}' to kanban_tasks...`);
+            await pool.query(`ALTER TABLE kanban_tasks ADD COLUMN ${col.name} ${col.type}`);
+            console.log(`Successfully added column '${col.name}'`);
+          } else {
+            console.log(`Column '${col.name}' already exists in kanban_tasks`);
+          }
+        } catch (colErr) {
+          console.error(`Error adding column '${col.name}' to kanban_tasks:`, colErr.message);
+          throw colErr;
         }
       }
       
       // Update existing columns with default values
-      await pool.query(`ALTER TABLE kanban_columns ALTER COLUMN display_name SET NOT NULL`);
-      await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN priority SET DEFAULT 'medium'`);
-      await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN position SET DEFAULT 0`);
+      console.log('Updating column constraints...');
+      try {
+        await pool.query(`ALTER TABLE kanban_columns ALTER COLUMN display_name SET NOT NULL`);
+        console.log('Set display_name NOT NULL');
+      } catch (e) {
+        console.log('display_name NOT NULL constraint already set or skipped:', e.message);
+      }
+      try {
+        await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN priority SET DEFAULT 'medium'`);
+        console.log('Set priority DEFAULT');
+      } catch (e) {
+        console.log('priority DEFAULT already set or skipped:', e.message);
+      }
+      try {
+        await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN position SET DEFAULT 0`);
+        console.log('Set position DEFAULT');
+      } catch (e) {
+        console.log('position DEFAULT already set or skipped:', e.message);
+      }
       
       // Migrate existing tasks to have task_id if missing
-      const tasksWithoutId = await pool.query(`
-        SELECT id FROM kanban_tasks WHERE task_id IS NULL
-      `);
-      
-      for (const task of tasksWithoutId.rows) {
-        const newTaskId = generateTaskId();
-        await pool.query(`
-          UPDATE kanban_tasks SET task_id = $1 WHERE id = $2
-        `, [newTaskId, task.id]);
+      try {
+        console.log('Checking for tasks without task_id...');
+        const tasksWithoutId = await pool.query(`
+          SELECT id FROM kanban_tasks WHERE task_id IS NULL
+        `);
+        
+        console.log(`Found ${tasksWithoutId.rows.length} tasks without task_id`);
+        
+        for (const task of tasksWithoutId.rows) {
+          const newTaskId = generateTaskId();
+          await pool.query(`
+            UPDATE kanban_tasks SET task_id = $1 WHERE id = $2
+          `, [newTaskId, task.id]);
+        }
+        
+        if (tasksWithoutId.rows.length > 0) {
+          console.log(`Migrated ${tasksWithoutId.rows.length} existing tasks with new task_id`);
+        }
+      } catch (migrateErr) {
+        console.error('Error migrating task_ids:', migrateErr.message);
+        throw migrateErr;
       }
-      
-      if (tasksWithoutId.rows.length > 0) {
-        console.log(`Migrated ${tasksWithoutId.rows.length} existing tasks with new task_id`);
-      }
+    } else {
+      console.log('kanban_columns table does not exist yet, skipping column migration');
     }
     
-    console.log('Database migrations completed');
+    console.log('=== Database migrations completed successfully ===');
   } catch (err) {
-    console.error('Database migration error:', err);
+    console.error('=== Database migration error:', err);
+    console.error('Migration failed with error:', err.message);
+    console.error('Stack:', err.stack);
+    throw err; // Re-throw so caller can handle
   }
 }
 
 // Initialize database tables
 async function initDb() {
+  console.log('=== initDb() starting ===');
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -447,7 +499,14 @@ async function initDb() {
     `);
     
     // Migrate existing tables to new schema
-    await migrateDb();
+    console.log('Calling migrateDb() from initDb()...');
+    try {
+      await migrateDb();
+      console.log('migrateDb() completed successfully');
+    } catch (migrateErr) {
+      console.error('migrateDb() failed:', migrateErr.message);
+      // Don't throw - allow server to start even if migration fails
+    }
     
     // Create index for performance
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC)`);
@@ -994,6 +1053,18 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const PORT = process.env.PORT || 3001;
+
+// Manual migration endpoint (no auth required for manual triggering)
+app.get('/api/migrate', async (req, res) => {
+  try {
+    console.log('Manual migration triggered via API at', new Date().toISOString());
+    await migrateDb();
+    res.json({ success: true, message: 'Migration completed' });
+  } catch (err) {
+    console.error('Manual migration error:', err);
+    res.status(500).json({ error: 'Migration failed', details: err.message, stack: err.stack });
+  }
+});
 
 initDb().then(() => {
   httpServer.listen(PORT, () => {
