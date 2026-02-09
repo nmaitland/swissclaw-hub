@@ -5,6 +5,8 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -283,6 +285,97 @@ const sanitizeString = (str) => {
   return str.replace(/[<>]/g, ''); // Basic XSS prevention
 };
 
+// Generate task ID like TASK-001
+const generateTaskId = () => {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  return `TASK-${timestamp.slice(-3)}${Math.floor(Math.random() * 900 + 100)}`;
+};
+
+// Database migration - add missing columns to existing tables
+async function migrateDb() {
+  try {
+    console.log('Running database migrations...');
+    
+    // Check if kanban_columns table exists
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'kanban_columns'
+      )
+    `);
+    
+    if (tableCheck.rows[0].exists) {
+      // Check and add missing columns to kanban_columns
+      const columnsToCheck = [
+        { name: 'color', type: 'VARCHAR(20) DEFAULT \'\'' },
+        { name: 'position', type: 'INTEGER DEFAULT 0' }
+      ];
+      
+      for (const col of columnsToCheck) {
+        const colCheck = await pool.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_name = 'kanban_columns' AND column_name = $1
+          )
+        `, [col.name]);
+        
+        if (!colCheck.rows[0].exists) {
+          console.log(`Adding column '${col.name}' to kanban_columns...`);
+          await pool.query(`ALTER TABLE kanban_columns ADD COLUMN ${col.name} ${col.type}`);
+        }
+      }
+      
+      // Check and add missing columns to kanban_tasks
+      const taskColumnsToCheck = [
+        { name: 'task_id', type: 'VARCHAR(20) UNIQUE' },
+        { name: 'assigned_to', type: 'VARCHAR(50)' },
+        { name: 'tags', type: 'JSONB DEFAULT \'[]\'' },
+        { name: 'attachment_count', type: 'INTEGER DEFAULT 0' },
+        { name: 'comment_count', type: 'INTEGER DEFAULT 0' }
+      ];
+      
+      for (const col of taskColumnsToCheck) {
+        const colCheck = await pool.query(`
+          SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_name = 'kanban_tasks' AND column_name = $1
+          )
+        `, [col.name]);
+        
+        if (!colCheck.rows[0].exists) {
+          console.log(`Adding column '${col.name}' to kanban_tasks...`);
+          await pool.query(`ALTER TABLE kanban_tasks ADD COLUMN ${col.name} ${col.type}`);
+        }
+      }
+      
+      // Update existing columns with default values
+      await pool.query(`ALTER TABLE kanban_columns ALTER COLUMN display_name SET NOT NULL`);
+      await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN priority SET DEFAULT 'medium'`);
+      await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN position SET DEFAULT 0`);
+      
+      // Migrate existing tasks to have task_id if missing
+      const tasksWithoutId = await pool.query(`
+        SELECT id FROM kanban_tasks WHERE task_id IS NULL
+      `);
+      
+      for (const task of tasksWithoutId.rows) {
+        const newTaskId = generateTaskId();
+        await pool.query(`
+          UPDATE kanban_tasks SET task_id = $1 WHERE id = $2
+        `, [newTaskId, task.id]);
+      }
+      
+      if (tasksWithoutId.rows.length > 0) {
+        console.log(`Migrated ${tasksWithoutId.rows.length} existing tasks with new task_id`);
+      }
+    }
+    
+    console.log('Database migrations completed');
+  } catch (err) {
+    console.error('Database migration error:', err);
+  }
+}
+
 // Initialize database tables
 async function initDb() {
   try {
@@ -346,8 +439,15 @@ async function initDb() {
         ('review', 'Review', '👀', '#8b5cf6', 3),
         ('done', 'Done', '✅', '#10b981', 4),
         ('waiting-for-neil', 'Waiting for Neil', '⏸️', '#ef4444', 5)
-      ON CONFLICT (name) DO NOTHING
+      ON CONFLICT (name) DO UPDATE SET
+        display_name = EXCLUDED.display_name,
+        emoji = EXCLUDED.emoji,
+        color = EXCLUDED.color,
+        position = EXCLUDED.position
     `);
+    
+    // Migrate existing tables to new schema
+    await migrateDb();
     
     // Create index for performance
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC)`);
@@ -399,16 +499,6 @@ app.get('/api/messages', async (req, res) => {
     res.status(500).json({ error: 'Failed to get messages' });
   }
 });
-
-// Kanban API - reads from kanban.md file
-const fs = require('fs');
-const path = require('path');
-
-// Generate task ID like TASK-001
-generateTaskId = () => {
-  const timestamp = Date.now().toString(36).toUpperCase();
-  return `TASK-${timestamp.slice(-3)}${Math.floor(Math.random() * 900 + 100)}`;
-};
 
 // Kanban API - database backed with new 6-column schema
 app.get('/api/kanban', async (req, res) => {
