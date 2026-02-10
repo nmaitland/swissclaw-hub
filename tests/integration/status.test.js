@@ -1,27 +1,26 @@
 const request = require('supertest');
 const express = require('express');
-const { testPool, setupTestDb, seedTestData } = require('../setup');
+const { setupTestDb, teardownTestDb, seedTestData, db } = require('./setup');
 
 // Import the server app (we'll need to modify this to be exportable)
 const app = express();
 
-// Mock the server routes for testing
+// Mock server routes for testing
 app.get('/api/status', async (req, res) => {
   try {
-    const result = await testPool.query('SELECT * FROM status LIMIT 1');
-    const status = result.rows[0] || {};
+    const messages = await db.Message.findAll({
+      order: [['created_at', 'DESC']],
+      limit: 5
+    });
     
-    const messagesResult = await testPool.query(
-      'SELECT * FROM messages ORDER BY created_at DESC LIMIT 10'
-    );
-    const activitiesResult = await testPool.query(
-      'SELECT * FROM activities ORDER BY created_at DESC LIMIT 10'
-    );
+    const activities = await db.Activity.findAll({
+      order: [['created_at', 'DESC']],
+      limit: 5
+    });
     
     res.json({
-      ...status,
-      recentMessages: messagesResult.rows,
-      recentActivities: activitiesResult.rows,
+      recentMessages: messages,
+      recentActivities: activities
     });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
@@ -35,7 +34,7 @@ describe('Status API', () => {
   });
 
   afterAll(async () => {
-    await testPool.end();
+    await teardownTestDb();
   });
 
   beforeEach(async () => {
@@ -71,8 +70,8 @@ describe('Status API', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      // Close the connection to simulate an error
-      await testPool.end();
+      // Force a database error by closing the connection
+      await db.sequelize.close();
       
       const response = await request(app)
         .get('/api/status')
