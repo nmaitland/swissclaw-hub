@@ -1,0 +1,121 @@
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt?: string;
+  lastLogin?: string;
+}
+
+export interface Status {
+  id: string;
+  status: string;
+  current_task?: string;
+  last_updated: string;
+}
+
+export interface KanbanTask {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  priority: 'low' | 'medium' | 'high';
+  assigned_to?: string;
+  column: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting-for-neil';
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+}
+
+export interface Message {
+  id: string;
+  sender_id?: string;
+  content: string;
+  attachments: any[];
+  thread_id?: string;
+  created_at: string;
+  read_at?: string;
+  sender?: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface Activity {
+  id: string;
+  type: string;
+  description: string;
+  metadata: Record<string, any>;
+  user_id?: string;
+  created_at: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface LoginResponse {
+  message: string;
+  token: string;
+  user: User;
+}
+
+export interface CreateTaskRequest {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  assigned_to?: string;
+  column?: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting-for-neil';
+  tags?: string[];
+}
+
+export interface UpdateTaskRequest {
+  title?: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  assigned_to?: string;
+  column?: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting-for-neil';
+  tags?: string[];
+}
+
+export interface HealthCheck {
+  status: 'healthy' | 'unhealthy';
+  timestamp: string;
+  uptime?: number;
+  memory?: {
+    used: number;
+    total: number;
+  };
+  database?: {
+    status: string;
+    timestamp: string;
+    version?: string;
+    error?: string;
+  };
+  version?: string;
+  error?: string;
+}
+
+export interface SocketUser {
+  userId: string;
+  email: string;
+  name: string;
+  role: string;
+  sessionId: string;
+}
+
+export interface SocketMessage {
+  content: string;
+}
+
+export interface BroadcastMessage {
+  id: string;
+  content: string;
+  sender: {
+    id: string;
+    name: string;
+  };
+  created_at: Date;
+}

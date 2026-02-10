@@ -4,26 +4,45 @@
   "description": "Shared dashboard for Neil and SwissClaw",
   "main": "server/index.js",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "nodemon server/index.js",
+    "dev": "concurrently \"npm run server:dev\" \"npm run client\"",
+    "server": "node dist/server/index.js",
+    "server:dev": "nodemon --exec ts-node server/index.ts",
+    "server:build": "tsc -p tsconfig.json",
     "client": "cd client && npm start",
-    "build": "cd client && npm run build",
-    "start": "node server/index.js",
-    "install-all": "npm install && cd client && npm install"
+    "build": "npm run server:build && cd client && npm run build",
+    "start": "npm run server",
+    "install-all": "npm install && cd client && npm install",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=tests/api",
+    "test:client": "cd client && npm test",
+    "lint": "eslint server",
+    "lint:fix": "eslint server --ext .ts,.js --fix && eslint client/src --ext .ts,.tsx,.js,.jsx --fix",
+    "format": "prettier --write \"server/**/*.{ts,js,json}\" \"client/src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "socket.io": "^4.7.2",
-    "pg": "^8.11.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "uuid": "^9.0.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
-    "express-rate-limit": "^7.1.5"
+    "pg": "^8.11.3",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/pg": "^8.16.0",
+    "@types/uuid": "^9.0.7",
+    "concurrently": "^8.2.0",
+    "eslint": "^10.0.0",
     "nodemon": "^3.0.1",
-    "concurrently": "^8.2.0"
+    "ts-node": "^10.9.2"
   },
   "engines": {
     "node": ">=18.0.0"
