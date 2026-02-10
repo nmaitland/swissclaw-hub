@@ -15,6 +15,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:coverage:combined": "npm run test:unit -- --coverage && npm run test:integration -- --coverage --collectCoverageFrom='!tests/unit/**'",
     "test:unit": "jest --testPathIgnorePatterns=tests/integration",
     "test:integration": "jest --testPathPatterns=tests/integration --runInBand",
     "test:client": "cd client && npm test",
