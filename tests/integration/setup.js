@@ -65,12 +65,28 @@ const setupTestDb = async () => {
 const teardownTestDb = async () => {
   try {
     // Close database connection
-    await sequelize.close();
+    if (sequelize && !sequelize.connectionManager.isClosed) {
+      await sequelize.close();
+    }
     console.log('Test database teardown completed');
   } catch (error) {
     console.error('Error tearing down test database:', error.message);
   }
 };
+
+// Global cleanup to ensure Jest exits cleanly
+process.on('exit', () => {
+  if (sequelize && !sequelize.connectionManager.isClosed) {
+    sequelize.close();
+  }
+});
+
+process.on('SIGINT', () => {
+  if (sequelize && !sequelize.connectionManager.isClosed) {
+    sequelize.close();
+  }
+  process.exit(0);
+});
 
 // Seed test data
 const seedTestData = async () => {
