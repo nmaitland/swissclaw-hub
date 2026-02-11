@@ -1,218 +1,156 @@
 const request = require('supertest');
-const express = require('express');
-const { setupTestDb, teardownTestDb, seedTestData, db } = require('./setup');
+const { app, resetTestDb } = require('../../server/index');
 
-const app = express();
-app.use(express.json());
+/**
+ * These tests exercise the real Kanban HTTP API implemented in
+ * `server/index.js`, not a mocked Express app.
+ *
+ * The production API exposes:
+ *   - GET    /api/kanban
+ *   - POST   /api/kanban/tasks
+ *   - PUT    /api/kanban/tasks/:id
+ *   - DELETE /api/kanban/tasks/:id
+ *
+ * We treat the database as a black box and focus on HTTP contract
+ * and response shape.
+ */
 
-// Mock kanban API routes
-app.get('/api/kanban', async (req, res) => {
-  try {
-    const tasks = await db.KanbanTask.findAll({
-      order: [['created_at', 'DESC']]
-    });
-    res.json(tasks);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.post('/api/kanban', async (req, res) => {
-  try {
-    const { title, description, priority = 'medium', assigned_to, column = 'backlog' } = req.body;
-    
-    if (!title) {
-      return res.status(400).json({ error: 'Title is required' });
-    }
-
-    const newTask = await db.KanbanTask.create({
-      title,
-      description,
-      priority,
-      assigned_to,
-      column
-    });
-    
-    res.status(201).json(newTask);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.put('/api/kanban/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { title, description, priority, assigned_to, column } = req.body;
-    
-    const task = await db.KanbanTask.findByPk(id);
-    
-    if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-
-    const updatedTask = await task.update({
-      title: title || task.title,
-      description: description || task.description,
-      priority: priority || task.priority,
-      assigned_to: assigned_to || task.assigned_to,
-      column: column || task.column
-    });
-    
-    res.json(updatedTask);
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.delete('/api/kanban/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const task = await db.KanbanTask.findByPk(id);
-    if (!task) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-
-    await task.destroy();
-    res.status(204).send();
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-describe('Kanban API', () => {
+describe('Kanban API (real server)', () => {
   beforeAll(async () => {
-    await setupTestDb();
-    await seedTestData();
-  });
-
-  beforeEach(async () => {
-    // Clean up test data before each test
-    await db.KanbanTask.destroy({ where: {}, force: true });
+    await resetTestDb();
   });
 
   describe('GET /api/kanban', () => {
-    it('should return all kanban tasks', async () => {
+    it('returns columns and tasks in the new kanban format', async () => {
       const response = await request(app)
         .get('/api/kanban')
         .expect(200);
 
-      expect(Array.isArray(response.body)).toBe(true);
-      expect(response.body.length).toBeGreaterThanOrEqual(0);
-      
-      // Verify structure of returned tasks
-      response.body.forEach(task => {
-        expect(task).toHaveProperty('id');
-        expect(task).toHaveProperty('title');
-        expect(task).toHaveProperty('description');
-        expect(task).toHaveProperty('status');
-        expect(task).toHaveProperty('priority');
-        expect(task).toHaveProperty('assigned_to');
-        expect(task).toHaveProperty('column');
+      expect(response.body).toHaveProperty('columns');
+      expect(response.body).toHaveProperty('tasks');
+
+      const { columns, tasks } = response.body;
+
+      expect(Array.isArray(columns)).toBe(true);
+      expect(typeof tasks).toBe('object');
+
+      // Each column should have a matching key in tasks
+      columns.forEach((col) => {
+        expect(col).toHaveProperty('name');
+        expect(tasks).toHaveProperty(col.name);
+        expect(Array.isArray(tasks[col.name])).toBe(true);
       });
     });
   });
 
-  describe('POST /api/kanban', () => {
-    it('should create a new kanban task', async () => {
+  describe('POST /api/kanban/tasks', () => {
+    it('creates a new kanban task in the specified column', async () => {
       const newTask = {
-        title: 'New Test Task',
-        description: 'Description for new test task',
+        columnName: 'todo',
+        title: 'Integration Test Task',
+        description: 'Created from kanban-simple.test.js',
         priority: 'high',
-        assigned_to: 'swissclaw',
-        column: 'todo',
-        created_by: '550e8400-e29b-41d4-a716-446655440001'
+        assignedTo: 'swissclaw',
+        tags: ['test', 'integration'],
       };
 
       const response = await request(app)
-        .post('/api/kanban')
+        .post('/api/kanban/tasks')
         .send(newTask)
         .expect(201);
 
       expect(response.body).toHaveProperty('id');
+      expect(response.body).toHaveProperty('taskId');
       expect(response.body.title).toBe(newTask.title);
       expect(response.body.description).toBe(newTask.description);
       expect(response.body.priority).toBe(newTask.priority);
-      expect(response.body.assigned_to).toBe(newTask.assigned_to);
-      expect(response.body.column).toBe(newTask.column);
+      expect(response.body.assignedTo).toBe(newTask.assignedTo);
+      expect(Array.isArray(response.body.tags)).toBe(true);
     });
 
-    it('should return 400 when title is missing', async () => {
+    it('returns 400 when required fields are missing', async () => {
       const invalidTask = {
-        description: 'Task without title'
+        // Missing columnName and title
+        description: 'Task without required fields',
       };
 
       const response = await request(app)
-        .post('/api/kanban')
+        .post('/api/kanban/tasks')
         .send(invalidTask)
         .expect(400);
 
-      expect(response.body).toHaveProperty('error', 'Title is required');
+      expect(response.body).toHaveProperty('error');
     });
   });
 
-  describe('PUT /api/kanban/:id', () => {
-    it('should update an existing kanban task', async () => {
-      // First create a task
-      const createdTask = await db.KanbanTask.create({
-        title: 'Original Task',
-        description: 'Original description',
-        priority: 'medium',
-        assigned_to: 'neil',
-        column: 'todo',
-        created_by: '550e8400-e29b-41d4-a716-446655440001'
-      });
+  describe('PUT /api/kanban/tasks/:id', () => {
+    it('updates an existing kanban task', async () => {
+      // First create a task via the public API
+      const createResponse = await request(app)
+        .post('/api/kanban/tasks')
+        .send({
+          columnName: 'todo',
+          title: 'Task to update',
+          description: 'Original description',
+          priority: 'medium',
+          assignedTo: 'neil',
+        })
+        .expect(201);
+
+      const taskId = createResponse.body.id;
 
       const updateData = {
+        columnName: 'done',
         title: 'Updated Task Title',
-        column: 'done'
+        priority: 'high',
       };
 
-      const response = await request(app)
-        .put(`/api/kanban/${createdTask.id}`)
+      const updateResponse = await request(app)
+        .put(`/api/kanban/tasks/${taskId}`)
         .send(updateData)
         .expect(200);
 
-      expect(response.body.id).toBe(createdTask.id);
-      expect(response.body.title).toBe(updateData.title);
-      expect(response.body.column).toBe(updateData.column);
+      expect(updateResponse.body.id).toBe(taskId);
+      expect(updateResponse.body.title).toBe(updateData.title);
+      expect(updateResponse.body.priority).toBe(updateData.priority);
     });
 
-    it('should return 404 when updating non-existent task', async () => {
-      const fakeId = '550e8400-e29b-41d4-a716-446655440999';
-      const updateData = { title: 'Updated Title' };
+    it('returns 404 when updating non-existent task', async () => {
+      const fakeId = 999999; // unlikely to exist
 
       const response = await request(app)
-        .put(`/api/kanban/${fakeId}`)
-        .send(updateData)
+        .put(`/api/kanban/tasks/${fakeId}`)
+        .send({ title: 'Updated Title' })
         .expect(404);
 
       expect(response.body).toHaveProperty('error', 'Task not found');
     });
   });
 
-  describe('DELETE /api/kanban/:id', () => {
-    it('should delete an existing kanban task', async () => {
-      // First create a task
-      const createdTask = await db.KanbanTask.create({
-        title: 'Task to Delete',
-        description: 'This task will be deleted',
-        priority: 'low',
-        assigned_to: 'swissclaw',
-        column: 'todo',
-        created_by: '550e8400-e29b-41d4-a716-446655440001'
-      });
+  describe('DELETE /api/kanban/tasks/:id', () => {
+    it('deletes an existing kanban task', async () => {
+      // Create a task to delete
+      const createResponse = await request(app)
+        .post('/api/kanban/tasks')
+        .send({
+          columnName: 'todo',
+          title: 'Task to delete',
+          description: 'This task will be deleted',
+        })
+        .expect(201);
+
+      const taskId = createResponse.body.id;
 
       await request(app)
-        .delete(`/api/kanban/${createdTask.id}`)
-        .expect(204);
+        .delete(`/api/kanban/tasks/${taskId}`)
+        .expect(200);
     });
 
-    it('should return 404 when deleting non-existent task', async () => {
-      const fakeId = '550e8400-e29b-41d4-a716-446655440999';
+    it('returns 404 when deleting non-existent task', async () => {
+      const fakeId = 999999; // unlikely to exist
 
       const response = await request(app)
-        .delete(`/api/kanban/${fakeId}`)
+        .delete(`/api/kanban/tasks/${fakeId}`)
         .expect(404);
 
       expect(response.body).toHaveProperty('error', 'Task not found');

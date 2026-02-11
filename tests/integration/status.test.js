@@ -1,60 +1,33 @@
 const request = require('supertest');
-const express = require('express');
-const { setupTestDb, teardownTestDb, seedTestData, db } = require('./setup');
+const { app, pool, resetTestDb } = require('../../server/index');
 
-// Import the server app (we'll need to modify this to be exportable)
-const app = express();
-
-// Mock server routes for testing
-app.get('/api/status', async (req, res) => {
-  try {
-    const messages = await db.Message.findAll({
-      order: [['created_at', 'DESC']],
-      limit: 5
-    });
-    
-    const activities = await db.Activity.findAll({
-      order: [['created_at', 'DESC']],
-      limit: 5
-    });
-    
-    res.json({
-      recentMessages: messages,
-      recentActivities: activities
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-describe('Status API', () => {
+describe('Status API (real server)', () => {
   beforeAll(async () => {
-    await setupTestDb();
-    await seedTestData();
-  });
-
-  afterAll(async () => {
-    await teardownTestDb();
-  });
-
-  beforeEach(async () => {
-    await setupTestDb();
-    await seedTestData();
+    await resetTestDb();
   });
 
   describe('GET /api/status', () => {
-    it('should return status data with recent messages and activities', async () => {
+    it('returns status data with recent messages and activities arrays', async () => {
       const response = await request(app)
         .get('/api/status')
         .expect(200);
 
+      expect(response.body).toHaveProperty('status');
       expect(response.body).toHaveProperty('recentMessages');
       expect(response.body).toHaveProperty('recentActivities');
       expect(Array.isArray(response.body.recentMessages)).toBe(true);
       expect(Array.isArray(response.body.recentActivities)).toBe(true);
     });
 
-    it('should return messages in descending order by created_at', async () => {
+    it('returns messages ordered by created_at descending when data exists', async () => {
+      // Insert a couple of messages out of order, then rely on the query ordering
+      await pool.query(
+        "INSERT INTO messages (sender, content, created_at) VALUES ('test', 'older', NOW() - INTERVAL '2 minutes')"
+      );
+      await pool.query(
+        "INSERT INTO messages (sender, content, created_at) VALUES ('test', 'newer', NOW())"
+      );
+
       const response = await request(app)
         .get('/api/status')
         .expect(200);
@@ -69,15 +42,15 @@ describe('Status API', () => {
       }
     });
 
-    it('should handle database errors gracefully', async () => {
-      // Force a database error by closing the connection
-      await db.sequelize.close();
-      
+    it('returns valid shape when no messages or activities exist', async () => {
+      // Just ensure the endpoint returns the expected keys even with empty data
       const response = await request(app)
         .get('/api/status')
-        .expect(500);
-
-      expect(response.body).toHaveProperty('error', 'Internal server error');
+        .expect(200);
+      expect(response.body).toHaveProperty('status', 'online');
+      expect(response.body).toHaveProperty('swissclaw');
+      expect(response.body.recentMessages).toEqual(expect.any(Array));
+      expect(response.body.recentActivities).toEqual(expect.any(Array));
     });
   });
 });

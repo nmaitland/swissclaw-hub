@@ -30,12 +30,10 @@
 
     "test:watch": "jest --watch",
 
-    "test:coverage": "jest --coverage",
-    "test:coverage:combined": "npm run test:unit -- --coverage && npm run test:integration -- --coverage --collectCoverageFrom='!tests/unit/**' --forceExit",
-    "test:unit": "jest --testPathIgnorePatterns=tests/integration --forceExit",
-
+    "test:coverage": "jest --coverage --runInBand --forceExit",
+    "test:with-db": "cross-env NODE_ENV=test TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_NAME=swissclaw_hub_test TEST_DB_USER=postgres TEST_DB_PASSWORD=password jest --runInBand --forceExit",
+    "test:unit": "jest --testPathIgnorePatterns=tests/integration --coverage=false --forceExit",
     "test:integration": "jest --testPathPatterns=tests/integration --runInBand --forceExit",
-
     "test:client": "cd client && npm test",
 
     "db:migrate": "npx sequelize-cli db:migrate",
