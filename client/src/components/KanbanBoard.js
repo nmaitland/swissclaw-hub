@@ -30,7 +30,7 @@ const formatDate = (dateStr) => {
 };
 
 function KanbanBoard() {
-  const [columns, setColumns] = useState([]);
+  const [, setColumns] = useState([]);
   const [tasks, setTasks] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
