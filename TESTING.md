@@ -2,191 +2,122 @@
 
 ## Overview
 
-This project uses Jest for testing with a clear separation between unit tests and integration tests. Database management is handled by Sequelize ORM with PostgreSQL.
+Backend tests use Jest and run against the **real Express app** in `server/index.js` and a **PostgreSQL** database. The server uses `pg` (not Sequelize) at runtime; tests call `resetTestDb()` so the DB has the server’s schema (messages, activities, kanban_columns, kanban_tasks).
 
 ## Test Structure
 
 ```
 tests/
-├── api/                    # Unit tests with mocked dependencies
-│   └── kanban-mock.test.js
-└── integration/           # Integration tests (require database)
-    ├── kanban-simple.test.js
-    ├── status.test.js
-    └── setup.js
+├── api/
+│   └── kanban-mock.test.js    # Contract test (real server, needs DB)
+├── integration/
+│   ├── kanban-simple.test.js
+│   ├── kanban.test.js
+│   ├── status.test.js
+│   └── setup.js               # Legacy Sequelize setup (unused by current tests)
+└── zzz-teardown.test.js       # Runs last; closes pg pool and Socket.io
 ```
 
 ## Database Setup
 
-### Using Docker (Recommended for Integration Tests)
+### Local: Docker (recommended)
 
-1. **Start test database**:
-```bash
-docker-compose -f docker-compose.test.yml up -d test-db
-```
+1. Start test database (Postgres 15 on port 5433):
 
-2. **Setup test database schema**:
-```bash
-npm run db:setup:test
-```
+   ```bash
+   docker-compose -f docker-compose.test.yml up -d test-db
+   ```
 
-3. **Run integration tests**:
-```bash
-npm run test:integration
-```
+2. Run all backend tests (schema is applied via `resetTestDb()`):
 
-4. **Stop test database**:
-```bash
-docker-compose -f docker-compose.test.yml down
-```
+   ```bash
+   npm run test:with-db
+   ```
 
-### Database Scripts
+   With coverage: `npm run test:with-db -- --coverage`
 
-- `npm run db:migrate` - Run migrations
-- `npm run db:migrate:undo` - Undo last migration
-- `npm run db:seed` - Run all seeders
-- `npm run db:seed:undo` - Undo all seeders
-- `npm run db:setup:test` - Setup test database (migrate + seed)
-- `npm run db:reset:test` - Reset test database (undo all + migrate + seed)
+3. Stop test database:
+
+   ```bash
+   docker-compose -f docker-compose.test.yml down
+   ```
+
+### CI (GitHub Actions)
+
+The workflow starts a Postgres service and sets `NODE_ENV=test` and `TEST_DB_*`. A single step runs `npm test` with coverage; no Sequelize migrations are run—the server’s `initDb()` creates the schema.
+
+### Env vars for backend tests
+
+- `NODE_ENV=test` so the server uses test DB when `DATABASE_URL` is unset.
+- Either set `DATABASE_URL` or:
+  - `TEST_DB_HOST` (default localhost)
+  - `TEST_DB_PORT` (default 5433)
+  - `TEST_DB_NAME` (default swissclaw_hub_test)
+  - `TEST_DB_USER` / `TEST_DB_PASSWORD`
 
 ## Running Tests
 
-### Unit Tests (Recommended for CI/CD)
-```bash
-npm run test:unit
-```
-- Fast execution
-- No database required
-- Uses mocked dependencies
-- Currently: 7 passing tests
+### All backend tests (requires Postgres)
 
-### Integration Tests
-```bash
-npm run test:integration
-```
-- Requires PostgreSQL database
-- Tests real database interactions
-- Uses Sequelize models
-- Requires Docker database setup
-
-### All Tests
 ```bash
 npm test
 ```
-- Runs unit tests only (integration tests excluded by config)
 
-### Watch Mode
-```bash
-npm run test:watch
-```
+Set the env vars above (e.g. `npm run test:with-db` which sets them for local Docker).
 
-### Coverage Report
+### With coverage
+
 ```bash
 npm run test:coverage
 ```
 
-## Unit Testing Strategy
+Or `npm test -- --coverage` (requires env vars if no `.env`).
 
-Unit tests use mocked Express apps and database connections to test API logic without external dependencies. Example:
+### Unit vs integration
 
-```javascript
-const request = require('supertest');
-const express = require('express');
+- `npm run test:unit` – only `tests/api` (still hits real server, so DB required).
+- `npm run test:integration` – only `tests/integration`.
 
-const app = express();
-app.use(express.json());
+Both need a running Postgres and the env vars above.
 
-// Mock API routes
-app.get('/api/kanban', async (req, res) => {
-  // Mock implementation
-});
+### Watch mode
+
+```bash
+npm run test:watch
 ```
 
-## Integration Testing Strategy
+### Why `--forceExit`?
 
-Integration tests use real Sequelize models and database connections. The setup file (`tests/integration/setup.js`) provides:
+Backend tests require the real server (`server/index.js`), which creates a **pg Pool** and **Socket.io** server. A dedicated teardown suite (`tests/zzz-teardown.test.js`) runs last and closes the pool and Socket.io so DB connections and WebSocket server are released. The Node process can still be kept alive by other handles (e.g. timers inside `pg` or `express-rate-limit`), so the npm scripts and CI use **`--forceExit`** so Jest exits after tests. The teardown is still valuable: it closes the pool and io explicitly so connections do not linger.
 
-- Database connection management
-- Table creation/migration
-- Test data seeding
-- Cleanup functions
+### Client (React) tests
 
-Example integration test structure:
-
-```javascript
-const { setupTestDb, teardownTestDb, seedTestData, db } = require('./setup');
-
-describe('Kanban API Integration', () => {
-  beforeAll(async () => {
-    await setupTestDb();
-    await seedTestData();
-  });
-
-  afterAll(async () => {
-    await teardownTestDb();
-  });
-
-  // Tests using real database
-});
+```bash
+npm run test:client
 ```
 
-## Sequelize Models
+## Backend test strategy
 
-The project uses the following models:
+All backend tests use the real `server/index.js` app and a real Postgres database:
 
-- **User** - User accounts and authentication
-- **KanbanTask** - Kanban board tasks
-- **Message** - Chat messages
-- **Activity** - Activity logs
-- **SecurityLog** - Security event logging
+1. `beforeAll` calls `resetTestDb()` (drops server tables and runs `initDb()`).
+2. Tests use `supertest` against the exported `app`.
+3. No mocks for the server or DB; coverage includes real API and DB code.
 
-## Writing New Tests
+## Writing new tests
 
-### Unit Tests
-- Place in `tests/api/` directory
-- Use mocked dependencies
-- Test business logic, not external services
-- Follow naming pattern: `*.test.js`
-
-### Integration Tests
-- Place in `tests/integration/` directory
-- Use real database connections via Sequelize
-- Test complete API workflows
-- Import setup utilities from `tests/integration/setup.js`
-
-## Current Status
-
-✅ **Completed**:
-- Jest configuration with proper setup
-- Unit tests with mocked database
-- Separation of unit and integration tests
-- Sequelize ORM integration
-- Database migrations and seeders
-- Docker test environment
-- Test scripts in package.json
-
-🔄 **In Progress**:
-- Integration test execution with Docker
-
-⏳ **Pending**:
-- Client-side React component tests
+- **Contract/API tests**: `tests/api/*.test.js` – quick checks that routes respond with expected shape.
+- **Integration tests**: `tests/integration/*.test.js` – full flows (create task, then GET, etc.).
+- Use `const { app, resetTestDb, pool } = require('../../server/index');` and `beforeAll(() => resetTestDb());` (path is `../../server/index` from both `tests/api` and `tests/integration`).
 
 ## Troubleshooting
 
-### Database Connection Errors
-Integration tests will fail without a test database. Start the Docker container first:
-```bash
-docker-compose -f docker-compose.test.yml up -d test-db
-```
+### Database connection errors
 
-### Migration Issues
-Reset the test database:
-```bash
-npm run db:reset:test
-```
+Start Postgres first (e.g. Docker), then run `npm run test:with-db` or set `NODE_ENV=test` and `TEST_DB_*` and run `npm test`.
 
-### TextEncoder/TextDecoder Issues
-These are automatically polyfilled in the Jest configuration.
+### Wrong schema (e.g. "column sender does not exist")
+The server expects tables created by its `initDb()` (e.g. `messages.sender`). `resetTestDb()` drops and recreates those tables. If you see schema errors, ensure tests call `resetTestDb()` in `beforeAll` and that no other process is using Sequelize migrations on the same DB for these tests.
 
-### ESLint Errors
-Some test files may have unused variables - these are intentional for test structure.
+### TextEncoder/TextDecoder
+Jest config provides these via Node’s `util`.

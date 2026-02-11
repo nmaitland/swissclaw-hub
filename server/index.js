@@ -155,8 +155,21 @@ const io = new Server(httpServer, {
 });
 
 // Database setup with connection limits
+// In test env, support TEST_DB_* vars so CI can set them without DATABASE_URL
+function getConnectionString() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  if (process.env.NODE_ENV === 'test') {
+    const user = process.env.TEST_DB_USER || 'postgres';
+    const password = process.env.TEST_DB_PASSWORD || 'password';
+    const host = process.env.TEST_DB_HOST || 'localhost';
+    const port = process.env.TEST_DB_PORT || '5433';
+    const database = process.env.TEST_DB_NAME || 'swissclaw_hub_test';
+    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
+  }
+  return undefined;
+}
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: getConnectionString(),
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 10, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000,
@@ -1073,19 +1086,43 @@ if (process.env.NODE_ENV === 'production') {
 
 const PORT = process.env.PORT || 3001;
 
-initDb().then(() => {
-  httpServer.listen(PORT, () => {
-    console.log(`Swissclaw Hub server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+// Only start the HTTP server when this file is executed directly.
+// When required from tests, we just reuse the Express app and pool
+// without opening a real network port.
+if (require.main === module) {
+  initDb().then(() => {
+    httpServer.listen(PORT, () => {
+      console.log(`Swissclaw Hub server running on port ${PORT}`);
+      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
   });
-});
 
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing connections...');
-  await pool.end();
-  httpServer.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, closing connections...');
+    await pool.end();
+    httpServer.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
   });
-});
+}
+
+// For integration tests: ensure DB has server schema (drops conflicting tables from init.sql/Sequelize)
+async function resetTestDb() {
+  await pool.query('DROP TABLE IF EXISTS kanban_tasks CASCADE');
+  await pool.query('DROP TABLE IF EXISTS kanban_columns CASCADE');
+  await pool.query('DROP TABLE IF EXISTS messages CASCADE');
+  await pool.query('DROP TABLE IF EXISTS activities CASCADE');
+  await initDb();
+}
+
+// Export pieces needed for integration tests (io needed for teardown so Jest can exit)
+module.exports = {
+  app,
+  httpServer,
+  io,
+  pool,
+  initDb,
+  resetTestDb,
+};
