@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const logger = require('../lib/logger');
 
 // Generate secure random tokens
 const generateToken = () => {
@@ -23,7 +24,7 @@ class SessionStore {
       );
       return token;
     } catch (error) {
-      console.error('Error creating session:', error);
+      logger.error({ err: error }, 'Error creating session');
       throw error;
     }
   }
@@ -58,7 +59,7 @@ class SessionStore {
         sessionId: session.id,
       };
     } catch (error) {
-      console.error('Error validating session:', error);
+      logger.error({ err: error }, 'Error validating session');
       return null;
     }
   }
@@ -71,7 +72,7 @@ class SessionStore {
       );
       return true;
     } catch (error) {
-      console.error('Error revoking session:', error);
+      logger.error({ err: error }, 'Error revoking session');
       return false;
     }
   }
@@ -84,7 +85,7 @@ class SessionStore {
       );
       return true;
     } catch (error) {
-      console.error('Error revoking all user sessions:', error);
+      logger.error({ err: error }, 'Error revoking all user sessions');
       return false;
     }
   }
@@ -94,10 +95,10 @@ class SessionStore {
       const result = await this.pool.query(
         'DELETE FROM sessions WHERE expires_at < NOW() OR revoked_at IS NOT NULL'
       );
-      console.log(`Cleaned up ${result.rowCount} expired sessions`);
+      logger.info({ count: result.rowCount }, 'Cleaned up expired sessions');
       return result.rowCount;
     } catch (error) {
-      console.error('Error cleaning up sessions:', error);
+      logger.error({ err: error }, 'Error cleaning up sessions');
       return 0;
     }
   }
