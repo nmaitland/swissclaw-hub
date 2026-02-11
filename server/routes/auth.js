@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const { SessionStore, validateInput } = require('../middleware/auth');
 const { authRateLimit, logSecurityEvent } = require('../middleware/security');
 const { pool } = require('../config/database');
+const logger = require('../lib/logger');
 
 const router = express.Router();
 
@@ -120,7 +121,7 @@ router.post('/login', authRateLimit, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error({ err: error }, 'Login error');
     await logSecurityEvent(pool, {
       type: 'auth_error',
       method: 'POST',
@@ -159,7 +160,7 @@ router.post('/logout', async (req, res) => {
 
     res.json({ message: 'Logout successful' });
   } catch (error) {
-    console.error('Logout error:', error);
+    logger.error({ err: error }, 'Logout error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -189,7 +190,7 @@ router.get('/validate', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Session validation error:', error);
+    logger.error({ err: error }, 'Session validation error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -232,7 +233,7 @@ router.get('/me', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get user info error:', error);
+    logger.error({ err: error }, 'Get user info error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -301,7 +302,7 @@ router.post('/change-password', async (req, res) => {
 
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error({ err: error }, 'Change password error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

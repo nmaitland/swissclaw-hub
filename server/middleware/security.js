@@ -1,5 +1,6 @@
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const logger = require('../lib/logger');
 
 // Enhanced security headers configuration
 const securityHeaders = helmet({
@@ -82,13 +83,13 @@ const sanitizeQuery = (req, res, next) => {
       if (typeof obj[key] === 'string') {
         for (const pattern of suspiciousPatterns) {
           if (pattern.test(obj[key])) {
-            console.warn('Suspicious query pattern detected:', {
+            logger.warn({
               ip: req.ip,
               userAgent: req.get('User-Agent'),
               path: req.path,
               field: key,
               value: obj[key],
-            });
+            }, 'Suspicious query pattern detected');
             return true;
           }
         }
@@ -200,7 +201,7 @@ const logSecurityEvent = async (pool, event) => {
       ]
     );
   } catch (error) {
-    console.error('Failed to log security event:', error);
+    logger.error({ err: error }, 'Failed to log security event');
   }
 };
 
@@ -220,14 +221,13 @@ const securityErrorHandler = (err, req, res, next) => {
   }
 
   // Log security errors
-  console.error('Security error:', {
-    error: err.message,
-    stack: err.stack,
+  logger.error({
+    err,
     ip: req.ip,
     userAgent: req.get('User-Agent'),
     path: req.path,
     method: req.method,
-  });
+  }, 'Security error');
 
   // Don't leak error details in production
   if (process.env.NODE_ENV === 'production') {

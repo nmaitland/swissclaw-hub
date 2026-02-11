@@ -8,6 +8,8 @@ const helmet = require('helmet');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
+const logger = require('./lib/logger');
+const { asyncHandler, errorHandler } = require('./lib/errors');
 
 const app = express();
 const httpServer = createServer(app);
@@ -219,31 +221,26 @@ app.post('/api/login', (req, res) => {
 const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
 
 // Service-authenticated activities endpoint (PUBLIC - before auth middleware)
-app.post('/api/service/activities', async (req, res) => {
-  try {
-    const serviceToken = req.headers['x-service-token'];
-    if (serviceToken !== SWISSCLAW_TOKEN) {
-      return res.status(401).json({ error: 'Invalid service token' });
-    }
-    
-    const { type, description, metadata } = req.body;
-    
-    if (!type || !description) {
-      return res.status(400).json({ error: 'Type and description required' });
-    }
-    
-    const result = await pool.query(
-      'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
-      [sanitizeString(type), sanitizeString(description), JSON.stringify(metadata || {})]
-    );
-    
-    io.emit('activity', result.rows[0]);
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Service activity error:', err);
-    res.status(500).json({ error: 'Failed to create activity' });
+app.post('/api/service/activities', asyncHandler(async (req, res) => {
+  const serviceToken = req.headers['x-service-token'];
+  if (serviceToken !== SWISSCLAW_TOKEN) {
+    return res.status(401).json({ error: 'Invalid service token' });
   }
-});
+
+  const { type, description, metadata } = req.body;
+
+  if (!type || !description) {
+    return res.status(400).json({ error: 'Type and description required' });
+  }
+
+  const result = await pool.query(
+    'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
+    [sanitizeString(type), sanitizeString(description), JSON.stringify(metadata || {})]
+  );
+
+  io.emit('activity', result.rows[0]);
+  res.json(result.rows[0]);
+}));
 
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
@@ -306,12 +303,12 @@ const generateTaskId = () => {
 
 // Database migration - add missing columns to existing tables
 async function migrateDb() {
-  console.log('=== Starting database migration ===');
+  logger.info('Starting database migration');
   try {
-    console.log('Running database migrations...');
-    
+    logger.debug('Running database migrations...');
+
     // Check if kanban_columns table exists
-    console.log('Checking if kanban_columns table exists...');
+    logger.debug('Checking if kanban_columns table exists...');
     const tableCheck = await pool.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -319,10 +316,10 @@ async function migrateDb() {
       )
     `);
     
-    console.log(`Table check result: exists=${tableCheck.rows[0].exists}`);
-    
+    logger.debug({ exists: tableCheck.rows[0].exists }, 'Table check result');
+
     if (tableCheck.rows[0].exists) {
-      console.log('kanban_columns table exists, checking for missing columns...');
+      logger.debug('kanban_columns table exists, checking for missing columns...');
       // Check and add missing columns to kanban_columns
       const columnsToCheck = [
         { name: 'color', type: 'VARCHAR(20) DEFAULT \'\'' },
@@ -339,20 +336,20 @@ async function migrateDb() {
           `, [col.name]);
           
           if (!colCheck.rows[0].exists) {
-            console.log(`Adding column '${col.name}' to kanban_columns...`);
+            logger.debug({ column: col.name }, 'Adding column to kanban_columns');
             await pool.query(`ALTER TABLE kanban_columns ADD COLUMN ${col.name} ${col.type}`);
-            console.log(`Successfully added column '${col.name}'`);
+            logger.debug({ column: col.name }, 'Successfully added column');
           } else {
-            console.log(`Column '${col.name}' already exists in kanban_columns`);
+            logger.debug({ column: col.name }, 'Column already exists in kanban_columns');
           }
         } catch (colErr) {
-          console.error(`Error adding column '${col.name}':`, colErr.message);
+          logger.error({ err: colErr, column: col.name }, 'Error adding column to kanban_columns');
           throw colErr;
         }
       }
       
       // Check and add missing columns to kanban_tasks
-      console.log('Checking kanban_tasks columns...');
+      logger.debug('Checking kanban_tasks columns...');
       const taskColumnsToCheck = [
         { name: 'task_id', type: 'VARCHAR(20) UNIQUE' },
         { name: 'assigned_to', type: 'VARCHAR(50)' },
@@ -371,47 +368,47 @@ async function migrateDb() {
           `, [col.name]);
           
           if (!colCheck.rows[0].exists) {
-            console.log(`Adding column '${col.name}' to kanban_tasks...`);
+            logger.debug({ column: col.name }, 'Adding column to kanban_tasks');
             await pool.query(`ALTER TABLE kanban_tasks ADD COLUMN ${col.name} ${col.type}`);
-            console.log(`Successfully added column '${col.name}'`);
+            logger.debug({ column: col.name }, 'Successfully added column');
           } else {
-            console.log(`Column '${col.name}' already exists in kanban_tasks`);
+            logger.debug({ column: col.name }, 'Column already exists in kanban_tasks');
           }
         } catch (colErr) {
-          console.error(`Error adding column '${col.name}' to kanban_tasks:`, colErr.message);
+          logger.error({ err: colErr, column: col.name }, 'Error adding column to kanban_tasks');
           throw colErr;
         }
       }
       
       // Update existing columns with default values
-      console.log('Updating column constraints...');
+      logger.debug('Updating column constraints...');
       try {
         await pool.query(`ALTER TABLE kanban_columns ALTER COLUMN display_name SET NOT NULL`);
-        console.log('Set display_name NOT NULL');
+        logger.debug('Set display_name NOT NULL');
       } catch (e) {
-        console.log('display_name NOT NULL constraint already set or skipped:', e.message);
+        logger.debug({ err: e }, 'display_name NOT NULL constraint already set or skipped');
       }
       try {
         await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN priority SET DEFAULT 'medium'`);
-        console.log('Set priority DEFAULT');
+        logger.debug('Set priority DEFAULT');
       } catch (e) {
-        console.log('priority DEFAULT already set or skipped:', e.message);
+        logger.debug({ err: e }, 'priority DEFAULT already set or skipped');
       }
       try {
         await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN position SET DEFAULT 0`);
-        console.log('Set position DEFAULT');
+        logger.debug('Set position DEFAULT');
       } catch (e) {
-        console.log('position DEFAULT already set or skipped:', e.message);
+        logger.debug({ err: e }, 'position DEFAULT already set or skipped');
       }
       
       // Migrate existing tasks to have task_id if missing
       try {
-        console.log('Checking for tasks without task_id...');
+        logger.debug('Checking for tasks without task_id...');
         const tasksWithoutId = await pool.query(`
           SELECT id FROM kanban_tasks WHERE task_id IS NULL
         `);
-        
-        console.log(`Found ${tasksWithoutId.rows.length} tasks without task_id`);
+
+        logger.debug({ count: tasksWithoutId.rows.length }, 'Tasks without task_id');
         
         for (const task of tasksWithoutId.rows) {
           const newTaskId = generateTaskId();
@@ -421,28 +418,26 @@ async function migrateDb() {
         }
         
         if (tasksWithoutId.rows.length > 0) {
-          console.log(`Migrated ${tasksWithoutId.rows.length} existing tasks with new task_id`);
+          logger.info({ count: tasksWithoutId.rows.length }, 'Migrated existing tasks with new task_id');
         }
       } catch (migrateErr) {
-        console.error('Error migrating task_ids:', migrateErr.message);
+        logger.error({ err: migrateErr }, 'Error migrating task_ids');
         throw migrateErr;
       }
     } else {
-      console.log('kanban_columns table does not exist yet, skipping column migration');
+      logger.debug('kanban_columns table does not exist yet, skipping column migration');
     }
-    
-    console.log('=== Database migrations completed successfully ===');
+
+    logger.info('Database migrations completed successfully');
   } catch (err) {
-    console.error('=== Database migration error:', err);
-    console.error('Migration failed with error:', err.message);
-    console.error('Stack:', err.stack);
+    logger.error({ err }, 'Database migration failed');
     throw err; // Re-throw so caller can handle
   }
 }
 
 // Initialize database tables
 async function initDb() {
-  console.log('=== initDb() starting ===');
+  logger.info('Initializing database');
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -512,12 +507,12 @@ async function initDb() {
     `);
     
     // Migrate existing tables to new schema
-    console.log('Calling migrateDb() from initDb()...');
+    logger.debug('Calling migrateDb() from initDb()...');
     try {
       await migrateDb();
-      console.log('migrateDb() completed successfully');
+      logger.debug('migrateDb() completed successfully');
     } catch (migrateErr) {
-      console.error('migrateDb() failed:', migrateErr.message);
+      logger.error({ err: migrateErr }, 'migrateDb() failed');
       // Don't throw - allow server to start even if migration fails
     }
     
@@ -527,260 +522,230 @@ async function initDb() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_kanban_tasks_column_id ON kanban_tasks(column_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_kanban_tasks_position ON kanban_tasks(position)`);
     
-    console.log('Database tables initialized');
+    logger.info('Database tables initialized');
   } catch (err) {
-    console.error('Database init error:', err);
+    logger.error({ err }, 'Database init error');
   }
 }
 
 // API Routes
-app.get('/api/status', async (req, res) => {
-  try {
-    const messagesResult = await pool.query(
-      'SELECT * FROM messages ORDER BY created_at DESC LIMIT 10'
-    );
-    
-    const activitiesResult = await pool.query(
-      'SELECT * FROM activities ORDER BY created_at DESC LIMIT 20'
-    );
-    
-    res.json({
-      status: 'online',
-      swissclaw: {
-        state: 'active',
-        currentTask: 'Building Swissclaw Hub',
-        lastActive: new Date().toISOString()
-      },
-      recentMessages: messagesResult.rows,
-      recentActivities: activitiesResult.rows
-    });
-  } catch (err) {
-    console.error('Status error:', err);
-    res.status(500).json({ error: 'Failed to get status' });
-  }
-});
+app.get('/api/status', asyncHandler(async (req, res) => {
+  const messagesResult = await pool.query(
+    'SELECT * FROM messages ORDER BY created_at DESC LIMIT 10'
+  );
 
-app.get('/api/messages', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM messages ORDER BY created_at DESC LIMIT 50'
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Messages error:', err);
-    res.status(500).json({ error: 'Failed to get messages' });
-  }
-});
+  const activitiesResult = await pool.query(
+    'SELECT * FROM activities ORDER BY created_at DESC LIMIT 20'
+  );
+
+  res.json({
+    status: 'online',
+    swissclaw: {
+      state: 'active',
+      currentTask: 'Building Swissclaw Hub',
+      lastActive: new Date().toISOString()
+    },
+    recentMessages: messagesResult.rows,
+    recentActivities: activitiesResult.rows
+  });
+}));
+
+app.get('/api/messages', asyncHandler(async (req, res) => {
+  const result = await pool.query(
+    'SELECT * FROM messages ORDER BY created_at DESC LIMIT 50'
+  );
+  res.json(result.rows);
+}));
 
 // Kanban API - database backed with new 6-column schema
-app.get('/api/kanban', async (req, res) => {
-  try {
-    // Get all columns with their tasks
-    const columnsResult = await pool.query(
-      'SELECT * FROM kanban_columns ORDER BY position'
+app.get('/api/kanban', asyncHandler(async (req, res) => {
+  // Get all columns with their tasks
+  const columnsResult = await pool.query(
+    'SELECT * FROM kanban_columns ORDER BY position'
+  );
+
+  const kanban = {};
+
+  for (const column of columnsResult.rows) {
+    const tasksResult = await pool.query(
+      `SELECT id, task_id, title, description, priority, assigned_to, tags,
+              attachment_count, comment_count, position, created_at, updated_at
+       FROM kanban_tasks
+       WHERE column_id = $1
+       ORDER BY position`,
+      [column.id]
     );
-    
-    const kanban = {};
-    
-    for (const column of columnsResult.rows) {
-      const tasksResult = await pool.query(
-        `SELECT id, task_id, title, description, priority, assigned_to, tags, 
-                attachment_count, comment_count, position, created_at, updated_at
-         FROM kanban_tasks 
-         WHERE column_id = $1 
-         ORDER BY position`,
-        [column.id]
-      );
-      
-      kanban[column.name] = tasksResult.rows.map(task => ({
-        id: task.id,
-        taskId: task.task_id || `TASK-${task.id.toString().padStart(3, '0')}`,
-        title: task.title,
-        description: task.description || '',
-        priority: task.priority,
-        assignedTo: task.assigned_to,
-        tags: task.tags || [],
-        attachmentCount: task.attachment_count || 0,
-        commentCount: task.comment_count || 0,
-        createdAt: task.created_at,
-        updatedAt: task.updated_at
-      }));
-    }
-    
-    // Also include column metadata
-    const columns = columnsResult.rows.map(col => ({
-      name: col.name,
-      displayName: col.display_name,
-      emoji: col.emoji,
-      color: col.color,
-      position: col.position
+
+    kanban[column.name] = tasksResult.rows.map(task => ({
+      id: task.id,
+      taskId: task.task_id || `TASK-${task.id.toString().padStart(3, '0')}`,
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      assignedTo: task.assigned_to,
+      tags: task.tags || [],
+      attachmentCount: task.attachment_count || 0,
+      commentCount: task.comment_count || 0,
+      createdAt: task.created_at,
+      updatedAt: task.updated_at
     }));
-    
-    res.json({ columns, tasks: kanban });
-  } catch (err) {
-    console.error('Kanban error:', err);
-    res.status(500).json({ error: 'Failed to get kanban' });
   }
-});
+
+  // Also include column metadata
+  const columns = columnsResult.rows.map(col => ({
+    name: col.name,
+    displayName: col.display_name,
+    emoji: col.emoji,
+    color: col.color,
+    position: col.position
+  }));
+
+  res.json({ columns, tasks: kanban });
+}));
 
 // Create new kanban task
-app.post('/api/kanban/tasks', async (req, res) => {
-  try {
-    const { columnName, title, description, priority = 'medium', assignedTo, tags = [] } = req.body;
-    
-    if (!columnName || !title) {
-      return res.status(400).json({ error: 'Column name and title required' });
-    }
-    
-    // Get column id
+app.post('/api/kanban/tasks', asyncHandler(async (req, res) => {
+  const { columnName, title, description, priority = 'medium', assignedTo, tags = [] } = req.body;
+
+  if (!columnName || !title) {
+    return res.status(400).json({ error: 'Column name and title required' });
+  }
+
+  // Get column id
+  const columnResult = await pool.query(
+    'SELECT id FROM kanban_columns WHERE name = $1',
+    [columnName]
+  );
+
+  if (columnResult.rows.length === 0) {
+    return res.status(404).json({ error: 'Column not found' });
+  }
+
+  const columnId = columnResult.rows[0].id;
+
+  // Get max position for this column
+  const posResult = await pool.query(
+    'SELECT MAX(position) as max_pos FROM kanban_tasks WHERE column_id = $1',
+    [columnId]
+  );
+
+  const position = (posResult.rows[0].max_pos || 0) + 1;
+  const taskId = generateTaskId();
+
+  const result = await pool.query(
+    `INSERT INTO kanban_tasks
+     (task_id, column_id, title, description, priority, assigned_to, tags, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [taskId, columnId, sanitizeString(title), description ? sanitizeString(description) : null, priority, assignedTo, JSON.stringify(tags), position]
+  );
+
+  const task = result.rows[0];
+  res.status(201).json({
+    id: task.id,
+    taskId: task.task_id,
+    title: task.title,
+    description: task.description,
+    priority: task.priority,
+    assignedTo: task.assigned_to,
+    tags: task.tags || [],
+    position: task.position,
+    createdAt: task.created_at,
+    updatedAt: task.updated_at
+  });
+}));
+
+// Update kanban task (move columns, edit, etc)
+app.put('/api/kanban/tasks/:id', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { columnName, title, description, priority, assignedTo, tags, position } = req.body;
+
+  let columnId = null;
+  if (columnName) {
     const columnResult = await pool.query(
       'SELECT id FROM kanban_columns WHERE name = $1',
       [columnName]
     );
-    
-    if (columnResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Column not found' });
+    if (columnResult.rows.length > 0) {
+      columnId = columnResult.rows[0].id;
     }
-    
-    const columnId = columnResult.rows[0].id;
-    
-    // Get max position for this column
-    const posResult = await pool.query(
-      'SELECT MAX(position) as max_pos FROM kanban_tasks WHERE column_id = $1',
-      [columnId]
-    );
-    
-    const position = (posResult.rows[0].max_pos || 0) + 1;
-    const taskId = generateTaskId();
-    
-    const result = await pool.query(
-      `INSERT INTO kanban_tasks 
-       (task_id, column_id, title, description, priority, assigned_to, tags, position) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-       RETURNING *`,
-      [taskId, columnId, sanitizeString(title), description ? sanitizeString(description) : null, priority, assignedTo, JSON.stringify(tags), position]
-    );
-    
-    const task = result.rows[0];
-    res.status(201).json({
-      id: task.id,
-      taskId: task.task_id,
-      title: task.title,
-      description: task.description,
-      priority: task.priority,
-      assignedTo: task.assigned_to,
-      tags: task.tags || [],
-      position: task.position,
-      createdAt: task.created_at,
-      updatedAt: task.updated_at
-    });
-  } catch (err) {
-    console.error('Create task error:', err);
-    res.status(500).json({ error: 'Failed to create task' });
   }
-});
 
-// Update kanban task (move columns, edit, etc)
-app.put('/api/kanban/tasks/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { columnName, title, description, priority, assignedTo, tags, position } = req.body;
-    
-    let columnId = null;
-    if (columnName) {
-      const columnResult = await pool.query(
-        'SELECT id FROM kanban_columns WHERE name = $1',
-        [columnName]
-      );
-      if (columnResult.rows.length > 0) {
-        columnId = columnResult.rows[0].id;
-      }
-    }
-    
-    const updates = [];
-    const values = [];
-    let paramCount = 1;
-    
-    if (columnId !== null) {
-      updates.push(`column_id = $${paramCount++}`);
-      values.push(columnId);
-    }
-    if (title !== undefined) {
-      updates.push(`title = $${paramCount++}`);
-      values.push(sanitizeString(title));
-    }
-    if (description !== undefined) {
-      updates.push(`description = $${paramCount++}`);
-      values.push(description ? sanitizeString(description) : null);
-    }
-    if (priority !== undefined) {
-      updates.push(`priority = $${paramCount++}`);
-      values.push(priority);
-    }
-    if (assignedTo !== undefined) {
-      updates.push(`assigned_to = $${paramCount++}`);
-      values.push(assignedTo);
-    }
-    if (tags !== undefined) {
-      updates.push(`tags = $${paramCount++}`);
-      values.push(JSON.stringify(tags));
-    }
-    if (position !== undefined) {
-      updates.push(`position = $${paramCount++}`);
-      values.push(position);
-    }
-    
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
-    values.push(id);
-    
-    const result = await pool.query(
-      `UPDATE kanban_tasks SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
-      values
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-    
-    const task = result.rows[0];
-    res.json({
-      id: task.id,
-      taskId: task.task_id,
-      title: task.title,
-      description: task.description,
-      priority: task.priority,
-      assignedTo: task.assigned_to,
-      tags: task.tags || [],
-      position: task.position,
-      createdAt: task.created_at,
-      updatedAt: task.updated_at
-    });
-  } catch (err) {
-    console.error('Update task error:', err);
-    res.status(500).json({ error: 'Failed to update task' });
+  const updates = [];
+  const values = [];
+  let paramCount = 1;
+
+  if (columnId !== null) {
+    updates.push(`column_id = $${paramCount++}`);
+    values.push(columnId);
   }
-});
+  if (title !== undefined) {
+    updates.push(`title = $${paramCount++}`);
+    values.push(sanitizeString(title));
+  }
+  if (description !== undefined) {
+    updates.push(`description = $${paramCount++}`);
+    values.push(description ? sanitizeString(description) : null);
+  }
+  if (priority !== undefined) {
+    updates.push(`priority = $${paramCount++}`);
+    values.push(priority);
+  }
+  if (assignedTo !== undefined) {
+    updates.push(`assigned_to = $${paramCount++}`);
+    values.push(assignedTo);
+  }
+  if (tags !== undefined) {
+    updates.push(`tags = $${paramCount++}`);
+    values.push(JSON.stringify(tags));
+  }
+  if (position !== undefined) {
+    updates.push(`position = $${paramCount++}`);
+    values.push(position);
+  }
+
+  updates.push(`updated_at = CURRENT_TIMESTAMP`);
+  values.push(id);
+
+  const result = await pool.query(
+    `UPDATE kanban_tasks SET ${updates.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+    values
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  const task = result.rows[0];
+  res.json({
+    id: task.id,
+    taskId: task.task_id,
+    title: task.title,
+    description: task.description,
+    priority: task.priority,
+    assignedTo: task.assigned_to,
+    tags: task.tags || [],
+    position: task.position,
+    createdAt: task.created_at,
+    updatedAt: task.updated_at
+  });
+}));
 
 // Delete kanban task
-app.delete('/api/kanban/tasks/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(
-      'DELETE FROM kanban_tasks WHERE id = $1 RETURNING *',
-      [id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Task not found' });
-    }
-    
-    res.json({ success: true, deleted: result.rows[0] });
-  } catch (err) {
-    console.error('Delete task error:', err);
-    res.status(500).json({ error: 'Failed to delete task' });
+app.delete('/api/kanban/tasks/:id', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const result = await pool.query(
+    'DELETE FROM kanban_tasks WHERE id = $1 RETURNING *',
+    [id]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(404).json({ error: 'Task not found' });
   }
-});
+
+  res.json({ success: true, deleted: result.rows[0] });
+}));
 
 // Tasks API - Neil's action items from kanban.md
 function parseTasksFromKanban() {
@@ -802,7 +767,7 @@ function parseTasksFromKanban() {
     }
     
     if (!kanbanPath) {
-      console.error('Kanban file not found for tasks');
+      logger.warn('Kanban file not found for tasks');
       return [];
     }
     
@@ -848,45 +813,35 @@ function parseTasksFromKanban() {
     
     return tasks;
   } catch (err) {
-    console.error('Error parsing tasks:', err);
+    logger.error({ err }, 'Error parsing tasks');
     return [];
   }
 }
 
-app.get('/api/tasks', async (req, res) => {
-  try {
-    const tasks = parseTasksFromKanban();
-    res.json(tasks);
-  } catch (err) {
-    console.error('Tasks error:', err);
-    res.status(500).json({ error: 'Failed to get tasks' });
-  }
-});
+app.get('/api/tasks', asyncHandler(async (req, res) => {
+  const tasks = parseTasksFromKanban();
+  res.json(tasks);
+}));
 
-app.post('/api/activities', async (req, res) => {
-  try {
-    const { type, description, metadata } = req.body;
-    
-    // Validation
-    if (!type || typeof type !== 'string' || type.length > 50) {
-      return res.status(400).json({ error: 'Invalid type' });
-    }
-    if (!description || typeof description !== 'string' || description.length > 500) {
-      return res.status(400).json({ error: 'Invalid description' });
-    }
-    
-    const result = await pool.query(
-      'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
-      [sanitizeString(type), sanitizeString(description), JSON.stringify(metadata || {})]
-    );
-    
-    io.emit('activity', result.rows[0]);
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Activity error:', err);
-    res.status(500).json({ error: 'Failed to create activity' });
+app.post('/api/activities', asyncHandler(async (req, res) => {
+  const { type, description, metadata } = req.body;
+
+  // Validation
+  if (!type || typeof type !== 'string' || type.length > 50) {
+    return res.status(400).json({ error: 'Invalid type' });
   }
-});
+  if (!description || typeof description !== 'string' || description.length > 500) {
+    return res.status(400).json({ error: 'Invalid description' });
+  }
+
+  const result = await pool.query(
+    'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
+    [sanitizeString(type), sanitizeString(description), JSON.stringify(metadata || {})]
+  );
+
+  io.emit('activity', result.rows[0]);
+  res.json(result.rows[0]);
+}));
 
 // Socket.io with authentication and rate limiting
 io.use((socket, next) => {
@@ -902,7 +857,7 @@ io.use((socket, next) => {
 const messageRateLimits = new Map();
 
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
+  logger.info({ socketId: socket.id }, 'Client connected');
   
   // Rate limit per socket
   messageRateLimits.set(socket.id, { count: 0, lastReset: Date.now() });
@@ -942,13 +897,13 @@ io.on('connection', (socket) => {
       );
       io.emit('activity', activityResult.rows[0]);
     } catch (err) {
-      console.error('Socket message error:', err);
+      logger.error({ err, socketId: socket.id }, 'Socket message error');
       socket.emit('error', { message: 'Failed to send message' });
     }
   });
   
   socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+    logger.info({ socketId: socket.id }, 'Client disconnected');
     messageRateLimits.delete(socket.id);
   });
 });
@@ -979,13 +934,12 @@ app.get('/api/build', (req, res) => {
 });
 
 // Seed endpoint - populate initial kanban data (idempotent)
-app.post('/api/seed', async (req, res) => {
-  try {
-    // Check if we already have tasks
-    const existing = await pool.query('SELECT COUNT(*) as count FROM kanban_tasks');
-    if (existing.rows[0].count > 0) {
-      return res.json({ message: 'Already seeded', count: existing.rows[0].count });
-    }
+app.post('/api/seed', asyncHandler(async (req, res) => {
+  // Check if we already have tasks
+  const existing = await pool.query('SELECT COUNT(*) as count FROM kanban_tasks');
+  if (existing.rows[0].count > 0) {
+    return res.json({ message: 'Already seeded', count: existing.rows[0].count });
+  }
 
     // Get column IDs
     const columns = await pool.query('SELECT id, name FROM kanban_columns');
@@ -1052,37 +1006,31 @@ app.post('/api/seed', async (req, res) => {
       done: doneTasks.length,
       waitingForNeil: 1
     });
-  } catch (err) {
-    console.error('Seed error:', err);
-    res.status(500).json({ error: 'Failed to seed' });
-  }
-});
+}));
 
 // Serve React app for any non-API routes (must be last)
 if (process.env.NODE_ENV === 'production') {
   // Manual migration endpoint with service token auth
-  app.get('/api/migrate', async (req, res) => {
+  app.get('/api/migrate', asyncHandler(async (req, res) => {
     // Check service token
     const serviceToken = req.headers['x-service-token'];
     if (serviceToken !== SWISSCLAW_TOKEN) {
       return res.status(401).json({ error: 'Invalid service token' });
     }
-    
-    try {
-      console.log('Manual migration triggered via API at', new Date().toISOString());
-      await migrateDb();
-      res.json({ success: true, message: 'Migration completed' });
-    } catch (err) {
-      console.error('Manual migration error:', err);
-      res.status(500).json({ error: 'Migration failed', details: err.message });
-    }
-  });
+
+    logger.info('Manual migration triggered via API');
+    await migrateDb();
+    res.json({ success: true, message: 'Migration completed' });
+  }));
 
   // Serve React app for any non-API routes
   app.get('*', (req, res) => {
     res.sendFile('client/build/index.html', { root: '.' });
   });
 }
+
+// Centralized error handler - must be after all routes
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 
@@ -1092,17 +1040,16 @@ const PORT = process.env.PORT || 3001;
 if (require.main === module) {
   initDb().then(() => {
     httpServer.listen(PORT, () => {
-      console.log(`Swissclaw Hub server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Swissclaw Hub server running');
     });
   });
 
   // Graceful shutdown
   process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, closing connections...');
+    logger.info('SIGTERM received, closing connections...');
     await pool.end();
     httpServer.close(() => {
-      console.log('Server closed');
+      logger.info('Server closed');
       process.exit(0);
     });
   });
