@@ -46,35 +46,17 @@ jobs:
       run: npm run type-check
       continue-on-error: true
 
-    - name: Run unit tests with coverage
-      run: npm run test:unit -- --coverage --coverageReporters=text-summary --coverageReporters=lcov --forceExit
+    - name: Run all backend tests with coverage
+      run: npm test -- --coverage --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=text --runInBand --forceExit
       env:
+        NODE_ENV: test
         CI: true
+        TEST_DB_HOST: localhost
+        TEST_DB_PORT: 5433
+        TEST_DB_NAME: swissclaw_hub_test
+        TEST_DB_USER: postgres
+        TEST_DB_PASSWORD: password
       timeout-minutes: 10
-
-    - name: Setup test database
-      run: |
-        npx sequelize-cli db:migrate --env test
-        npx sequelize-cli db:seed:all --env test
-      env:
-        TEST_DB_HOST: localhost
-        TEST_DB_PORT: 5433
-        TEST_DB_NAME: swissclaw_hub_test
-        TEST_DB_USER: postgres
-        TEST_DB_PASSWORD: password
-        NODE_ENV: test
-
-    - name: Run integration tests with coverage
-      run: npm run test:integration -- --coverage --coverageReporters=text-summary --coverageReporters=lcov --forceExit
-      env:
-        TEST_DB_HOST: localhost
-        TEST_DB_PORT: 5433
-        TEST_DB_NAME: swissclaw_hub_test
-        TEST_DB_USER: postgres
-        TEST_DB_PASSWORD: password
-        NODE_ENV: test
-        CI: true
-      timeout-minutes: 15
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
@@ -90,40 +72,24 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const coverageSummary = fs.readFileSync('./coverage/lcov.info', 'utf8');
-          
-          // Parse coverage percentage from lcov
+          const coverageFile = './coverage/lcov.info';
+          if (!fs.existsSync(coverageFile)) return;
+          const coverageSummary = fs.readFileSync(coverageFile, 'utf8');
           const lines = coverageSummary.split('\n');
           let totalLines = 0;
           let coveredLines = 0;
-          
           lines.forEach(line => {
-            if (line.startsWith('LF:')) {
-              totalLines += parseInt(line.split(':')[1]);
-            }
-            if (line.startsWith('LH:')) {
-              coveredLines += parseInt(line.split(':')[1]);
-            }
+            if (line.startsWith('LF:')) totalLines += parseInt(line.split(':')[1]) || 0;
+            if (line.startsWith('LH:')) coveredLines += parseInt(line.split(':')[1]) || 0;
           });
-          
           const coveragePercent = totalLines > 0 ? Math.round((coveredLines / totalLines) * 100) : 0;
-          
-          const body = `## 📊 Test Coverage Report
-          
-          **Coverage: ${coveragePercent}%**
-          
-          - Lines covered: ${coveredLines}/${totalLines}
-          - Status: ${coveragePercent >= 70 ? '✅ Pass' : '⚠️ Below threshold'}
-          
-          *Note: Coverage threshold is set to 70%*
-          `;
-          
+          const body = `## 📊 Test Coverage Report\n\n**Coverage: ${coveragePercent}%**\n\n- Lines covered: ${coveredLines}/${totalLines}\n\n*Backend tests run against real Postgres; coverage includes server code.*`;
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
             body: body
-          });
+          }).catch(() => {});
 
   build:
     runs-on: ubuntu-latest
