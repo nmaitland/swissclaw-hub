@@ -31,9 +31,13 @@
     "test:watch": "jest --watch",
 
     "test:coverage": "jest --coverage --runInBand --forceExit",
+
     "test:with-db": "cross-env NODE_ENV=test TEST_DB_HOST=localhost TEST_DB_PORT=5433 TEST_DB_NAME=swissclaw_hub_test TEST_DB_USER=postgres TEST_DB_PASSWORD=password jest --runInBand --forceExit",
+
     "test:unit": "jest --testPathIgnorePatterns=tests/integration --coverage=false --forceExit",
+
     "test:integration": "jest --testPathPatterns=tests/integration --runInBand --forceExit",
+
     "test:client": "cd client && npm test",
 
     "db:migrate": "npx sequelize-cli db:migrate",
@@ -50,9 +54,9 @@
 
     "db:reset:test": "cross-env NODE_ENV=test npx sequelize-cli db:migrate:undo:all && cross-env NODE_ENV=test npx sequelize-cli db:migrate && cross-env NODE_ENV=test npx sequelize-cli db:seed:all",
 
-    "lint": "eslint server",
+    "lint": "eslint server/",
 
-    "lint:fix": "eslint server --ext .ts,.js --fix && eslint client/src --ext .ts,.tsx,.js,.jsx --fix",
+    "lint:fix": "eslint server/ --fix",
 
     "format": "prettier --write \"server/**/*.{ts,js,json}\" \"client/src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
 
@@ -108,7 +112,7 @@
 
     "cross-env": "^10.1.0",
 
-    "eslint": "^10.0.0",
+    "eslint": "^9.39.2",
 
     "jest": "^30.2.0",
 
@@ -122,7 +126,11 @@
 
     "ts-jest": "^29.4.6",
 
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+
+    "typescript": "^5.9.3",
+
+    "typescript-eslint": "^8.55.0"
 
   },
 

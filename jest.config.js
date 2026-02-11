@@ -18,15 +18,14 @@ module.exports = {
   ],
   collectCoverageFrom: [
     'server/**/*.js',
-    '!server/index-new.js',
     '!**/node_modules/**',
   ],
   coverageThreshold: {
     global: {
-      branches: 0,
-      functions: 0,
-      lines: 0,
-      statements: 0,
+      branches: 20,
+      functions: 25,
+      lines: 25,
+      statements: 25,
     },
   },
 };
