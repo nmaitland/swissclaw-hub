@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const logger = require('../lib/logger');
 
 // Database configuration with environment-specific settings
 const getDatabaseConfig = () => {
@@ -38,11 +39,11 @@ const pool = new Pool(getDatabaseConfig());
 
 // Database connection monitoring
 pool.on('connect', (client) => {
-  console.log('New database client connected');
+  logger.debug('New database client connected');
 });
 
 pool.on('error', (err, client) => {
-  console.error('Unexpected error on idle client', err);
+  logger.error({ err }, 'Unexpected error on idle client');
   process.exit(-1);
 });
 
@@ -53,7 +54,7 @@ const initializeDatabase = async () => {
     const client = await pool.connect();
     await client.query('SELECT NOW()');
     client.release();
-    console.log('Database connected successfully');
+    logger.info('Database connected successfully');
 
     // Create tables if they don't exist
     await createTables();
@@ -61,9 +62,9 @@ const initializeDatabase = async () => {
     // Create indexes
     await createIndexes();
     
-    console.log('Database initialized successfully');
+    logger.info('Database initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize database:', error);
+    logger.error({ err: error }, 'Failed to initialize database');
     throw error;
   }
 };
@@ -212,10 +213,10 @@ const cleanupExpiredSessions = async () => {
     const result = await pool.query(
       'DELETE FROM sessions WHERE expires_at < NOW() OR revoked_at IS NOT NULL'
     );
-    console.log(`Cleaned up ${result.rowCount} expired sessions`);
+    logger.info({ count: result.rowCount }, 'Cleaned up expired sessions');
     return result.rowCount;
   } catch (error) {
-    console.error('Error cleaning up expired sessions:', error);
+    logger.error({ err: error }, 'Error cleaning up expired sessions');
     return 0;
   }
 };
@@ -226,10 +227,10 @@ const cleanupOldSecurityLogs = async (daysToKeep = 30) => {
       'DELETE FROM security_logs WHERE created_at < NOW() - INTERVAL $1 DAY',
       [daysToKeep]
     );
-    console.log(`Cleaned up ${result.rowCount} old security logs`);
+    logger.info({ count: result.rowCount }, 'Cleaned up old security logs');
     return result.rowCount;
   } catch (error) {
-    console.error('Error cleaning up old security logs:', error);
+    logger.error({ err: error }, 'Error cleaning up old security logs');
     return 0;
   }
 };
@@ -238,9 +239,9 @@ const cleanupOldSecurityLogs = async (daysToKeep = 30) => {
 const closeDatabaseConnection = async () => {
   try {
     await pool.end();
-    console.log('Database connection closed');
+    logger.info('Database connection closed');
   } catch (error) {
-    console.error('Error closing database connection:', error);
+    logger.error({ err: error }, 'Error closing database connection');
   }
 };
 
