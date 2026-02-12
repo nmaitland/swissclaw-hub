@@ -8,26 +8,3 @@ global.WebSocket = jest.fn(() => ({
   close: jest.fn(),
   readyState: 1,
 }));
-
-// Mock localStorage
-const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
-};
-global.localStorage = localStorageMock;
-
-// Mock URLSearchParams
-global.URLSearchParams = jest.fn(() => ({
-  get: jest.fn(),
-}));
-
-// Mock socket.io-client
-jest.mock('socket.io-client', () => ({
-  io: jest.fn(() => ({
-    on: jest.fn(),
-    emit: jest.fn(),
-    close: jest.fn(),
-  })),
-}));
