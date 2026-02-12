@@ -24,7 +24,7 @@
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
-    "types": ["node", "@testing-library/jest-dom"]
+    "types": ["node", "@testing-library/jest-dom", "react", "react-dom"]
   },
   "include": [
     "src/**/*"
