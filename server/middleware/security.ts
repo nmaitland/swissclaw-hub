@@ -1,7 +1,9 @@
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import { Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
-import { SecurityLog } from '../types';
+import logger from '../lib/logger';
+import type { SecurityEvent, AuthenticatedRequest } from '../types';
 
 // Enhanced security headers configuration
 const securityHeaders = helmet({
@@ -37,7 +39,7 @@ const generalRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => {
+  skip: (req: Request) => {
     // Skip rate limiting for health checks and static files
     return req.path === '/health' || req.path.startsWith('/static');
   },
@@ -54,24 +56,25 @@ const authRateLimit = rateLimit({
 });
 
 // Input validation middleware
-const validateRequest = (schema: any) => {
-  return (req: any, res: any, next: any) => {
+const validateRequest = (schema: { validate: (body: unknown) => { error?: { details: Array<{ path: string[]; message: string }> } } }) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const { error } = schema.validate(req.body);
     if (error) {
-      return res.status(400).json({
+      res.status(400).json({
         error: 'Validation failed',
-        details: error.details.map((detail: any) => ({
+        details: error.details.map(detail => ({
           field: detail.path.join('.'),
           message: detail.message,
         })),
       });
+      return;
     }
     next();
   };
 };
 
 // SQL injection prevention
-const sanitizeQuery = (req: any, res: any, next: any) => {
+const sanitizeQuery = (req: Request, res: Response, next: NextFunction): void => {
   // Log suspicious query patterns
   const suspiciousPatterns = [
     /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)/i,
@@ -79,63 +82,63 @@ const sanitizeQuery = (req: any, res: any, next: any) => {
     /(\b(OR|AND)\s+\d+\s*=\s*\d+)/i,
   ];
 
-  const checkSuspicious = (obj: any): boolean => {
-    if (typeof obj !== 'object' || obj === null) return false;
-
+  const checkSuspicious = (obj: Record<string, unknown>): boolean => {
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        if (typeof obj[key] === 'string') {
-          for (const pattern of suspiciousPatterns) {
-            if (pattern.test(obj[key])) {
-              console.warn('Suspicious query pattern detected:', {
-                ip: req.ip,
-                userAgent: req.get('User-Agent'),
-                path: req.path,
-                field: key,
-                value: obj[key],
-              });
-              return true;
-            }
+      if (typeof obj[key] === 'string') {
+        for (const pattern of suspiciousPatterns) {
+          if (pattern.test(obj[key] as string)) {
+            logger.warn({
+              ip: req.ip,
+              userAgent: req.get('User-Agent'),
+              path: req.path,
+              field: key,
+              value: obj[key],
+            }, 'Suspicious query pattern detected');
+            return true;
           }
-        } else if (typeof obj[key] === 'object' && obj[key] !== null) {
-          if (checkSuspicious(obj[key])) return true;
         }
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        if (checkSuspicious(obj[key] as Record<string, unknown>)) return true;
       }
     }
     return false;
   };
 
-  if (checkSuspicious(req.body) || checkSuspicious(req.query) || checkSuspicious(req.params)) {
-    return res.status(400).json({ error: 'Invalid request parameters' });
+  if (checkSuspicious(req.body as Record<string, unknown>) ||
+      checkSuspicious(req.query as Record<string, unknown>) ||
+      checkSuspicious(req.params as Record<string, unknown>)) {
+    res.status(400).json({ error: 'Invalid request parameters' });
+    return;
   }
 
   next();
 };
 
 // XSS protection middleware
-const xssProtection = (req: any, res: any, next: any) => {
-  const sanitizeObject = (obj: any): any => {
+const xssProtection = (req: Request, res: Response, next: NextFunction): void => {
+  const sanitizeObject = (obj: unknown): unknown => {
     if (typeof obj !== 'object' || obj === null) return obj;
 
     if (Array.isArray(obj)) {
       return obj.map(sanitizeObject);
     }
 
-    const sanitized: any = {};
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        if (typeof obj[key] === 'string') {
+    const sanitized: Record<string, unknown> = {};
+    const record = obj as Record<string, unknown>;
+    for (const key in record) {
+      if (Object.prototype.hasOwnProperty.call(record, key)) {
+        if (typeof record[key] === 'string') {
           // Basic XSS protection - consider using DOMPurify for production
-          sanitized[key] = obj[key]
+          sanitized[key] = (record[key] as string)
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#x27;')
             .replace(/\//g, '&#x2F;');
-        } else if (typeof obj[key] === 'object') {
-          sanitized[key] = sanitizeObject(obj[key]);
+        } else if (typeof record[key] === 'object') {
+          sanitized[key] = sanitizeObject(record[key]);
         } else {
-          sanitized[key] = obj[key];
+          sanitized[key] = record[key];
         }
       }
     }
@@ -152,25 +155,26 @@ const xssProtection = (req: any, res: any, next: any) => {
 
 // Security audit logging
 const auditLogger = (pool: Pool) => {
-  return async (req: any, res: any, next: any) => {
+  return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     const startTime = Date.now();
-    
+
     // Store original res.json to intercept responses
-    const originalJson = res.json;
-    res.json = function(data: any) {
+    const originalJson = res.json.bind(res);
+    res.json = function(data: unknown) {
       // Log the response
       logSecurityEvent(pool, {
         type: 'api_response',
         method: req.method,
         path: req.path,
-        status_code: res.statusCode,
-        ip_address: req.ip,
-        user_agent: req.get('User-Agent'),
-        user_id: req.user?.userId,
+        statusCode: res.statusCode,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        userId: req.user?.userId,
         duration: Date.now() - startTime,
+        responseSize: JSON.stringify(data).length,
       });
-      
-      return originalJson.call(this, data);
+
+      return originalJson(data);
     };
 
     // Log the request
@@ -178,16 +182,16 @@ const auditLogger = (pool: Pool) => {
       type: 'api_request',
       method: req.method,
       path: req.path,
-      ip_address: req.ip,
-      user_agent: req.get('User-Agent'),
-      user_id: req.user?.userId,
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      userId: req.user?.userId,
     });
 
     next();
   };
 };
 
-const logSecurityEvent = async (pool: Pool, event: Partial<SecurityLog>): Promise<void> => {
+const logSecurityEvent = async (pool: Pool, event: SecurityEvent): Promise<void> => {
   try {
     await pool.query(
       `INSERT INTO security_logs (id, type, method, path, status_code, ip_address, user_agent, user_id, duration, metadata, created_at)
@@ -196,49 +200,55 @@ const logSecurityEvent = async (pool: Pool, event: Partial<SecurityLog>): Promis
         event.type,
         event.method,
         event.path,
-        event.status_code || null,
-        event.ip_address,
-        event.user_agent,
-        event.user_id || null,
+        event.statusCode || null,
+        event.ip,
+        event.userAgent,
+        event.userId || null,
         event.duration || null,
         JSON.stringify(event.metadata || {}),
       ]
     );
   } catch (error) {
-    console.error('Failed to log security event:', error);
+    logger.error({ err: error }, 'Failed to log security event');
   }
 };
 
 // Error handling for security-related errors
-const securityErrorHandler = (err: any, req: any, res: any, next: any) => {
+interface SecurityError extends Error {
+  details?: unknown;
+}
+
+const securityErrorHandler = (err: SecurityError, req: Request, res: Response, next: NextFunction): void => {
   if (err.name === 'ValidationError') {
-    return res.status(400).json({
+    res.status(400).json({
       error: 'Validation failed',
       details: err.details,
     });
+    return;
   }
 
   if (err.name === 'UnauthorizedError') {
-    return res.status(401).json({
+    res.status(401).json({
       error: 'Authentication required',
     });
+    return;
   }
 
   // Log security errors
-  console.error('Security error:', {
-    error: err.message,
-    stack: err.stack,
-    ip_address: req.ip,
-    user_agent: req.get('User-Agent'),
+  logger.error({
+    err,
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
     path: req.path,
     method: req.method,
-  });
+  }, 'Security error');
 
   // Don't leak error details in production
   if (process.env.NODE_ENV === 'production') {
-    return res.status(500).json({
+    res.status(500).json({
       error: 'Internal server error',
     });
+    return;
   }
 
   next(err);

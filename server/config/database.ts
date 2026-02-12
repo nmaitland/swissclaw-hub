@@ -1,11 +1,12 @@
-import { Pool, PoolConfig } from 'pg';
-import { DatabaseConfig, HealthCheck } from '../types';
+import { Pool, PoolClient } from 'pg';
+import logger from '../lib/logger';
+import type { DatabaseConfig, DatabaseHealthResult } from '../types';
 
 // Database configuration with environment-specific settings
 const getDatabaseConfig = (): DatabaseConfig => {
   const env = process.env.NODE_ENV || 'development';
-  
-  const baseConfig: Partial<DatabaseConfig> = {
+
+  const baseConfig = {
     max: 20, // Maximum number of clients in the pool
     idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
     connectionTimeoutMillis: 2000, // How long to wait when connecting a new client
@@ -19,7 +20,7 @@ const getDatabaseConfig = (): DatabaseConfig => {
       database: process.env.TEST_DB_NAME || 'swissclaw_hub_test',
       password: process.env.TEST_DB_PASSWORD || 'password',
       port: parseInt(process.env.TEST_DB_PORT || '5432', 10),
-    } as DatabaseConfig;
+    };
   }
 
   return {
@@ -31,19 +32,19 @@ const getDatabaseConfig = (): DatabaseConfig => {
     port: parseInt(process.env.DB_PORT || '5432', 10),
     // If DATABASE_URL is provided, parse it
     ...(process.env.DATABASE_URL && { connectionString: process.env.DATABASE_URL }),
-  } as DatabaseConfig;
+  };
 };
 
 // Create database pool
 const pool = new Pool(getDatabaseConfig());
 
 // Database connection monitoring
-pool.on('connect', (client) => {
-  console.log('New database client connected');
+pool.on('connect', (_client: PoolClient) => {
+  logger.debug('New database client connected');
 });
 
-pool.on('error', (err, client) => {
-  console.error('Unexpected error on idle client', err);
+pool.on('error', (err: Error, _client: PoolClient) => {
+  logger.error({ err }, 'Unexpected error on idle client');
   process.exit(-1);
 });
 
@@ -54,17 +55,17 @@ const initializeDatabase = async (): Promise<void> => {
     const client = await pool.connect();
     await client.query('SELECT NOW()');
     client.release();
-    console.log('Database connected successfully');
+    logger.info('Database connected successfully');
 
     // Create tables if they don't exist
     await createTables();
-    
+
     // Create indexes
     await createIndexes();
-    
-    console.log('Database initialized successfully');
+
+    logger.info('Database initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize database:', error);
+    logger.error({ err: error }, 'Failed to initialize database');
     throw error;
   }
 };
@@ -191,18 +192,17 @@ const createIndexes = async (): Promise<void> => {
 };
 
 // Database health check
-const checkDatabaseHealth = async (): Promise<HealthCheck['database']> => {
+const checkDatabaseHealth = async (): Promise<DatabaseHealthResult> => {
   try {
     const result = await pool.query('SELECT NOW() as current_time, version() as version');
     return {
       status: 'healthy',
-      timestamp: result.rows[0].current_time,
-      version: result.rows[0].version,
+      timestamp: result.rows[0]?.current_time,
+      version: result.rows[0]?.version,
     };
   } catch (error) {
     return {
       status: 'unhealthy',
-      timestamp: new Date().toISOString(),
       error: (error as Error).message,
     };
   }
@@ -214,24 +214,24 @@ const cleanupExpiredSessions = async (): Promise<number> => {
     const result = await pool.query(
       'DELETE FROM sessions WHERE expires_at < NOW() OR revoked_at IS NOT NULL'
     );
-    console.log(`Cleaned up ${result.rowCount} expired sessions`);
-    return result.rowCount || 0;
+    logger.info({ count: result.rowCount }, 'Cleaned up expired sessions');
+    return result.rowCount ?? 0;
   } catch (error) {
-    console.error('Error cleaning up expired sessions:', error);
+    logger.error({ err: error }, 'Error cleaning up expired sessions');
     return 0;
   }
 };
 
-const cleanupOldSecurityLogs = async (daysToKeep: number = 30): Promise<number> => {
+const cleanupOldSecurityLogs = async (daysToKeep = 30): Promise<number> => {
   try {
     const result = await pool.query(
       'DELETE FROM security_logs WHERE created_at < NOW() - INTERVAL $1 DAY',
       [daysToKeep]
     );
-    console.log(`Cleaned up ${result.rowCount} old security logs`);
-    return result.rowCount || 0;
+    logger.info({ count: result.rowCount }, 'Cleaned up old security logs');
+    return result.rowCount ?? 0;
   } catch (error) {
-    console.error('Error cleaning up old security logs:', error);
+    logger.error({ err: error }, 'Error cleaning up old security logs');
     return 0;
   }
 };
@@ -240,9 +240,9 @@ const cleanupOldSecurityLogs = async (daysToKeep: number = 30): Promise<number> 
 const closeDatabaseConnection = async (): Promise<void> => {
   try {
     await pool.end();
-    console.log('Database connection closed');
+    logger.info('Database connection closed');
   } catch (error) {
-    console.error('Error closing database connection:', error);
+    logger.error({ err: error }, 'Error closing database connection');
   }
 };
 

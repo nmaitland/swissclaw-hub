@@ -6,7 +6,7 @@
 
   "description": "Shared dashboard for Neil and SwissClaw",
 
-  "main": "server/index.js",
+  "main": "server/index.ts",
 
   "scripts": {
 

@@ -37,7 +37,7 @@ describe('database config module', () => {
       expect(config.host).toBe('testhost');
       expect(config.database).toBe('testdb');
       expect(config.password).toBe('testpass');
-      expect(config.port).toBe('5555');
+      expect(config.port).toBe(5555);
       expect(config.max).toBe(20);
       expect(config.idleTimeoutMillis).toBe(30000);
       expect(config.connectionTimeoutMillis).toBe(2000);
@@ -82,7 +82,7 @@ describe('database config module', () => {
       expect(config.host).toBe('devhost');
       expect(config.database).toBe('devdb');
       expect(config.password).toBe('devpass');
-      expect(config.port).toBe('5434');
+      expect(config.port).toBe(5434);
 
       delete process.env.DB_USER;
       delete process.env.DB_HOST;

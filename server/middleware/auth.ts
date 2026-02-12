@@ -1,6 +1,8 @@
-import * as crypto from 'crypto';
+import crypto from 'crypto';
 import { Pool } from 'pg';
-import { User, Session } from '../types';
+import { Request, Response, NextFunction } from 'express';
+import logger from '../lib/logger';
+import type { SessionInfo } from '../types';
 
 // Generate secure random tokens
 const generateToken = (): string => {
@@ -15,7 +17,7 @@ class SessionStore {
     this.pool = pool;
   }
 
-  async createSession(userId: string, userAgent?: string, ip?: string): Promise<string> {
+  async createSession(userId: string, userAgent: string | undefined, ip: string | undefined): Promise<string> {
     const token = generateToken();
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -27,21 +29,15 @@ class SessionStore {
       );
       return token;
     } catch (error) {
-      console.error('Error creating session:', error);
+      logger.error({ err: error }, 'Error creating session');
       throw error;
     }
   }
 
-  async validateSession(token: string): Promise<{
-    userId: string;
-    email: string;
-    name: string;
-    role: string;
-    sessionId: string;
-  } | null> {
+  async validateSession(token: string): Promise<SessionInfo | null> {
     try {
       const result = await this.pool.query(
-        `SELECT s.*, u.email, u.name, u.role 
+        `SELECT s.*, u.email, u.name, u.role
          FROM sessions s
          JOIN users u ON s.user_id = u.id
          WHERE s.token = $1 AND s.expires_at > NOW() AND s.revoked_at IS NULL`,
@@ -53,7 +49,7 @@ class SessionStore {
       }
 
       const session = result.rows[0];
-      
+
       // Update last accessed time
       await this.pool.query(
         'UPDATE sessions SET last_accessed_at = NOW() WHERE id = $1',
@@ -68,7 +64,7 @@ class SessionStore {
         sessionId: session.id,
       };
     } catch (error) {
-      console.error('Error validating session:', error);
+      logger.error({ err: error }, 'Error validating session');
       return null;
     }
   }
@@ -81,7 +77,7 @@ class SessionStore {
       );
       return true;
     } catch (error) {
-      console.error('Error revoking session:', error);
+      logger.error({ err: error }, 'Error revoking session');
       return false;
     }
   }
@@ -94,7 +90,7 @@ class SessionStore {
       );
       return true;
     } catch (error) {
-      console.error('Error revoking all user sessions:', error);
+      logger.error({ err: error }, 'Error revoking all user sessions');
       return false;
     }
   }
@@ -104,10 +100,10 @@ class SessionStore {
       const result = await this.pool.query(
         'DELETE FROM sessions WHERE expires_at < NOW() OR revoked_at IS NOT NULL'
       );
-      console.log(`Cleaned up ${result.rowCount} expired sessions`);
-      return result.rowCount || 0;
+      logger.info({ count: result.rowCount }, 'Cleaned up expired sessions');
+      return result.rowCount ?? 0;
     } catch (error) {
-      console.error('Error cleaning up sessions:', error);
+      logger.error({ err: error }, 'Error cleaning up sessions');
       return 0;
     }
   }
@@ -126,12 +122,12 @@ const validateInput = {
     return passwordRegex.test(password);
   },
 
-  sanitizeString: (str: unknown): string => {
+  sanitizeString: (str: string): string => {
     if (typeof str !== 'string') return '';
     return str.trim().replace(/[<>]/g, '');
   },
 
-  sanitizeHtml: (str: unknown): string => {
+  sanitizeHtml: (str: string): string => {
     if (typeof str !== 'string') return '';
     // Basic HTML sanitization - consider using a library like DOMPurify for production
     return str
@@ -141,17 +137,17 @@ const validateInput = {
       .replace(/on\w+\s*=/gi, '');
   },
 
-  validateTaskTitle: (title: unknown): boolean => {
+  validateTaskTitle: (title: string): boolean => {
     const sanitized = validateInput.sanitizeString(title);
     return sanitized.length >= 1 && sanitized.length <= 255;
   },
 
-  validateTaskDescription: (description: unknown): boolean => {
+  validateTaskDescription: (description: string): boolean => {
     const sanitized = validateInput.sanitizeString(description);
     return sanitized.length <= 1000;
   },
 
-  validateMessage: (message: unknown): boolean => {
+  validateMessage: (message: string): boolean => {
     const sanitized = validateInput.sanitizeHtml(message);
     return sanitized.length >= 1 && sanitized.length <= 2000;
   },
@@ -161,22 +157,25 @@ const validateInput = {
 const csrfProtection = () => {
   const tokens = new Map<string, string>();
 
-  return (req: any, res: any, next: any) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     // Skip CSRF for GET requests and authenticated API endpoints
     if (req.method === 'GET' || req.path.startsWith('/api/')) {
-      return next();
+      next();
+      return;
     }
 
-    const csrfToken = req.headers['x-csrf-token'] as string;
-    const sessionToken = req.headers.authorization?.replace('Bearer ', '') as string;
+    const csrfToken = req.headers['x-csrf-token'] as string | undefined;
+    const sessionToken = (req.headers.authorization as string | undefined)?.replace('Bearer ', '');
 
     if (!csrfToken || !sessionToken) {
-      return res.status(403).json({ error: 'CSRF token missing' });
+      res.status(403).json({ error: 'CSRF token missing' });
+      return;
     }
 
     const storedToken = tokens.get(sessionToken);
     if (!storedToken || storedToken !== csrfToken) {
-      return res.status(403).json({ error: 'Invalid CSRF token' });
+      res.status(403).json({ error: 'Invalid CSRF token' });
+      return;
     }
 
     next();
@@ -187,16 +186,17 @@ const csrfProtection = () => {
 const createUserRateLimit = (pool: Pool) => {
   const requests = new Map<string, { count: number; resetTime: number }>();
 
-  return async (req: any, res: any, next: any) => {
-    const token = req.headers.authorization?.replace('Bearer ', '') as string;
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) {
-      return next(); // Skip rate limiting for unauthenticated requests
+      next(); // Skip rate limiting for unauthenticated requests
+      return;
     }
 
-    const sessionStore = new SessionStore(pool);
-    const session = await sessionStore.validateSession(token);
+    const session = await new SessionStore(pool).validateSession(token);
     if (!session) {
-      return res.status(401).json({ error: 'Invalid session' });
+      res.status(401).json({ error: 'Invalid session' });
+      return;
     }
 
     const userId = session.userId;
@@ -218,10 +218,11 @@ const createUserRateLimit = (pool: Pool) => {
     userRequests.count++;
 
     if (userRequests.count > maxRequests) {
-      return res.status(429).json({ 
+      res.status(429).json({
         error: 'Too many requests',
         retryAfter: Math.ceil((userRequests.resetTime - now) / 1000)
       });
+      return;
     }
 
     next();
