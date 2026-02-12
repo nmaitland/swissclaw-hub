@@ -58,6 +58,15 @@ Tracking implementation progress across all phases.
 - [x] Annotated all 5 endpoints in `server/routes/auth.ts` with `@swagger` JSDoc
 - [x] All 94 tests pass, zero TypeScript errors
 
+## MCP Server — DONE
+
+- [x] Installed `@modelcontextprotocol/sdk` with Zod for tool parameter validation
+- [x] Created `server/mcp-server.ts` with 9 tools: get_status, get_messages, send_message, get_kanban, create_task, update_task, delete_task, add_activity, get_build_info
+- [x] Uses stdio transport — runs via `npm run mcp` or Claude Code MCP config
+- [x] Configured `.mcp.json` for Claude Code integration
+- [x] Added `mcp` npm script
+- [x] Zero TypeScript errors
+
 ## Phase 5: UX Polish - PLANNED
 
 - [ ] Dark/light theme toggle
@@ -87,4 +96,7 @@ Tracking implementation progress across all phases.
 | `client/src/App.tsx` | Main app (socket.io, real-time) |
 | `client/src/components/KanbanBoard.tsx` | Drag-and-drop kanban |
 | `jest.config.js` | Backend Jest config |
+| `server/mcp-server.ts` | MCP server for AI agent access |
+| `server/config/swagger.ts` | OpenAPI/Swagger base config |
+| `.mcp.json` | Claude Code MCP server config |
 | `.github/workflows/ci.yml` | CI/CD pipeline |

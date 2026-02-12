@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "swissclaw-hub": {
+      "command": "npx",
+      "args": ["ts-node", "server/mcp-server.ts"],
+      "env": {
+        "SWISSCLAW_HUB_URL": "http://localhost:3001",
+        "SWISSCLAW_TOKEN": "dev-token-change-in-production"
+      }
+    }
+  }
+}

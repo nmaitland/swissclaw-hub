@@ -60,11 +60,14 @@
 
     "format": "prettier --write \"server/**/*.{ts,js,json}\" \"client/src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
 
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "mcp": "ts-node server/mcp-server.ts"
 
   },
 
   "dependencies": {
+
+    "@modelcontextprotocol/sdk": "^1.26.0",
 
     "bcrypt": "^5.1.1",
 
