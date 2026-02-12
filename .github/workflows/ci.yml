@@ -58,13 +58,30 @@ jobs:
         TEST_DB_PASSWORD: password
       timeout-minutes: 10
 
-    - name: Upload coverage to Codecov
+    - name: Upload backend coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
+        flags: backend
+        name: backend-coverage
+        fail_ci_if_error: false
+
+    - name: Install client dependencies
+      run: cd client && npm ci
+
+    - name: Run client tests with coverage
+      run: cd client && npx jest --coverage --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=text --forceExit
+      env:
+        CI: true
+
+    - name: Upload client coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./client/coverage/lcov.info
+        flags: frontend
+        name: client-coverage
         fail_ci_if_error: false
 
     - name: Comment coverage on PR
@@ -73,18 +90,23 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const coverageFile = './coverage/lcov.info';
-          if (!fs.existsSync(coverageFile)) return;
-          const coverageSummary = fs.readFileSync(coverageFile, 'utf8');
-          const lines = coverageSummary.split('\n');
-          let totalLines = 0;
-          let coveredLines = 0;
-          lines.forEach(line => {
-            if (line.startsWith('LF:')) totalLines += parseInt(line.split(':')[1]) || 0;
-            if (line.startsWith('LH:')) coveredLines += parseInt(line.split(':')[1]) || 0;
-          });
-          const coveragePercent = totalLines > 0 ? Math.round((coveredLines / totalLines) * 100) : 0;
-          const body = `## 📊 Test Coverage Report\n\n**Coverage: ${coveragePercent}%**\n\n- Lines covered: ${coveredLines}/${totalLines}\n\n*Backend tests run against real Postgres; coverage includes server code.*`;
+          function parseLcov(file) {
+            if (!fs.existsSync(file)) return null;
+            const lines = fs.readFileSync(file, 'utf8').split('\n');
+            let total = 0, covered = 0;
+            lines.forEach(line => {
+              if (line.startsWith('LF:')) total += parseInt(line.split(':')[1]) || 0;
+              if (line.startsWith('LH:')) covered += parseInt(line.split(':')[1]) || 0;
+            });
+            const pct = total > 0 ? Math.round((covered / total) * 100) : 0;
+            return { total, covered, pct };
+          }
+          const backend = parseLcov('./coverage/lcov.info');
+          const client = parseLcov('./client/coverage/lcov.info');
+          let body = '## Test Coverage Report\n\n';
+          if (backend) body += `**Backend: ${backend.pct}%** (${backend.covered}/${backend.total} lines)\n`;
+          if (client) body += `**Frontend: ${client.pct}%** (${client.covered}/${client.total} lines)\n`;
+          if (!backend && !client) return;
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,

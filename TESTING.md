@@ -2,7 +2,7 @@
 
 ## Overview
 
-Backend tests use Jest and run against the **real Express app** in `server/index.js` and a **PostgreSQL** database. The server uses `pg` (not Sequelize) at runtime; tests call `resetTestDb()` so the DB has the server’s schema (messages, activities, kanban_columns, kanban_tasks).
+Backend tests use Jest and run against the **real Express app** in `server/index.ts` and a **PostgreSQL** database. The server uses `pg` (not Sequelize) at runtime; tests call `resetTestDb()` so the DB has the server's schema (messages, activities, kanban_columns, kanban_tasks). Server code is TypeScript — Jest uses `ts-jest` to transform `.ts` files and `babel-jest` for `.js` files.
 
 ## Test Structure
 
@@ -88,7 +88,7 @@ npm run test:watch
 
 ### Why `--forceExit`?
 
-Backend tests require the real server (`server/index.js`), which creates a **pg Pool** and **Socket.io** server. A dedicated teardown suite (`tests/zzz-teardown.test.js`) runs last and closes the pool and Socket.io so DB connections and WebSocket server are released. The Node process can still be kept alive by other handles (e.g. timers inside `pg` or `express-rate-limit`), so the npm scripts and CI use **`--forceExit`** so Jest exits after tests. The teardown is still valuable: it closes the pool and io explicitly so connections do not linger.
+Backend tests require the real server (`server/index.ts`), which creates a **pg Pool** and **Socket.io** server. A dedicated teardown suite (`tests/zzz-teardown.test.js`) runs last and closes the pool and Socket.io so DB connections and WebSocket server are released. The Node process can still be kept alive by other handles (e.g. timers inside `pg` or `express-rate-limit`), so the npm scripts and CI use **`--forceExit`** so Jest exits after tests. The teardown is still valuable: it closes the pool and io explicitly so connections do not linger.
 
 ### Client (React) tests
 
@@ -98,7 +98,7 @@ npm run test:client
 
 ## Backend test strategy
 
-All backend tests use the real `server/index.js` app and a real Postgres database:
+All backend tests use the real `server/index.ts` app and a real Postgres database:
 
 1. `beforeAll` calls `resetTestDb()` (drops server tables and runs `initDb()`).
 2. Tests use `supertest` against the exported `app`.
