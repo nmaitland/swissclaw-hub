@@ -17,12 +17,6 @@ const getAuthToken = (): string | null => {
   return localStorage.getItem('authToken');
 };
 
-interface KanbanCounts {
-  todo: number;
-  inProgress: number;
-  review: number;
-  total: number;
-}
 
 function App() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -143,19 +137,6 @@ function App() {
     }
   };
 
-  // Calculate kanban stats
-  const getKanbanCounts = (): KanbanCounts => {
-    if (!kanban || !kanban.tasks) return { todo: 0, inProgress: 0, review: 0, total: 0 };
-    return {
-      todo: kanban.tasks.todo?.length || 0,
-      inProgress: kanban.tasks.inProgress?.length || 0,
-      review: kanban.tasks.review?.length || 0,
-      total: Object.values(kanban.tasks).reduce((acc, col) => acc + (col?.length || 0), 0),
-    };
-  };
-
-  const kanbanCounts = getKanbanCounts();
-
   return (
     <div className="app">
       <header className="header">
@@ -170,73 +151,30 @@ function App() {
       </header>
 
       <main className="main unified">
-        {/* Top Section: Status & Quick Overview */}
-        <section className="overview-section">
-          <div className="status-card main-status">
-            <div className="status-header">
-              <div
-                className="status-dot"
-                style={{ background: getStatusColor(status?.swissclaw?.state || 'idle') }}
-              />
-              <span className="status-state">{status?.swissclaw?.state || 'idle'}</span>
-            </div>
-            <div className="current-task">
-              {status?.swissclaw?.currentTask || 'Ready to help'}
-            </div>
-            <div className="last-active">
-              Updated:{' '}
-              {status?.swissclaw?.lastActive
-                ? new Date(status.swissclaw.lastActive).toLocaleTimeString()
-                : '\u2014'}
-            </div>
-          </div>
-
-          {/* Stats Overview */}
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-value">{kanbanCounts.todo}</div>
-              <div className="stat-label">To Do</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{kanbanCounts.inProgress}</div>
-              <div className="stat-label">In Progress</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{kanbanCounts.review}</div>
-              <div className="stat-label">Review</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-value">{kanbanCounts.total}</div>
-              <div className="stat-label">Total Tasks</div>
-            </div>
-          </div>
-        </section>
-
-        {/* Unified Kanban Board */}
-        <KanbanBoard />
-
-        {/* Bottom Panels: Activity Feed & Chat side by side */}
-        <div className="bottom-panels">
-          {/* Activity Feed */}
-          <section className="panel activity-panel">
-            <h2>{'\u{1F50D}'} Live Activity</h2>
-            <div className="panel-content activity-feed">
-              {activities.length === 0 ? (
-                <div className="empty-state">No recent activity</div>
-              ) : (
-                activities.map((activity, i) => (
-                  <div key={i} className="activity-item">
-                    <span className="activity-time">
-                      {new Date(activity.created_at || (activity as any).timestamp).toLocaleTimeString()}
-                    </span>
-                    <span className="activity-text">{activity.description}</span>
-                  </div>
-                ))
-              )}
+        {/* Top Section: Status + Chat side by side */}
+        <section className="top-panels">
+          <section className="panel status-panel">
+            <h2>{'\u{1F4E1}'} Status</h2>
+            <div className="panel-content status-content">
+              <div className="status-header">
+                <div
+                  className="status-dot"
+                  style={{ background: getStatusColor(status?.swissclaw?.state || 'idle') }}
+                />
+                <span className="status-state">{status?.swissclaw?.state || 'idle'}</span>
+              </div>
+              <div className="current-task">
+                {status?.swissclaw?.currentTask || 'Ready to help'}
+              </div>
+              <div className="last-active">
+                Updated:{' '}
+                {status?.swissclaw?.lastActive
+                  ? new Date(status.swissclaw.lastActive).toLocaleTimeString()
+                  : '\u2014'}
+              </div>
             </div>
           </section>
 
-          {/* Chat */}
           <section className="panel chat-panel">
             <h2>{'\u{1F4AC}'} Chat</h2>
             <div className="panel-content chat-messages">
@@ -271,7 +209,29 @@ function App() {
               </button>
             </form>
           </section>
-        </div>
+        </section>
+
+        {/* Unified Kanban Board */}
+        <KanbanBoard />
+
+        {/* Activity Feed */}
+        <section className="panel activity-panel">
+          <h2>{'\u26A1'} Live Activity</h2>
+          <div className="panel-content activity-feed">
+            {activities.length === 0 ? (
+              <div className="empty-state">No recent activity</div>
+            ) : (
+              activities.map((activity, i) => (
+                <div key={i} className="activity-item">
+                  <span className="activity-time">
+                    {new Date(activity.created_at || (activity as any).timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className="activity-text">{activity.description}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       </main>
 
       <footer className="footer">
