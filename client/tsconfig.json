@@ -23,8 +23,7 @@
     "strictFunctionTypes": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "types": ["node", "@testing-library/jest-dom", "react", "react-dom"]
+    "noImplicitOverride": true
   },
   "include": [
     "src/**/*"
