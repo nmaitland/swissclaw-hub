@@ -10,7 +10,44 @@ const router = express.Router();
 // Initialize session store
 const sessionStore = new SessionStore(pool);
 
-// Login route
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     tags: [Auth - Enhanced]
+ *     summary: Login with email and password
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email: { type: string, format: email }
+ *               password: { type: string }
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string }
+ *                 token: { type: string }
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: integer }
+ *                     email: { type: string }
+ *                     name: { type: string }
+ *                     role: { type: string }
+ *       400:
+ *         description: Missing or invalid credentials
+ *       401:
+ *         description: Invalid credentials
+ */
 router.post('/login', authRateLimit, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
@@ -139,7 +176,20 @@ router.post('/login', authRateLimit, async (req: Request, res: Response) => {
   }
 });
 
-// Logout route
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     tags: [Auth - Enhanced]
+ *     summary: Logout and revoke session
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *       400:
+ *         description: No token provided
+ */
 router.post('/logout', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -170,7 +220,33 @@ router.post('/logout', async (req: Request, res: Response) => {
   }
 });
 
-// Validate session route
+/**
+ * @swagger
+ * /auth/validate:
+ *   get:
+ *     tags: [Auth - Enhanced]
+ *     summary: Validate current session token
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Session is valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 valid: { type: boolean }
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: integer }
+ *                     email: { type: string }
+ *                     name: { type: string }
+ *                     role: { type: string }
+ *       401:
+ *         description: Invalid or expired session
+ */
 router.get('/validate', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -202,7 +278,34 @@ router.get('/validate', async (req: Request, res: Response) => {
   }
 });
 
-// Get current user info
+/**
+ * @swagger
+ * /auth/me:
+ *   get:
+ *     tags: [Auth - Enhanced]
+ *     summary: Get current user profile
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: integer }
+ *                     email: { type: string }
+ *                     name: { type: string }
+ *                     role: { type: string }
+ *                     createdAt: { type: string, format: date-time }
+ *                     lastLogin: { type: string, format: date-time }
+ *       401:
+ *         description: Not authenticated
+ */
 router.get('/me', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -248,7 +351,32 @@ router.get('/me', async (req: Request, res: Response) => {
   }
 });
 
-// Change password (for production use)
+/**
+ * @swagger
+ * /auth/change-password:
+ *   post:
+ *     tags: [Auth - Enhanced]
+ *     summary: Change password
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword: { type: string }
+ *               newPassword: { type: string, minLength: 8, description: "Must have 1 uppercase, 1 lowercase, 1 number" }
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Invalid input or wrong current password
+ *       401:
+ *         description: Not authenticated
+ */
 router.post('/change-password', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
