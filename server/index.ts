@@ -32,17 +32,24 @@ const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   const publicApiPaths = ['/login', '/build', '/kanban', '/tasks', '/seed'];
   const publicRootPaths = ['/health', '/login'];
 
+  console.log('Auth middleware:', { path: req.path, method: req.method, publicApiPaths });
+  
   if (publicApiPaths.includes(req.path) || publicRootPaths.includes(req.path)) {
+    console.log('Public path allowed:', req.path);
     next();
     return;
   }
 
   const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string | undefined);
+  console.log('Auth check:', { hasToken: !!token, tokenLength: token?.length, sessionsCount: sessions.size });
+  
   if (!token || !sessions.has(token)) {
+    console.log('Auth failed for path:', req.path);
     res.status(401).json({ error: 'Authentication required', loginUrl: '/login' });
     return;
   }
 
+  console.log('Auth passed for path:', req.path);
   next();
 };
 
@@ -558,6 +565,9 @@ app.get('/api/kanban', asyncHandler(async (req: Request, res: Response) => {
 app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) => {
   const { columnName, title, description, priority = 'medium', assignedTo, tags = [] } = req.body;
 
+  console.log('POST /api/kanban/tasks received:', { columnName, title, priority, assignedTo, tags });
+  logger.info({ columnName, title, priority }, 'Creating kanban task');
+
   if (!columnName || !title) {
     res.status(400).json({ error: 'Column name and title required' });
     return;
@@ -569,7 +579,12 @@ app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) =
     [columnName]
   );
 
+  console.log('Column query result:', columnResult.rows);
+  logger.info({ columnName, columnExists: columnResult.rows.length > 0 }, 'Column lookup');
+
   if (columnResult.rows.length === 0) {
+    console.log('Column not found:', columnName);
+    logger.warn({ columnName }, 'Column not found in database');
     res.status(404).json({ error: 'Column not found' });
     return;
   }
