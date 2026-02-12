@@ -8,6 +8,7 @@ services:
       POSTGRES_DB: swissclaw_hub_test
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
+      TZ: UTC
     ports:
       - "5433:5432"
     volumes:
