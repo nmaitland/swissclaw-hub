@@ -1,10 +1,10 @@
 services:
   - type: web
     name: swissclaw-hub
-    env: node
+    runtime: node
     plan: pro
-    buildCommand: npm install && cd client && npm install && npm run build && cd .. && npm run build && npm run db:migrate
-    startCommand: npm start
+    buildCommand: npm install && cd client && npm install && npm run build && cd .. && npm run build
+    startCommand: npm run db:migrate && npm start
     envVars:
       - key: NODE_ENV
         value: production
