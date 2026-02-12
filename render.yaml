@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: pro
     buildCommand: npm install && cd client && npm install && npm run build && cd .. && npm run build
-    startCommand: npm run db:migrate && npm start
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
