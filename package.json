@@ -6,7 +6,7 @@
 
   "description": "Shared dashboard for operators and assistants",
 
-  "main": "server/index.js",
+  "main": "server/index.ts",
 
   "scripts": {
 

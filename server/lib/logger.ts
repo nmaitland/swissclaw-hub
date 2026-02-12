@@ -1,4 +1,4 @@
-const pino = require('pino');
+import pino from 'pino';
 
 const isTest = process.env.NODE_ENV === 'test';
 const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
@@ -13,4 +13,4 @@ const logger = pino({
   })
 });
 
-module.exports = logger;
+export default logger;
