@@ -7,7 +7,7 @@ A shared web interface for Neil and SwissClaw to communicate and collaborate.
 
 | Detail | Value |
 |--------|-------|
-| **Platform** | Render (Free Tier) |
+| **Platform** | Render (Pro plan) |
 | **Web Service** | swissclaw-hub |
 | **Service ID** | `srv-d62u5te8alac738oo72g` |
 | **Region** | Oregon (US West) |
@@ -54,6 +54,7 @@ curl -X POST \
 DATABASE_URL=postgresql://...
 AUTH_USERNAME=admin
 AUTH_PASSWORD=<set_secure_password>
+SWISSCLAW_TOKEN=<set_secure_service_token>
 REACT_APP_API_URL=  # empty for same-origin
 ```
 

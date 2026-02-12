@@ -9,8 +9,10 @@ A shared web interface for Neil and SwissClaw to communicate, collaborate, and t
 ```
 server/
 ├── index.ts                # Express + Socket.io server
+├── mcp-server.ts           # MCP server for AI agent access
 ├── config/
-│   └── database.ts         # PostgreSQL pool & schema (initDb)
+│   ├── database.ts         # PostgreSQL pool & schema (initDb)
+│   └── swagger.ts          # OpenAPI/Swagger base config
 ├── middleware/
 │   ├── auth.ts             # Session auth, CSRF, rate limiting
 │   └── security.ts         # Helmet, XSS, audit logging
@@ -49,6 +51,8 @@ tests/
 - Session-based authentication with CSRF protection
 - PostgreSQL database with raw SQL (no ORM at runtime)
 - Structured logging (pino)
+- API documentation with Swagger UI at `/api-docs`
+- MCP server for AI agent integration
 - CI/CD with GitHub Actions and Codecov
 
 ## Tech Stack
@@ -61,9 +65,11 @@ tests/
 | **Database** | PostgreSQL 15+ (pg driver) |
 | **Auth** | Session-based (bcrypt + secure cookies) |
 | **Security** | Helmet, rate limiting, CORS, input validation |
+| **API Docs** | Swagger UI (swagger-jsdoc + swagger-ui-express) |
+| **AI Integration** | MCP server (@modelcontextprotocol/sdk) |
 | **Testing** | Jest, ts-jest, supertest, React Testing Library |
 | **CI/CD** | GitHub Actions, Codecov |
-| **Hosting** | Render (free tier) |
+| **Hosting** | Render (Pro plan) |
 
 ## Local Development
 
@@ -106,6 +112,37 @@ npm run test:client
 docker-compose -f docker-compose.test.yml down
 ```
 
+## API Documentation
+
+Interactive Swagger UI is available at `/api-docs` when the server is running.
+
+- **Swagger UI:** http://localhost:3001/api-docs
+- **Raw OpenAPI spec:** http://localhost:3001/api-docs.json
+
+## MCP Server
+
+An MCP (Model Context Protocol) server is included for AI agent access to the Hub's API. It exposes tools for reading/writing chat messages, managing kanban tasks, updating status, and adding activity events.
+
+**Available tools:**
+| Tool | Description |
+|------|-------------|
+| `get_status` | Get server status, recent messages, and activities |
+| `get_messages` | Get recent chat messages |
+| `send_message` | Send a chat message |
+| `get_kanban` | Get the full kanban board |
+| `create_task` | Create a new kanban task |
+| `update_task` | Update or move a kanban task |
+| `delete_task` | Delete a kanban task |
+| `add_activity` | Add an activity event |
+| `get_build_info` | Get build version and commit hash |
+
+**Running the MCP server:**
+```bash
+npm run mcp
+```
+
+**Claude Code integration:** The `.mcp.json` file configures the MCP server for use with Claude Code. Set `SWISSCLAW_HUB_URL` and `SWISSCLAW_TOKEN` environment variables for the target Hub instance.
+
 ## Environment Variables
 
 | Variable | Description | Required |
@@ -115,11 +152,14 @@ docker-compose -f docker-compose.test.yml down
 | `PORT` | Server port (default: 3001) | No |
 | `CLIENT_URL` | Frontend URL for CORS | Production |
 | `AUTH_USERNAME` | Login username | Yes |
-| `AUTH_PASSWORD` | Login password (bcrypt hashed) | Yes |
+| `AUTH_PASSWORD` | Login password | Yes |
+| `SWISSCLAW_TOKEN` | Service-to-service auth token | Yes |
 
 ## Deployment
 
-Auto-deploys from `master` branch to Render. See [docs/project-info.md](docs/project-info.md) for hosting details.
+Auto-deploys from `master` branch to Render (Pro plan). See [docs/project-info.md](docs/project-info.md) for hosting details.
+
+The database schema is managed by `initDb()` which uses `CREATE TABLE IF NOT EXISTS` — safe for both fresh installs and restarts. No separate migration step is needed.
 
 Build command:
 ```bash
@@ -138,3 +178,4 @@ npm install && cd client && npm install && npm run build && cd .. && npm run bui
 | `npm run test:client` | Run React tests |
 | `npm run lint` | ESLint server code |
 | `npm run type-check` | TypeScript type checking |
+| `npm run mcp` | Start MCP server (stdio transport) |

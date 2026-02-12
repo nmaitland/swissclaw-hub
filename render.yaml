@@ -2,7 +2,7 @@ services:
   - type: web
     name: swissclaw-hub
     env: node
-    plan: free
+    plan: pro
     buildCommand: npm install && cd client && npm install && npm run build && cd .. && npm run build
     startCommand: npm start
     envVars:
@@ -14,9 +14,15 @@ services:
           property: connectionString
       - key: CLIENT_URL
         value: https://swissclaw.hydeabbey.net
+      - key: AUTH_USERNAME
+        sync: false
+      - key: AUTH_PASSWORD
+        sync: false
+      - key: SWISSCLAW_TOKEN
+        sync: false
 
 databases:
   - name: swissclaw-hub-db
-    plan: free
+    plan: pro
     databaseName: swissclaw_hub
     user: swissclaw
