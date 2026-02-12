@@ -88,6 +88,10 @@
 
     "socket.io": "^4.7.2",
 
+    "swagger-jsdoc": "^6.2.8",
+
+    "swagger-ui-express": "^5.0.1",
+
     "uuid": "^9.0.0"
 
   },
@@ -107,6 +111,10 @@
     "@types/express": "^4.17.25",
 
     "@types/pg": "^8.16.0",
+
+    "@types/swagger-jsdoc": "^6.0.4",
+
+    "@types/swagger-ui-express": "^4.1.8",
 
     "@types/uuid": "^9.0.7",
 

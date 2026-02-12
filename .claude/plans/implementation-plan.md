@@ -49,11 +49,14 @@ Tracking implementation progress across all phases.
 
 ---
 
-## Immediate — API Documentation
+## API Documentation — DONE
 
-- [ ] Add automated API docs using Swagger/OpenAPI (swagger-jsdoc + swagger-ui-express)
-- [ ] Annotate all endpoints in `server/index.ts` and `server/routes/auth.ts` with JSDoc/OpenAPI comments
-- [ ] Serve Swagger UI at `/api-docs`
+- [x] Installed swagger-jsdoc + swagger-ui-express
+- [x] Created `server/config/swagger.ts` with OpenAPI 3.0.3 base config + component schemas
+- [x] Mounted Swagger UI at `/api-docs` and raw spec at `/api-docs.json`
+- [x] Annotated all 13 endpoints in `server/index.ts` with `@swagger` JSDoc
+- [x] Annotated all 5 endpoints in `server/routes/auth.ts` with `@swagger` JSDoc
+- [x] All 94 tests pass, zero TypeScript errors
 
 ## Phase 5: UX Polish - PLANNED
 

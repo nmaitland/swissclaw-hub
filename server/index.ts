@@ -9,6 +9,8 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import 'dotenv/config';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './config/swagger';
 import logger from './lib/logger';
 import { asyncHandler, errorHandler } from './lib/errors';
 import type { ChatMessageData, RateLimitEntry, ParsedTask, BuildInfo } from './types';
@@ -208,7 +210,47 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 
-// Login endpoint (after body parser so req.body is available)
+// API Documentation — Swagger UI (no auth required)
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'Swissclaw Hub API Docs',
+}));
+app.get('/api-docs.json', (_req: Request, res: Response) => {
+  res.json(swaggerSpec);
+});
+
+/**
+ * @swagger
+ * /api/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Login with username/password
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username, password]
+ *             properties:
+ *               username: { type: string }
+ *               password: { type: string }
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token: { type: string }
+ *                 success: { type: boolean }
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 app.post('/api/login', (req: Request, res: Response) => {
   const { username, password } = req.body;
 
@@ -225,7 +267,35 @@ app.post('/api/login', (req: Request, res: Response) => {
 // Service token auth middleware
 const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
 
-// Service-authenticated activities endpoint (PUBLIC - before auth middleware)
+/**
+ * @swagger
+ * /api/service/activities:
+ *   post:
+ *     tags: [Activities]
+ *     summary: Create activity (service-to-service)
+ *     security:
+ *       - ServiceToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [type, description]
+ *             properties:
+ *               type: { type: string, maxLength: 50 }
+ *               description: { type: string, maxLength: 500 }
+ *               metadata: { type: object }
+ *     responses:
+ *       200:
+ *         description: Activity created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Activity'
+ *       401:
+ *         description: Invalid service token
+ */
 app.post('/api/service/activities', asyncHandler(async (req: Request, res: Response) => {
   const serviceToken = req.headers['x-service-token'];
   if (serviceToken !== SWISSCLAW_TOKEN) {
@@ -528,6 +598,39 @@ async function initDb(): Promise<void> {
 }
 
 // API Routes
+
+/**
+ * @swagger
+ * /api/status:
+ *   get:
+ *     tags: [Status]
+ *     summary: Get server status, recent messages, and activities
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current server status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status: { type: string, example: online }
+ *                 swissclaw:
+ *                   type: object
+ *                   properties:
+ *                     state: { type: string, enum: [active, busy, idle] }
+ *                     currentTask: { type: string }
+ *                     lastActive: { type: string, format: date-time }
+ *                 recentMessages:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ChatMessage'
+ *                 recentActivities:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Activity'
+ */
 app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
   const messagesResult = await pool.query(
     'SELECT * FROM messages ORDER BY created_at DESC LIMIT 10'
@@ -549,6 +652,24 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
   });
 }));
 
+/**
+ * @swagger
+ * /api/messages:
+ *   get:
+ *     tags: [Chat]
+ *     summary: Get recent chat messages
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Last 50 messages
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ChatMessage'
+ */
 app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
   const result = await pool.query(
     'SELECT * FROM messages ORDER BY created_at DESC LIMIT 50'
@@ -556,7 +677,32 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
   res.json(result.rows);
 }));
 
-// Kanban API - database backed with new 6-column schema
+/**
+ * @swagger
+ * /api/kanban:
+ *   get:
+ *     tags: [Kanban]
+ *     summary: Get full kanban board (columns + tasks)
+ *     responses:
+ *       200:
+ *         description: Kanban board state
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 columns:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/KanbanColumn'
+ *                 tasks:
+ *                   type: object
+ *                   description: Tasks grouped by column name
+ *                   additionalProperties:
+ *                     type: array
+ *                     items:
+ *                       $ref: '#/components/schemas/KanbanTask'
+ */
 app.get('/api/kanban', asyncHandler(async (req: Request, res: Response) => {
   // Get all columns with their tasks
   const columnsResult = await pool.query(
@@ -602,7 +748,40 @@ app.get('/api/kanban', asyncHandler(async (req: Request, res: Response) => {
   res.json({ columns, tasks: kanban });
 }));
 
-// Create new kanban task
+/**
+ * @swagger
+ * /api/kanban/tasks:
+ *   post:
+ *     tags: [Kanban]
+ *     summary: Create a new kanban task
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [columnName, title]
+ *             properties:
+ *               columnName: { type: string, example: todo }
+ *               title: { type: string, maxLength: 200 }
+ *               description: { type: string }
+ *               priority: { type: string, enum: [low, medium, high], default: medium }
+ *               assignedTo: { type: string, maxLength: 50 }
+ *               tags: { type: array, items: { type: string } }
+ *     responses:
+ *       201:
+ *         description: Task created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/KanbanTask'
+ *       400:
+ *         description: Missing required fields
+ *       404:
+ *         description: Column not found
+ */
 app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) => {
   const { columnName, title, description, priority = 'medium', assignedTo, tags = [] } = req.body;
 
@@ -656,7 +835,42 @@ app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) =
   });
 }));
 
-// Update kanban task (move columns, edit, etc)
+/**
+ * @swagger
+ * /api/kanban/tasks/{id}:
+ *   put:
+ *     tags: [Kanban]
+ *     summary: Update a kanban task (move, edit, reorder)
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               columnName: { type: string, description: Move to this column }
+ *               title: { type: string }
+ *               description: { type: string }
+ *               priority: { type: string, enum: [low, medium, high] }
+ *               assignedTo: { type: string }
+ *               tags: { type: array, items: { type: string } }
+ *               position: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Task updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/KanbanTask'
+ *       404:
+ *         description: Task not found
+ */
 app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { columnName, title, description, priority, assignedTo, tags, position } = req.body;
@@ -733,7 +947,32 @@ app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response
   });
 }));
 
-// Delete kanban task
+/**
+ * @swagger
+ * /api/kanban/tasks/{id}:
+ *   delete:
+ *     tags: [Kanban]
+ *     summary: Delete a kanban task
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Task deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 deleted: { $ref: '#/components/schemas/KanbanTask' }
+ *       404:
+ *         description: Task not found
+ */
 app.delete('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -821,11 +1060,63 @@ function parseTasksFromKanban(): ParsedTask[] {
   }
 }
 
+/**
+ * @swagger
+ * /api/tasks:
+ *   get:
+ *     tags: [Tasks]
+ *     summary: Get action items parsed from kanban.md
+ *     responses:
+ *       200:
+ *         description: Task list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id: { type: integer }
+ *                   title: { type: string }
+ *                   description: { type: string }
+ *                   completed: { type: boolean }
+ *                   priority: { type: string }
+ *                   dueDate: { type: string, nullable: true }
+ */
 app.get('/api/tasks', asyncHandler(async (req: Request, res: Response) => {
   const tasks = parseTasksFromKanban();
   res.json(tasks);
 }));
 
+/**
+ * @swagger
+ * /api/activities:
+ *   post:
+ *     tags: [Activities]
+ *     summary: Create an activity record
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [type, description]
+ *             properties:
+ *               type: { type: string, maxLength: 50 }
+ *               description: { type: string, maxLength: 500 }
+ *               metadata: { type: object }
+ *     responses:
+ *       200:
+ *         description: Activity created and broadcast via Socket.io
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Activity'
+ *       400:
+ *         description: Invalid input
+ */
 app.post('/api/activities', asyncHandler(async (req: Request, res: Response) => {
   const { type, description, metadata } = req.body;
 
@@ -924,7 +1215,25 @@ const getBuildInfo = (): BuildInfo => {
   };
 };
 
-// Health check (no auth required)
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     tags: [System]
+ *     summary: Health check
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - type: object
+ *                   properties:
+ *                     status: { type: string, example: ok }
+ *                     timestamp: { type: string, format: date-time }
+ *                 - $ref: '#/components/schemas/BuildInfo'
+ */
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
@@ -933,12 +1242,46 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
-// Build info endpoint
+/**
+ * @swagger
+ * /api/build:
+ *   get:
+ *     tags: [System]
+ *     summary: Get build version and commit info
+ *     responses:
+ *       200:
+ *         description: Build information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/BuildInfo'
+ */
 app.get('/api/build', (_req: Request, res: Response) => {
   res.json(getBuildInfo());
 });
 
-// Seed endpoint - populate initial kanban data (idempotent)
+/**
+ * @swagger
+ * /api/seed:
+ *   post:
+ *     tags: [System]
+ *     summary: Seed initial kanban data (idempotent)
+ *     responses:
+ *       200:
+ *         description: Seed result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string }
+ *                 backlog: { type: integer }
+ *                 todo: { type: integer }
+ *                 inProgress: { type: integer }
+ *                 review: { type: integer }
+ *                 done: { type: integer }
+ *                 waitingForNeil: { type: integer }
+ */
 app.post('/api/seed', asyncHandler(async (req: Request, res: Response) => {
   // Check if we already have tasks
   const existing = await pool.query('SELECT COUNT(*) as count FROM kanban_tasks');
