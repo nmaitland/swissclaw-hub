@@ -12,15 +12,15 @@ module.exports = {
     await queryInterface.sequelize.query('DROP TABLE IF EXISTS kanban_columns CASCADE');
     await queryInterface.sequelize.query('DROP TABLE IF EXISTS messages CASCADE');
     await queryInterface.sequelize.query('DROP TABLE IF EXISTS activities CASCADE');
-    
+
     // Also drop any tables from the old server/config/database.ts schema
     await queryInterface.sequelize.query('DROP TABLE IF EXISTS sessions CASCADE');
     await queryInterface.sequelize.query('DROP TABLE IF EXISTS users CASCADE');
     await queryInterface.sequelize.query('DROP TABLE IF EXISTS security_logs CASCADE');
     await queryInterface.sequelize.query('DROP TABLE IF EXISTS status CASCADE');
-    
-    // Clear SequelizeMeta if it exists (to ensure clean slate)
-    await queryInterface.sequelize.query('DROP TABLE IF EXISTS "SequelizeMeta" CASCADE');
+
+    // NOTE: We do NOT drop SequelizeMeta here - that would break migration tracking
+    // The migration state should be preserved
   },
 
   async down(queryInterface, Sequelize) {

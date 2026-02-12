@@ -205,7 +205,11 @@ npm run mcp
 
 Auto-deploys from `master` branch to Render (Pro plan). See [docs/project-info.md](docs/project-info.md) for hosting details.
 
-The database schema is managed by `initDb()` which uses `CREATE TABLE IF NOT EXISTS` — safe for both fresh installs and restarts. No separate migration step is needed.
+The database schema is managed by Sequelize migrations. Migrations run automatically during deployment via the start command (`npm run db:migrate && npm start`). For local development, run migrations manually:
+
+```bash
+npm run db:migrate
+```
 
 Build command:
 ```bash
