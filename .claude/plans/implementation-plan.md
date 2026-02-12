@@ -79,13 +79,38 @@ Tracking implementation progress across all phases.
 - [x] Removed `pg-hstore` (unused Sequelize ORM helper)
 - [x] Removed 7 dead `db:*` npm scripts (referenced stale Sequelize workflows)
 - [x] Fixed Docker clock skew — added `TZ: UTC` to test container, widened timestamp tolerance to 5s
-- [ ] Rewrite Sequelize migrations to match actual production schema (initDb() uses SERIAL PKs, different columns than migrations define) — deferred, significant effort
 
-## Future — Migrate Tests to TypeScript
+## Phase 6: Fresh Sequelize DB Setup — TODO
 
-18 test files still in JavaScript:
+Assume next deployment starts with a clean database. Replace all redundant/conflicting DB initialization with a single Sequelize-managed schema.
 
-**Backend (14 files):**
+- [ ] Delete old `database/migrations/` (5 files — define wrong schema with UUID PKs)
+- [ ] Delete old `database/seeders/` (3 files — reference wrong schema)
+- [ ] Delete `database/init.sql` (raw SQL test init, overlaps with migrations)
+- [ ] Delete `.sequelizerc` and `config/database.js` — recreate fresh
+- [ ] Write new Sequelize migrations matching production schema from `initDb()`:
+  - `messages` (SERIAL PK, sender VARCHAR, content, created_at)
+  - `activities` (SERIAL PK, type, description, metadata JSONB, created_at)
+  - `kanban_columns` (SERIAL PK, name, display_name, emoji, color, position, created_at)
+  - `kanban_tasks` (SERIAL PK, task_id, column_id FK, title, description, priority, assigned_to, tags JSONB, attachment_count, comment_count, position, created_at, updated_at)
+  - `users` (UUID PK, email, name, password_hash, role, created_at, updated_at, last_login)
+  - `sessions` (UUID PK, user_id FK, token, user_agent, ip_address, expires_at, created_at, last_accessed_at, revoked_at)
+  - `security_logs` (UUID PK, type, method, path, status_code, ip_address, user_agent, user_id, duration, metadata JSONB, created_at)
+  - `status` (UUID PK, status, current_task, last_updated)
+- [ ] Write new seeders for test data (kanban columns, sample tasks, test users)
+- [ ] Remove `initDb()` and `migrateDb()` from `server/index.ts` — replace startup with Sequelize CLI migration check or just document `npx sequelize-cli db:migrate` as a pre-deploy step
+- [ ] Remove `createTables()` / `createIndexes()` from `server/config/database.ts` — keep only pool + health check
+- [ ] Update `docker-compose.test.yml` to run migrations instead of `init.sql`
+- [ ] Add `db:migrate` and `db:seed` npm scripts back (pointing to new migrations)
+- [ ] Update render.yaml build command to include migration step
+- [ ] Update README with new DB setup instructions
+- [ ] Verify: fresh DB → migrate → seed → server starts → all tests pass
+
+## Phase 7: Migrate Tests to TypeScript — TODO
+
+18 test files + 2 config files still in JavaScript:
+
+**Backend (17 files):**
 - `tests/unit/auth-middleware.test.js`
 - `tests/unit/security-middleware.test.js`
 - `tests/unit/database-config.test.js`
