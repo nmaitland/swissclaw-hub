@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import KanbanBoard from './components/KanbanBoard';
-import type { Activity, ChatMessage, BuildInfo, StatusResponse, KanbanApiResponse } from './types';
+import type { Activity, ChatMessage, BuildInfo, StatusResponse } from './types';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -23,7 +23,6 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [kanban, setKanban] = useState<KanbanApiResponse | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [buildInfo, setBuildInfo] = useState<BuildInfo>({ version: '2.1.0', commit: 'unknown' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -61,10 +60,7 @@ function App() {
     const token = getAuthToken();
     try {
       const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-      const [statusRes, kanbanRes] = await Promise.all([
-        fetch(`${API_URL}/api/status`, { headers }),
-        fetch(`${API_URL}/api/kanban`, { headers }),
-      ]);
+      const statusRes = await fetch(`${API_URL}/api/status`, { headers });
 
       if (statusRes.status === 401) {
         localStorage.removeItem('authToken');
@@ -73,13 +69,11 @@ function App() {
       }
 
       const statusData: StatusResponse = await statusRes.json();
-      const kanbanData: KanbanApiResponse = await kanbanRes.json();
 
       setStatus(statusData);
       if (statusData.recentMessages) {
         setMessages(statusData.recentMessages);
       }
-      setKanban(kanbanData);
       setActivities(statusData.recentActivities || []);
     } catch (err) {
       console.error('Failed to fetch data:', err);
