@@ -71,6 +71,50 @@ tests/
 | **CI/CD** | GitHub Actions, Codecov |
 | **Hosting** | Render (Pro plan) |
 
+## Database Setup
+
+The project uses Sequelize migrations for database schema management.
+
+### Initial Setup
+
+1. Create the database:
+```bash
+# For development
+npx sequelize-cli db:create
+
+# For test
+npx sequelize-cli db:create --env test
+```
+
+2. Run migrations:
+```bash
+# For development
+npm run db:migrate
+
+# For test
+npm run db:migrate:test
+```
+
+3. (Optional) Seed test data:
+```bash
+# For development
+npm run db:seed
+
+# For test
+npm run db:seed:test
+```
+
+### Reset Database
+
+To completely reset the database (drop, create, migrate, seed):
+```bash
+# For development
+npm run db:reset
+
+# For test
+npm run db:reset:test
+```
+
 ## Local Development
 
 1. Install dependencies:
@@ -84,7 +128,9 @@ cp .env.example .env
 # Edit .env with your database URL
 ```
 
-3. Start development server:
+3. Set up the database (see Database Setup above)
+
+4. Start development server:
 ```bash
 npm run dev
 ```

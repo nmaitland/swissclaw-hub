@@ -28,7 +28,14 @@ tests/
    docker-compose -f docker-compose.test.yml up -d test-db
    ```
 
-2. Run all backend tests (schema is applied via `resetTestDb()`):
+2. Run migrations and seeders:
+
+   ```bash
+   npm run db:migrate:test
+   npm run db:seed:test
+   ```
+
+3. Run all backend tests:
 
    ```bash
    npm run test:with-db
@@ -36,7 +43,7 @@ tests/
 
    With coverage: `npm run test:with-db -- --coverage`
 
-3. Stop test database:
+4. Stop test database:
 
    ```bash
    docker-compose -f docker-compose.test.yml down
@@ -44,7 +51,7 @@ tests/
 
 ### CI (GitHub Actions)
 
-The workflow starts a Postgres service and sets `NODE_ENV=test` and `TEST_DB_*`. A single step runs `npm test` with coverage; no Sequelize migrations are run—the server’s `initDb()` creates the schema.
+The workflow starts a Postgres service and sets `NODE_ENV=test` and `TEST_DB_*`. A single step runs `npm test` with coverage. The database schema is managed via Sequelize migrations.
 
 ### Env vars for backend tests
 
