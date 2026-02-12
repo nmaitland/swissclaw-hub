@@ -21,11 +21,66 @@ export interface KanbanTask {
   status: string;
   priority: 'low' | 'medium' | 'high';
   assigned_to?: string;
-  column: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting-for-neil';
+  column: ColumnName;
   tags: string[];
   created_at: string;
   updated_at: string;
   created_by?: string;
+}
+
+// Types matching the actual API response shape from GET /api/kanban
+export type ColumnName = 'backlog' | 'todo' | 'inProgress' | 'review' | 'done' | 'waiting-for-neil';
+
+export interface KanbanCardTask {
+  id: number | string;
+  taskId: string;
+  title: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  assignedTo: string;
+  tags: string[];
+  createdAt: string;
+  columnName: ColumnName;
+}
+
+export interface KanbanColumnDef {
+  name: ColumnName;
+  displayName: string;
+  emoji: string;
+  color?: string;
+  position: number;
+  special?: boolean;
+}
+
+export type TasksByColumn = Record<ColumnName, KanbanCardTask[]>;
+
+export interface KanbanApiResponse {
+  columns: KanbanColumnDef[];
+  tasks: TasksByColumn;
+}
+
+export type PriorityFilter = 'all' | 'high' | 'medium' | 'low';
+
+export interface StatusResponse {
+  swissclaw: {
+    state: 'active' | 'busy' | 'idle';
+    currentTask: string;
+    lastActive: string;
+  };
+  recentMessages: ChatMessage[];
+  recentActivities: Activity[];
+}
+
+export interface ChatMessage {
+  id: string;
+  sender: string;
+  content: string;
+  created_at: string;
+}
+
+export interface BuildInfo {
+  version: string;
+  commit: string;
 }
 
 export interface Message {

@@ -6,6 +6,37 @@ import KanbanBoard from '../KanbanBoard';
 // Mock CSS import
 jest.mock('../KanbanBoard.css', () => ({}));
 
+// Mock @dnd-kit modules — use plain functions (not jest.fn) to survive clearAllMocks
+jest.mock('@dnd-kit/core', () => ({
+  DndContext: ({ children }) => <div data-testid="dnd-context">{children}</div>,
+  DragOverlay: ({ children }) => <div data-testid="drag-overlay">{children}</div>,
+  useSensor: (sensor, config) => ({ sensor, config }),
+  useSensors: (...sensors) => sensors,
+  closestCorners: () => null,
+  PointerSensor: function PointerSensor() {},
+}));
+
+jest.mock('@dnd-kit/sortable', () => ({
+  SortableContext: ({ children }) => <div>{children}</div>,
+  verticalListSortingStrategy: {},
+  useSortable: () => ({
+    attributes: {},
+    listeners: {},
+    setNodeRef: () => {},
+    transform: null,
+    transition: null,
+    isDragging: false,
+  }),
+}));
+
+jest.mock('@dnd-kit/utilities', () => ({
+  CSS: {
+    Transform: {
+      toString: () => '',
+    },
+  },
+}));
+
 // Mock fetch
 global.fetch = jest.fn();
 
@@ -70,10 +101,12 @@ describe('KanbanBoard Component', () => {
     Storage.prototype.removeItem = jest.fn();
   });
 
-  it('shows loading state initially', () => {
+  it('shows loading skeleton initially', () => {
     fetch.mockImplementation(() => new Promise(() => {}));
     render(<KanbanBoard />);
-    expect(screen.getByText('Loading kanban...')).toBeInTheDocument();
+    // Skeleton columns are rendered during loading
+    const skeletonCols = document.querySelectorAll('.kanban-skeleton-col');
+    expect(skeletonCols.length).toBe(6);
   });
 
   it('renders the kanban title after loading', async () => {
@@ -195,7 +228,7 @@ describe('KanbanBoard Component', () => {
     });
   });
 
-  it('shows "No tasks" for empty columns', async () => {
+  it('shows drop zone for empty columns', async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockKanbanResponse,
@@ -204,9 +237,9 @@ describe('KanbanBoard Component', () => {
     render(<KanbanBoard />);
 
     await waitFor(() => {
-      const emptyMessages = screen.getAllByText('No tasks');
+      const dropZones = screen.getAllByText('Drop tasks here');
       // backlog, review, and waiting-for-neil columns are empty
-      expect(emptyMessages.length).toBe(3);
+      expect(dropZones.length).toBe(3);
     });
   });
 
@@ -276,7 +309,7 @@ describe('KanbanBoard Component', () => {
       expect(fetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/kanban'),
         expect.objectContaining({
-          headers: { 'Authorization': 'Bearer test-token' },
+          headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
         })
       );
     });
@@ -356,5 +389,118 @@ describe('KanbanBoard Component', () => {
     await waitFor(() => {
       expect(screen.queryByText('Create Task')).not.toBeInTheDocument();
     });
+  });
+
+  // ─── Search & Filter Tests ─────────────────────────────────────────
+
+  it('renders the search input', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Search tasks/)).toBeInTheDocument();
+    });
+  });
+
+  it('renders priority filter chips', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('All')).toBeInTheDocument();
+      expect(screen.getByText('High')).toBeInTheDocument();
+      expect(screen.getByText('Medium')).toBeInTheDocument();
+      expect(screen.getByText('Low')).toBeInTheDocument();
+    });
+  });
+
+  it('filters tasks by search query', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+    });
+
+    // Type in search
+    const searchInput = screen.getByPlaceholderText(/Search tasks/);
+    fireEvent.change(searchInput, { target: { value: 'login' } });
+
+    // Only the login task should be visible
+    expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+    expect(screen.queryByText('Add dark mode')).not.toBeInTheDocument();
+    expect(screen.queryByText('Update README')).not.toBeInTheDocument();
+  });
+
+  it('filters tasks by priority', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+    });
+
+    // Click the High priority filter
+    fireEvent.click(screen.getByText('High'));
+
+    // Only high priority tasks visible
+    expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+    expect(screen.queryByText('Add dark mode')).not.toBeInTheDocument();
+    expect(screen.queryByText('Update README')).not.toBeInTheDocument();
+  });
+
+  it('shows task count in toolbar', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/3\s*tasks/)).toBeInTheDocument();
+    });
+  });
+
+  it('shows clear button when search has text', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search tasks/);
+    fireEvent.change(searchInput, { target: { value: 'test' } });
+
+    // Clear button should appear
+    const clearBtn = screen.getByLabelText('Clear search');
+    expect(clearBtn).toBeInTheDocument();
+
+    // Click clear
+    fireEvent.click(clearBtn);
+
+    // Search should be cleared
+    expect(searchInput.value).toBe('');
   });
 });
