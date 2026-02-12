@@ -260,10 +260,9 @@ describe('database config module', () => {
       dbModule = require('../../server/config/database');
     });
 
-    it('connects and creates tables and indexes', async () => {
+    it('connects and verifies database is accessible', async () => {
       const mockClient = { query: jest.fn().mockResolvedValue({}), release: jest.fn() };
       mockConnect.mockResolvedValueOnce(mockClient);
-      // createTables: 7 tables + createIndexes: 17 indexes = 24 queries
       mockQuery.mockResolvedValue({});
 
       await dbModule.initializeDatabase();
@@ -271,8 +270,8 @@ describe('database config module', () => {
       expect(mockConnect).toHaveBeenCalled();
       expect(mockClient.query).toHaveBeenCalledWith('SELECT NOW()');
       expect(mockClient.release).toHaveBeenCalled();
-      // 7 CREATE TABLE + 18 CREATE INDEX = 25 pool.query calls
-      expect(mockQuery).toHaveBeenCalledTimes(25);
+      // Tables are now created via Sequelize migrations, not in initializeDatabase
+      expect(mockQuery).toHaveBeenCalledTimes(0);
     });
 
     it('throws on connection failure', async () => {

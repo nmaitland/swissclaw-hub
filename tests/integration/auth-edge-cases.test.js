@@ -10,7 +10,10 @@ describe('Auth edge cases', () => {
     it('returns a token on valid credentials', async () => {
       const response = await request(app)
         .post('/api/login')
-        .send({ username: 'admin', password: 'changeme123' })
+        .send({
+          username: process.env.AUTH_USERNAME || 'admin',
+          password: process.env.AUTH_PASSWORD || 'changeme123',
+        })
         .expect(200);
 
       expect(response.body).toHaveProperty('token');
@@ -102,7 +105,10 @@ describe('Auth edge cases', () => {
       // Login first
       const loginRes = await request(app)
         .post('/api/login')
-        .send({ username: 'admin', password: 'changeme123' })
+        .send({
+          username: process.env.AUTH_USERNAME || 'admin',
+          password: process.env.AUTH_PASSWORD || 'changeme123',
+        })
         .expect(200);
 
       const token = loginRes.body.token;

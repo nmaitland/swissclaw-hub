@@ -370,233 +370,6 @@ const generateTaskId = (): string => {
   return `TASK-${timestamp.slice(-3)}${Math.floor(Math.random() * 900 + 100)}`;
 };
 
-// Database migration - add missing columns to existing tables
-async function migrateDb(): Promise<void> {
-  logger.info('Starting database migration');
-  try {
-    logger.debug('Running database migrations...');
-
-    // Check if kanban_columns table exists
-    logger.debug('Checking if kanban_columns table exists...');
-    const tableCheck = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables
-        WHERE table_name = 'kanban_columns'
-      )
-    `);
-
-    logger.debug({ exists: tableCheck.rows[0]?.exists }, 'Table check result');
-
-    if (tableCheck.rows[0]?.exists) {
-      logger.debug('kanban_columns table exists, checking for missing columns...');
-      // Check and add missing columns to kanban_columns
-      const columnsToCheck = [
-        { name: 'color', type: "VARCHAR(20) DEFAULT ''" },
-        { name: 'position', type: 'INTEGER DEFAULT 0' }
-      ];
-
-      for (const col of columnsToCheck) {
-        try {
-          const colCheck = await pool.query(`
-            SELECT EXISTS (
-              SELECT FROM information_schema.columns
-              WHERE table_name = 'kanban_columns' AND column_name = $1
-            )
-          `, [col.name]);
-
-          if (!colCheck.rows[0]?.exists) {
-            logger.debug({ column: col.name }, 'Adding column to kanban_columns');
-            await pool.query(`ALTER TABLE kanban_columns ADD COLUMN ${col.name} ${col.type}`);
-            logger.debug({ column: col.name }, 'Successfully added column');
-          } else {
-            logger.debug({ column: col.name }, 'Column already exists in kanban_columns');
-          }
-        } catch (colErr) {
-          logger.error({ err: colErr, column: col.name }, 'Error adding column to kanban_columns');
-          throw colErr;
-        }
-      }
-
-      // Check and add missing columns to kanban_tasks
-      logger.debug('Checking kanban_tasks columns...');
-      const taskColumnsToCheck = [
-        { name: 'task_id', type: 'VARCHAR(20) UNIQUE' },
-        { name: 'assigned_to', type: 'VARCHAR(50)' },
-        { name: 'tags', type: "JSONB DEFAULT '[]'" },
-        { name: 'attachment_count', type: 'INTEGER DEFAULT 0' },
-        { name: 'comment_count', type: 'INTEGER DEFAULT 0' }
-      ];
-
-      for (const col of taskColumnsToCheck) {
-        try {
-          const colCheck = await pool.query(`
-            SELECT EXISTS (
-              SELECT FROM information_schema.columns
-              WHERE table_name = 'kanban_tasks' AND column_name = $1
-            )
-          `, [col.name]);
-
-          if (!colCheck.rows[0]?.exists) {
-            logger.debug({ column: col.name }, 'Adding column to kanban_tasks');
-            await pool.query(`ALTER TABLE kanban_tasks ADD COLUMN ${col.name} ${col.type}`);
-            logger.debug({ column: col.name }, 'Successfully added column');
-          } else {
-            logger.debug({ column: col.name }, 'Column already exists in kanban_tasks');
-          }
-        } catch (colErr) {
-          logger.error({ err: colErr, column: col.name }, 'Error adding column to kanban_tasks');
-          throw colErr;
-        }
-      }
-
-      // Update existing columns with default values
-      logger.debug('Updating column constraints...');
-      try {
-        await pool.query(`ALTER TABLE kanban_columns ALTER COLUMN display_name SET NOT NULL`);
-        logger.debug('Set display_name NOT NULL');
-      } catch (e) {
-        logger.debug({ err: e }, 'display_name NOT NULL constraint already set or skipped');
-      }
-      try {
-        await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN priority SET DEFAULT 'medium'`);
-        logger.debug('Set priority DEFAULT');
-      } catch (e) {
-        logger.debug({ err: e }, 'priority DEFAULT already set or skipped');
-      }
-      try {
-        await pool.query(`ALTER TABLE kanban_tasks ALTER COLUMN position SET DEFAULT 0`);
-        logger.debug('Set position DEFAULT');
-      } catch (e) {
-        logger.debug({ err: e }, 'position DEFAULT already set or skipped');
-      }
-
-      // Migrate existing tasks to have task_id if missing
-      try {
-        logger.debug('Checking for tasks without task_id...');
-        const tasksWithoutId = await pool.query(`
-          SELECT id FROM kanban_tasks WHERE task_id IS NULL
-        `);
-
-        logger.debug({ count: tasksWithoutId.rows.length }, 'Tasks without task_id');
-
-        for (const task of tasksWithoutId.rows) {
-          const newTaskId = generateTaskId();
-          await pool.query(`
-            UPDATE kanban_tasks SET task_id = $1 WHERE id = $2
-          `, [newTaskId, task.id]);
-        }
-
-        if (tasksWithoutId.rows.length > 0) {
-          logger.info({ count: tasksWithoutId.rows.length }, 'Migrated existing tasks with new task_id');
-        }
-      } catch (migrateErr) {
-        logger.error({ err: migrateErr }, 'Error migrating task_ids');
-        throw migrateErr;
-      }
-    } else {
-      logger.debug('kanban_columns table does not exist yet, skipping column migration');
-    }
-
-    logger.info('Database migrations completed successfully');
-  } catch (err) {
-    logger.error({ err }, 'Database migration failed');
-    throw err; // Re-throw so caller can handle
-  }
-}
-
-// Initialize database tables
-async function initDb(): Promise<void> {
-  logger.info('Initializing database');
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        sender VARCHAR(50) NOT NULL,
-        content TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS activities (
-        id SERIAL PRIMARY KEY,
-        type VARCHAR(50) NOT NULL,
-        description TEXT NOT NULL,
-        metadata JSONB DEFAULT '{}',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Kanban tables - updated schema for 6-column kanban
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS kanban_columns (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(50) NOT NULL UNIQUE,
-        display_name VARCHAR(100) NOT NULL,
-        emoji VARCHAR(10) DEFAULT '',
-        color VARCHAR(20) DEFAULT '',
-        position INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS kanban_tasks (
-        id SERIAL PRIMARY KEY,
-        task_id VARCHAR(20) UNIQUE,
-        column_id INTEGER REFERENCES kanban_columns(id) ON DELETE CASCADE,
-        title VARCHAR(200) NOT NULL,
-        description TEXT,
-        priority VARCHAR(20) DEFAULT 'medium',
-        assigned_to VARCHAR(50),
-        tags JSONB DEFAULT '[]',
-        attachment_count INTEGER DEFAULT 0,
-        comment_count INTEGER DEFAULT 0,
-        position INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Insert default columns if they don't exist (6 columns for new kanban)
-    await pool.query(`
-      INSERT INTO kanban_columns (name, display_name, emoji, color, position)
-      VALUES
-        ('backlog', 'Backlog', '\u{1F4DD}', '#6b7280', 0),
-        ('todo', 'To Do', '\u{1F4CB}', '#3b82f6', 1),
-        ('inProgress', 'In Progress', '\u{1F680}', '#f59e0b', 2),
-        ('review', 'Review', '\u{1F440}', '#8b5cf6', 3),
-        ('done', 'Done', '\u2705', '#10b981', 4),
-        ('waiting-for-neil', 'Waiting for Neil', '\u23F8\uFE0F', '#ef4444', 5)
-      ON CONFLICT (name) DO UPDATE SET
-        display_name = EXCLUDED.display_name,
-        emoji = EXCLUDED.emoji,
-        color = EXCLUDED.color,
-        position = EXCLUDED.position
-    `);
-
-    // Migrate existing tables to new schema
-    logger.debug('Calling migrateDb() from initDb()...');
-    try {
-      await migrateDb();
-      logger.debug('migrateDb() completed successfully');
-    } catch (migrateErr) {
-      logger.error({ err: migrateErr }, 'migrateDb() failed');
-      // Don't throw - allow server to start even if migration fails
-    }
-
-    // Create index for performance
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_activities_created_at ON activities(created_at DESC)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_kanban_tasks_column_id ON kanban_tasks(column_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_kanban_tasks_position ON kanban_tasks(position)`);
-
-    logger.info('Database tables initialized');
-  } catch (err) {
-    logger.error({ err }, 'Database init error');
-  }
-}
-
 // API Routes
 
 /**
@@ -1359,20 +1132,6 @@ app.post('/api/seed', asyncHandler(async (req: Request, res: Response) => {
 
 // Serve React app for any non-API routes (must be last)
 if (process.env.NODE_ENV === 'production') {
-  // Manual migration endpoint with service token auth
-  app.get('/api/migrate', asyncHandler(async (req: Request, res: Response) => {
-    // Check service token
-    const serviceToken = req.headers['x-service-token'];
-    if (serviceToken !== SWISSCLAW_TOKEN) {
-      res.status(401).json({ error: 'Invalid service token' });
-      return;
-    }
-
-    logger.info('Manual migration triggered via API');
-    await migrateDb();
-    res.json({ success: true, message: 'Migration completed' });
-  }));
-
   // Serve React app for any non-API routes
   app.get('*', (_req: Request, res: Response) => {
     res.sendFile('client/build/index.html', { root: '.' });
@@ -1388,10 +1147,8 @@ const PORT = process.env.PORT || 3001;
 // When required from tests, we just reuse the Express app and pool
 // without opening a real network port.
 if (require.main === module) {
-  initDb().then(() => {
-    httpServer.listen(PORT, () => {
-      logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Swissclaw Hub server running');
-    });
+  httpServer.listen(PORT, () => {
+    logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Swissclaw Hub server running');
   });
 
   // Graceful shutdown
@@ -1405,13 +1162,27 @@ if (require.main === module) {
   });
 }
 
-// For integration tests: ensure DB has server schema (drops conflicting tables from init.sql/Sequelize)
+// For integration tests: reset database state
 async function resetTestDb(): Promise<void> {
-  await pool.query('DROP TABLE IF EXISTS kanban_tasks CASCADE');
-  await pool.query('DROP TABLE IF EXISTS kanban_columns CASCADE');
-  await pool.query('DROP TABLE IF EXISTS messages CASCADE');
-  await pool.query('DROP TABLE IF EXISTS activities CASCADE');
-  await initDb();
+  // Truncate tables to reset state for tests
+  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities RESTART IDENTITY CASCADE');
+  
+  // Re-insert default kanban columns
+  await pool.query(`
+    INSERT INTO kanban_columns (name, display_name, emoji, color, position)
+    VALUES
+      ('backlog', 'Backlog', '\u{1F4DD}', '#6b7280', 0),
+      ('todo', 'To Do', '\u{1F4CB}', '#3b82f6', 1),
+      ('inProgress', 'In Progress', '\u{1F680}', '#f59e0b', 2),
+      ('review', 'Review', '\u{1F440}', '#8b5cf6', 3),
+      ('done', 'Done', '\u2705', '#10b981', 4),
+      ('waiting-for-neil', 'Waiting for Neil', '\u23F8\uFE0F', '#ef4444', 5)
+    ON CONFLICT (name) DO UPDATE SET
+      display_name = EXCLUDED.display_name,
+      emoji = EXCLUDED.emoji,
+      color = EXCLUDED.color,
+      position = EXCLUDED.position
+  `);
 }
 
 // Export pieces needed for integration tests (io needed for teardown so Jest can exit)
@@ -1420,6 +1191,5 @@ export {
   httpServer,
   io,
   pool,
-  initDb,
   resetTestDb,
 };

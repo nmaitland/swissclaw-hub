@@ -48,7 +48,19 @@
 
     "type-check": "tsc --noEmit",
 
-    "mcp": "ts-node server/mcp-server.ts"
+    "mcp": "ts-node server/mcp-server.ts",
+
+    "db:migrate": "sequelize-cli db:migrate",
+
+    "db:migrate:test": "cross-env NODE_ENV=test sequelize-cli db:migrate",
+
+    "db:seed": "sequelize-cli db:seed:all",
+
+    "db:seed:test": "cross-env NODE_ENV=test sequelize-cli db:seed:all",
+
+    "db:reset": "sequelize-cli db:drop && sequelize-cli db:create && sequelize-cli db:migrate && sequelize-cli db:seed:all",
+
+    "db:reset:test": "cross-env NODE_ENV=test sequelize-cli db:drop && cross-env NODE_ENV=test sequelize-cli db:create && cross-env NODE_ENV=test sequelize-cli db:migrate && cross-env NODE_ENV=test sequelize-cli db:seed:all"
 
   },
 

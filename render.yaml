@@ -3,7 +3,7 @@ services:
     name: swissclaw-hub
     env: node
     plan: pro
-    buildCommand: npm install && cd client && npm install && npm run build && cd .. && npm run build
+    buildCommand: npm install && cd client && npm install && npm run build && cd .. && npm run build && npm run db:migrate
     startCommand: npm start
     envVars:
       - key: NODE_ENV
