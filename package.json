@@ -50,7 +50,7 @@
 
     "mcp": "ts-node server/mcp-server.ts",
 
-    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate": "sequelize-cli db:migrate --verbose",
 
     "db:migrate:test": "cross-env NODE_ENV=test sequelize-cli db:migrate",
 
