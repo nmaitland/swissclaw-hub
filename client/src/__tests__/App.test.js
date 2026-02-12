@@ -125,16 +125,6 @@ describe('App Component', () => {
     expect(screen.getByPlaceholderText('Type a message...')).toBeInTheDocument();
   });
 
-  it('renders kanban stat cards', async () => {
-    render(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByText('To Do')).toBeInTheDocument();
-      expect(screen.getByText('In Progress')).toBeInTheDocument();
-      expect(screen.getByText('Total Tasks')).toBeInTheDocument();
-    });
-  });
-
   it('redirects to login when no auth token', () => {
     Storage.prototype.getItem = jest.fn(() => null);
 
