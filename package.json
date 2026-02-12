@@ -40,20 +40,6 @@
 
     "test:client": "cd client && npm test",
 
-    "db:migrate": "npx sequelize-cli db:migrate",
-
-    "db:migrate:undo": "npx sequelize-cli db:migrate:undo",
-
-    "db:migrate:test": "cross-env NODE_ENV=test npx sequelize-cli db:migrate",
-
-    "db:seed": "npx sequelize-cli db:seed:all",
-
-    "db:seed:undo": "npx sequelize-cli db:seed:undo:all",
-
-    "db:setup:test": "cross-env NODE_ENV=test npx sequelize-cli db:migrate && cross-env NODE_ENV=test npx sequelize-cli db:seed:all",
-
-    "db:reset:test": "cross-env NODE_ENV=test npx sequelize-cli db:migrate:undo:all && cross-env NODE_ENV=test npx sequelize-cli db:migrate && cross-env NODE_ENV=test npx sequelize-cli db:seed:all",
-
     "lint": "eslint server/",
 
     "lint:fix": "eslint server/ --fix",
@@ -61,6 +47,7 @@
     "format": "prettier --write \"server/**/*.{ts,js,json}\" \"client/src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
 
     "type-check": "tsc --noEmit",
+
     "mcp": "ts-node server/mcp-server.ts"
 
   },
@@ -82,8 +69,6 @@
     "helmet": "^7.1.0",
 
     "pg": "^8.18.0",
-
-    "pg-hstore": "^2.3.4",
 
     "pino": "^10.3.1",
 

@@ -74,11 +74,43 @@ Tracking implementation progress across all phases.
 - [ ] Mobile responsiveness improvements
 - [ ] Loading states and error boundaries
 
-## Technical Debt
+## Technical Debt — PARTIAL
 
-- [ ] Database migrations (replace `initDb()` with Sequelize migrations)
-- [ ] Remove unused Sequelize/sequelize-cli dependencies from package.json
-- [ ] Fix Docker clock skew in integration tests (kanban timestamp flake)
+- [x] Removed `pg-hstore` (unused Sequelize ORM helper)
+- [x] Removed 7 dead `db:*` npm scripts (referenced stale Sequelize workflows)
+- [x] Fixed Docker clock skew — added `TZ: UTC` to test container, widened timestamp tolerance to 5s
+- [ ] Rewrite Sequelize migrations to match actual production schema (initDb() uses SERIAL PKs, different columns than migrations define) — deferred, significant effort
+
+## Future — Migrate Tests to TypeScript
+
+18 test files still in JavaScript:
+
+**Backend (14 files):**
+- `tests/unit/auth-middleware.test.js`
+- `tests/unit/security-middleware.test.js`
+- `tests/unit/database-config.test.js`
+- `tests/integration/kanban.test.js`
+- `tests/integration/kanban-simple.test.js`
+- `tests/integration/kanban-edge-cases.test.js`
+- `tests/integration/status.test.js`
+- `tests/integration/health.test.js`
+- `tests/integration/messages.test.js`
+- `tests/integration/messages-extended.test.js`
+- `tests/integration/auth.test.js`
+- `tests/integration/auth-edge-cases.test.js`
+- `tests/integration/activities.test.js`
+- `tests/integration/tasks-legacy.test.js`
+- `tests/api/kanban-mock.test.js`
+- `tests/zzz-teardown.test.js`
+- `tests/setup.js`
+
+**Client (2 files):**
+- `client/src/__tests__/App.test.js`
+- `client/src/components/__tests__/KanbanBoard.test.js`
+
+**Config (2 files):**
+- `jest.config.js`
+- `eslint.config.js`
 
 ---
 

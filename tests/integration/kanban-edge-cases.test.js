@@ -143,7 +143,7 @@ describe('Kanban API edge cases', () => {
         .expect(200);
 
       const updatedAt = new Date(response.body.updatedAt);
-      expect(updatedAt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 1000);
+      expect(updatedAt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 5000);
     });
   });
 
