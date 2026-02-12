@@ -1,5 +1,27 @@
 require('dotenv').config();
 
+// Helper function to parse DATABASE_URL
+const parseDatabaseUrl = (url) => {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    return {
+      username: parsed.username,
+      password: parsed.password,
+      database: parsed.pathname.slice(1), // Remove leading slash
+      host: parsed.hostname,
+      port: parseInt(parsed.port || '5432', 10),
+    };
+  } catch (error) {
+    console.error('Failed to parse DATABASE_URL:', error.message);
+    return null;
+  }
+};
+
+// Parse DATABASE_URL if present
+const dbUrlConfig = process.env.DATABASE_URL ? parseDatabaseUrl(process.env.DATABASE_URL) : null;
+
 module.exports = {
   development: {
     username: process.env.DB_USER || 'postgres',
@@ -20,12 +42,19 @@ module.exports = {
     logging: false
   },
   production: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 5432,
+    // Use DATABASE_URL if available, otherwise fall back to individual variables
+    username: dbUrlConfig?.username || process.env.DB_USER,
+    password: dbUrlConfig?.password || process.env.DB_PASSWORD,
+    database: dbUrlConfig?.database || process.env.DB_NAME,
+    host: dbUrlConfig?.host || process.env.DB_HOST,
+    port: dbUrlConfig?.port || process.env.DB_PORT || 5432,
     dialect: 'postgres',
-    logging: false
+    logging: false,
+    dialectOptions: {
+      ssl: process.env.DATABASE_URL ? {
+        require: true,
+        rejectUnauthorized: false
+      } : false
+    }
   }
 };
