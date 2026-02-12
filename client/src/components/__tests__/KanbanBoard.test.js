@@ -14,6 +14,7 @@ jest.mock('@dnd-kit/core', () => ({
   useSensors: (...sensors) => sensors,
   closestCorners: () => null,
   PointerSensor: function PointerSensor() {},
+  useDroppable: () => ({ setNodeRef: () => {}, isOver: false }),
 }));
 
 jest.mock('@dnd-kit/sortable', () => ({
@@ -118,7 +119,7 @@ describe('KanbanBoard Component', () => {
     render(<KanbanBoard />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Swissclaw Kanban/)).toBeInTheDocument();
+      expect(screen.getByText(/Kanban/)).toBeInTheDocument();
     });
   });
 

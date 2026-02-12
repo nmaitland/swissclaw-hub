@@ -49,6 +49,12 @@ Tracking implementation progress across all phases.
 
 ---
 
+## Immediate — API Documentation
+
+- [ ] Add automated API docs using Swagger/OpenAPI (swagger-jsdoc + swagger-ui-express)
+- [ ] Annotate all endpoints in `server/index.ts` and `server/routes/auth.ts` with JSDoc/OpenAPI comments
+- [ ] Serve Swagger UI at `/api-docs`
+
 ## Phase 5: UX Polish - PLANNED
 
 - [ ] Dark/light theme toggle

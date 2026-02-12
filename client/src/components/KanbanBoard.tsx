@@ -8,6 +8,7 @@ import {
   closestCorners,
   DragStartEvent,
   DragEndEvent,
+  useDroppable,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -134,8 +135,10 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ col, tasks, totalInColumn, onTaskClick, onAddClick }: KanbanColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: `column-${col.name}` });
+
   return (
-    <div className={`kanban-column ${col.special ? 'special-column' : ''}`}>
+    <div className={`kanban-column ${col.special ? 'special-column' : ''} ${isOver ? 'drop-target' : ''}`}>
       <div className="kanban-column-header">
         <span className="kanban-column-emoji">{col.emoji}</span>
         <span className="kanban-column-title">{col.displayName}</span>
@@ -160,7 +163,7 @@ function KanbanColumn({ col, tasks, totalInColumn, onTaskClick, onAddClick }: Ka
         items={tasks.map((t) => t.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="kanban-column-content" data-column={col.name}>
+        <div ref={setNodeRef} className="kanban-column-content" data-column={col.name}>
           {tasks.map((task) => (
             <SortableCard key={task.id} task={task} onClick={onTaskClick} />
           ))}
@@ -331,22 +334,19 @@ function KanbanBoard() {
     const sourceColumn = findColumnForTask(active.id);
     if (!sourceColumn) return;
 
-    // Determine target column from the task we dropped over
+    // Determine target column
     let targetColumn: ColumnName | undefined;
+    const overId = String(over.id);
 
-    if (over.id && typeof over.id === 'string') {
+    // Check if dropped on a column droppable (id = "column-<name>")
+    if (overId.startsWith('column-')) {
+      targetColumn = overId.replace('column-', '') as ColumnName;
+    } else {
       // Dropped over another task — find its column
       targetColumn = findColumnForTask(over.id);
-    } else if (over.id && typeof over.id === 'number') {
-      targetColumn = findColumnForTask(over.id);
     }
 
-    // If we couldn't determine target from the task, try the over element's data
-    if (!targetColumn) {
-      targetColumn = sourceColumn;
-    }
-
-    if (sourceColumn === targetColumn) return;
+    if (!targetColumn || sourceColumn === targetColumn) return;
 
     // Optimistic update
     const task = findTaskById(active.id);
@@ -499,10 +499,10 @@ function KanbanBoard() {
 
   return (
     <div className="kanban-board">
-      {/* Title + Search/Filter Toolbar */}
-      <div className="kanban-toolbar">
-        <h2 className="kanban-title">{'\u{1F980}'} Swissclaw Kanban</h2>
+      <h2 className="kanban-title">{'\u{1F4CB}'} Kanban</h2>
 
+      {/* Search/Filter Toolbar */}
+      <div className="kanban-toolbar">
         <div className="kanban-toolbar-controls">
           <div className="kanban-search-wrapper">
             <input
