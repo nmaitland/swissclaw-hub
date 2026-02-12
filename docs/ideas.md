@@ -1,52 +1,21 @@
-# Dashboard Ideas
+# Ideas & Future Work
 
-## Feature Ideas
+## Implemented
+- ~~Activity feed~~ (V1)
+- ~~Chat with Socket.io~~ (V1)
+- ~~Task management / kanban~~ (V2-V4)
+- ~~Drag-and-drop kanban~~ (V4)
+- ~~Search and filter~~ (V4)
+- ~~TypeScript migration~~ (V4)
+- ~~Structured logging (pino)~~ (Phase 3)
+- ~~Centralized error handling~~ (Phase 3)
+- ~~CI/CD with Codecov~~ (Phase 2)
 
-### Activity Feed
-- Recent cron job runs
-- Current tasks in progress
-- Completed work summary
-- System status/alerts
-
-### Communication
-- Quick message to SwissClaw
-- Threaded conversations
-- Voice message support?
-- File attachments
-
-### Task Management
-- Neil's pending action items
-- SwissClaw's current workload
-- Shared project boards
-- Deadlines and reminders
-
-### Quick Actions
-- Trigger a heartbeat check
-- Run a specific cron job
-- View recent reports
-- Access common tools
-
-### Data Visualization
-- Token usage charts
-- Job search stats
-- Fitness trends
-- Cost tracking
-
-## Design Ideas
-
-### Themes
-- Light/dark mode toggle
-- Swiss-inspired design (🇨🇭)
-- Crab mascot integration 🦀
-- Minimalist or feature-rich?
-
-### Layout Options
-- Sidebar navigation
-- Card-based dashboard
-- Command palette (like VS Code)
-- Mobile-first approach
-
-## Neil's Requests/Questions
-1. What should we call it? (SwissClaw Hub? Command Center?)
-2. What device will you primarily use it on?
-3. What's the one thing you want to see immediately when you open it?
+## Backlog
+- Dark/light theme toggle
+- Notification system (browser notifications, toast)
+- File attachments in chat
+- Message search
+- Database migrations (replace initDb approach)
+- Data visualization (token usage, job search stats)
+- Command palette (VS Code style)

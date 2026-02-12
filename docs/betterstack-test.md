@@ -86,14 +86,12 @@ curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
 
 ## Credentials
 
-**Stored in 1Password:** `betterstack clickhouse api`
-- **Username:** `u6XCDB03YGy1uxBQ3c2eQI1LxP0eYzGNw`
-- **Password:** (concealed)
+**Stored in 1Password:** `betterstack clickhouse api` (assistant vault)
 - **Hostname:** `eu-fsn-3-connect.betterstackdata.com:443`
 
 **Quick access:**
 ```bash
-export BETTERSTACK_USER="u6XCDB03YGy1uxBQ3c2eQI1LxP0eYzGNw"
+export BETTERSTACK_USER="$(op item get 'betterstack clickhouse api' --field username --reveal --vault assistant)"
 export BETTERSTACK_PASS="$(op item get 'betterstack clickhouse api' --field credential --reveal --vault assistant)"
 ```
 

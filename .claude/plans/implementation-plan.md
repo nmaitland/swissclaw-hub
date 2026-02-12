@@ -1,82 +1,66 @@
-# Swissclaw Hub - Implementation Plan
+# Swissclaw Hub - Implementation Progress
 
 ## Context
 
-Tracking implementation progress across all phases. The `.js` files in `server/` are the actual working code; `.ts` files are incomplete rewrites. Tests run against the `.js` files.
+Tracking implementation progress across all phases.
 
 ---
 
 ## Phase 1: Fix Critical Issues - DONE
 
-- [x] **Fix ESLint config** - Rewrote `eslint.config.js` with `typescript-eslint`, downgraded ESLint 10 to 9
-- [x] **Raise backend coverage thresholds** - Set to 25% branches, 30% functions/lines/statements
-- [x] **Clean up stale files** - Removed `server/index-new.js`, excluded unused `server/models/` and `server/routes/` from coverage
+- [x] Fix ESLint config — rewrote `eslint.config.js` with `typescript-eslint`
+- [x] Raise backend coverage thresholds — 25% branches, 30% functions/lines/statements
+- [x] Clean up stale files — removed `server/index-new.js`, excluded unused dirs from coverage
 
 ## Phase 2: Expand Test Coverage - DONE
 
-- [x] **Unit tests for middleware** - 24 tests for auth (generateToken, validateInput, CSRF), 20 for security (sanitizeQuery, xssProtection, securityErrorHandler)
-- [x] **Unit tests for database** - 17 tests for `server/config/database.js` (getDatabaseConfig, checkDatabaseHealth, cleanup functions, initializeDatabase)
-- [x] **Integration tests expanded** - Auth edge cases (13), kanban edge cases (14), messages extended (4), legacy tasks (2), plus existing auth/messages/activities/health/kanban/status tests
-- [x] **Frontend tests** - App (10), KanbanBoard (18), Login (6), Dashboard (12) = 46 total
-- [x] **CI/CD** - Codecov v4 with token, coverage comments on PRs
+- [x] Unit tests for auth middleware (24 tests) and security middleware (20 tests)
+- [x] Unit tests for database config (17 tests)
+- [x] Integration tests expanded — auth edge cases (13), kanban edge cases (14), messages (4), legacy tasks (2)
+- [x] Frontend tests — App (10), KanbanBoard (18), Login (6), Dashboard (12) = 46 total
+- [x] CI/CD — Codecov v4 with token, coverage comments on PRs
 
-**Total: ~160 tests across backend + frontend, CI green**
-
----
+**Total: ~160 tests across backend + frontend**
 
 ## Phase 3: Code Quality - DONE
 
-- [x] **Remove dead Sequelize models** - Deleted `server/models/` (6 files), rewrote `tests/integration/setup.js` to use raw SQL via pool
-- [x] **Add structured logging with pino** - Created `server/lib/logger.js` (silent in test, pino-pretty in dev, JSON in prod). Replaced all 86 console calls across `server/index.js`, `server/config/database.js`, `server/middleware/auth.js`, `server/middleware/security.js`, `server/routes/auth.js`
-- [x] **Centralized error handling** - Created `server/lib/errors.js` with `asyncHandler` wrapper and `errorHandler` middleware. Refactored all 10 async route handlers to use asyncHandler, removing try/catch boilerplate. Added `app.use(errorHandler)` after all routes
+- [x] Remove dead Sequelize models — deleted `server/models/` (6 files)
+- [x] Structured logging with pino — replaced all 86 console calls
+- [x] Centralized error handling — `asyncHandler` + `errorHandler` middleware
 
----
+## Phase 4A: Frontend UI + TypeScript - DONE
 
-## Phase 4: Feature Enhancement - PLANNED
+- [x] Drag-and-drop kanban with @dnd-kit
+- [x] Search toolbar with `Ctrl+K` shortcut
+- [x] Priority filter chips (All/High/Medium/Low)
+- [x] Card animations, loading skeleton, column progress bars
+- [x] Converted KanbanBoard.js → KanbanBoard.tsx
+- [x] Converted App.js → App.tsx
+- [x] Frontend type definitions in `client/src/types/index.ts`
 
-### Key Findings from Exploration
+## Phase 4B: Server TypeScript Migration - DONE
 
-**KanbanBoard.js (395 lines):**
-- No drag-and-drop - uses modal-based column selection for moving tasks
-- No filtering/search
-- CSS is well-done (530 lines, dark theme, responsive grid)
-- No drag-drop library installed
-
-**App.js (259 lines) vs App.tsx (312 lines):**
-- App.js is the active version (socket.io, real-time updates)
-- App.tsx is an unused TypeScript version with better structure
-- No React Router - manual window.location redirects
-- State is local useState only (no Context/Redux)
-
-**TypeScript mix:**
-- Dashboard.tsx and Login.tsx are TypeScript
-- KanbanBoard.js and App.js are JavaScript
-- Types defined in `client/src/types/index.ts`
-
-### Tasks
-
-11. **Convert KanbanBoard to TypeScript**
-    - Rename `.js` to `.tsx`, add proper types
-    - Use interfaces from `types/index.ts`
-
-12. **Add task filtering and search**
-    - Search bar with debounced text filtering
-    - Filter by priority, assignee, tags
-    - Persist filter state in URL params or localStorage
-
-13. **Add drag-and-drop**
-    - Install `@dnd-kit/core` + `@dnd-kit/sortable` (modern, lightweight)
-    - Replace modal-based column move with drag between columns
-    - Keep modal for detailed task editing
+- [x] Renamed all 7 server `.js` files to `.ts` with full type annotations
+- [x] Created `server/types/index.ts` with 15+ shared type definitions
+- [x] Updated Jest config — `ts-jest` for `.ts`, `babel-jest` for `.js`
+- [x] All 61 unit tests pass, 121/122 integration tests pass (1 pre-existing clock skew flake)
+- [x] Zero TypeScript errors (`tsc --noEmit`)
+- [x] Zero ESLint errors
 
 ---
 
 ## Phase 5: UX Polish - PLANNED
 
-14. Dark/light theme toggle
-15. Notification system
-16. Mobile responsiveness improvements
-17. Loading states and error boundaries
+- [ ] Dark/light theme toggle
+- [ ] Notification system
+- [ ] Mobile responsiveness improvements
+- [ ] Loading states and error boundaries
+
+## Technical Debt
+
+- [ ] Database migrations (replace `initDb()` with Sequelize migrations)
+- [ ] Remove unused Sequelize/sequelize-cli dependencies from package.json
+- [ ] Fix Docker clock skew in integration tests (kanban timestamp flake)
 
 ---
 
@@ -84,12 +68,14 @@ Tracking implementation progress across all phases. The `.js` files in `server/`
 
 | File | Purpose |
 |------|---------|
-| `server/index.js` | Main server (1129 lines, all routes, raw SQL) |
-| `server/config/database.js` | DB config/pool (259 lines) |
-| `server/middleware/auth.js` | Auth middleware (validateInput, generateToken, CSRF) |
-| `server/middleware/security.js` | Security middleware (sanitizeQuery, XSS, error handler) |
-| `jest.config.js` | Backend Jest config (25/30/30/30 thresholds) |
-| `client/jest.config.js` | Frontend Jest config (30% thresholds) |
-| `.github/workflows/ci.yml` | CI/CD pipeline with Codecov |
-| `client/src/components/KanbanBoard.js` | Kanban UI (395 lines) |
-| `client/src/App.js` | Main app (259 lines, socket.io) |
+| `server/index.ts` | Main server (~1070 lines, all routes, raw SQL) |
+| `server/config/database.ts` | DB config/pool/schema |
+| `server/middleware/auth.ts` | Auth, CSRF, rate limiting |
+| `server/middleware/security.ts` | Security middleware |
+| `server/lib/logger.ts` | Pino structured logging |
+| `server/lib/errors.ts` | asyncHandler + error middleware |
+| `server/types/index.ts` | Shared server types |
+| `client/src/App.tsx` | Main app (socket.io, real-time) |
+| `client/src/components/KanbanBoard.tsx` | Drag-and-drop kanban |
+| `jest.config.js` | Backend Jest config |
+| `.github/workflows/ci.yml` | CI/CD pipeline |

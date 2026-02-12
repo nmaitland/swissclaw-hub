@@ -36,12 +36,16 @@ curl -X POST \
 
 | Component | Technology |
 |-----------|------------|
-| **Frontend** | React 18 |
-| **Backend** | Node.js + Express |
+| **Frontend** | React 18, TypeScript, @dnd-kit |
+| **Backend** | Node.js + Express, TypeScript |
 | **Real-time** | Socket.io (WebSocket) |
-| **Database** | PostgreSQL (Render free tier) |
-| **Auth** | Session-based (in-memory) |
-| **Security** | Helmet, rate limiting, CORS |
+| **Database** | PostgreSQL 15+ (pg driver, raw SQL) |
+| **Auth** | Session-based (bcrypt + secure cookies) |
+| **Security** | Helmet, rate limiting, CORS, input validation |
+| **Logging** | Pino (structured JSON) |
+| **Testing** | Jest, ts-jest, supertest, React Testing Library |
+| **CI/CD** | GitHub Actions, Codecov |
+| **Monitoring** | BetterStack (see betterstack.md) |
 
 ## Environment
 
@@ -57,6 +61,7 @@ REACT_APP_API_URL=  # empty for same-origin
 
 | Version | Date | Notes |
 |---------|------|-------|
+| V4 | 2026-02-12 | Full TypeScript migration, drag-and-drop kanban, @dnd-kit |
 | V3.4 | 2026-02-07 | Docs added, repo restructured |
 | V3.3 | 2026-02-07 | Activity feed + chat panels |
 | V3 | 2026-02-06 | Database-backed kanban API |
@@ -68,13 +73,11 @@ REACT_APP_API_URL=  # empty for same-origin
 - **Database:** Stored in Render dashboard (auto-managed)
 - **Auth:** Session-based, cleared on restart
 - **API Key:** In 1Password (render-project-api-token)
+- **BetterStack:** In 1Password (betterstack clickhouse api)
 
 ## Monitoring
 
 - **Health endpoint:** `/health`
 - **Build info:** `/api/build`
 - **Status:** `/api/status` (requires auth)
-
-## Known Issues
-
-See `docs/requirements-kanban-redesign.md` for proposed improvements.
+- **BetterStack:** See [betterstack.md](betterstack.md)
