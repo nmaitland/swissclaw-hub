@@ -1,138 +1,107 @@
 const request = require('supertest');
 const { app, resetTestDb } = require('../../server/index');
-const { Pool } = require('pg');
 
 /**
  * Integration tests for Kanban task ordering with sparse positioning
  */
 
 describe('Kanban Task Ordering', () => {
-  let pool;
-  let authToken;
-  let testColumnId;
-
   beforeAll(async () => {
     await resetTestDb();
-    
-    pool = new Pool({
-      connectionString: process.env.TEST_DATABASE_URL || 'postgresql://postgres:password@localhost:5433/swissclaw_hub_test'
-    });
-
-    // Create a test column
-    const columnResult = await pool.query(
-      "INSERT INTO kanban_columns (name, display_name, emoji, color, position) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-      ['test-ordering', 'Test Ordering', '📝', '#ff0000', 99]
-    );
-    testColumnId = columnResult.rows[0].id;
-
-    // Login to get auth token
-    const loginRes = await request(app)
-      .post('/api/login')
-      .send({ username: 'admin', password: 'changeme123' });
-    authToken = loginRes.body.token;
-  });
-
-  afterAll(async () => {
-    await pool.end();
-  });
-
-  beforeEach(async () => {
-    // Clear tasks before each test
-    await pool.query('DELETE FROM kanban_tasks WHERE column_id = $1', [testColumnId]);
   });
 
   describe('Task Creation with Position', () => {
-    test('should create task with position field', async () => {
+    it('should create task with position field', async () => {
       const res = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Test Task',
+          columnName: 'todo',
+          title: 'Test Task with Position',
           description: 'A test task',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
-      expect(res.status).toBe(201);
       expect(res.body).toHaveProperty('position');
-      expect(typeof res.body.position).toBe('number');
+      expect(res.body.position).toBeDefined();
+      expect(res.body.position).not.toBeNull();
     });
 
-    test('should assign increasing positions to new tasks', async () => {
+    it('should assign increasing positions to new tasks', async () => {
       // Create first task
       const res1 = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Task 1',
+          columnName: 'todo',
+          title: 'Task 1 for Position Test',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
-      const pos1 = res1.body.position;
+      const pos1 = BigInt(res1.body.position);
 
       // Create second task
       const res2 = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Task 2',
+          columnName: 'todo',
+          title: 'Task 2 for Position Test',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
-      const pos2 = res2.body.position;
+      const pos2 = BigInt(res2.body.position);
 
       // Second task should have higher position than first
-      expect(pos2).toBeGreaterThan(pos1);
+      expect(pos2 > pos1).toBe(true);
     });
   });
 
   describe('Task Update with Position', () => {
-    test('should update task with explicit position', async () => {
+    it('should update task with explicit position', async () => {
       // Create a task
       const createRes = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Task to Update',
+          columnName: 'todo',
+          title: 'Task to Update Position',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
       const taskId = createRes.body.id;
 
       // Update with explicit position
       const updateRes = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
           position: 999999
-        });
+        })
+        .expect(200);
       
-      expect(updateRes.status).toBe(200);
-      expect(updateRes.body.position).toBe(999999);
+      expect(updateRes.body.position).toBeDefined();
+      expect(Number(updateRes.body.position)).toBe(999999);
     });
 
-    test('should update task with targetTaskId for relative positioning', async () => {
+    it('should update task with targetTaskId for relative positioning', async () => {
       // Create two tasks
       const res1 = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Task A',
+          columnName: 'todo',
+          title: 'Task A for Relative Position',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
       const res2 = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Task B',
+          columnName: 'todo',
+          title: 'Task B for Relative Position',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
       const taskAId = res1.body.id;
       const taskBId = res2.body.id;
@@ -140,86 +109,85 @@ describe('Kanban Task Ordering', () => {
       // Move Task A to be positioned relative to Task B
       const updateRes = await request(app)
         .put(`/api/kanban/tasks/${taskAId}`)
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
           targetTaskId: taskBId,
           insertAfter: false
-        });
+        })
+        .expect(200);
       
-      expect(updateRes.status).toBe(200);
-      // Position should be recalculated
       expect(updateRes.body).toHaveProperty('position');
     });
   });
 
   describe('Batch Reorder Endpoint', () => {
-    test('should batch reorder tasks', async () => {
+    it('should batch reorder tasks', async () => {
       // Create three tasks
       const tasks = [];
       for (let i = 0; i < 3; i++) {
         const res = await request(app)
           .post('/api/kanban/tasks')
-          .set('Authorization', `Bearer ${authToken}`)
           .send({
-            columnName: 'test-ordering',
-            title: `Task ${i}`,
+            columnName: 'todo',
+            title: `Batch Task ${i}`,
             priority: 'medium'
-          });
+          })
+          .expect(201);
         tasks.push({ id: res.body.id, position: res.body.position });
       }
+
+      // Get todo column ID from database
+      const { pool } = require('../../server/index');
+      const columnResult = await pool.query("SELECT id FROM kanban_columns WHERE name = 'todo'");
+      const todoColumnId = columnResult.rows[0].id;
 
       // Batch reorder - reverse the order
       const reorderRes = await request(app)
         .post('/api/kanban/reorder')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnId: testColumnId,
+          columnId: todoColumnId,
           taskPositions: [
             { taskId: tasks[0].id, position: tasks[2].position },
             { taskId: tasks[1].id, position: tasks[1].position },
             { taskId: tasks[2].id, position: tasks[0].position }
           ]
-        });
+        })
+        .expect(200);
       
-      expect(reorderRes.status).toBe(200);
       expect(reorderRes.body.success).toBe(true);
     });
 
-    test('should return 400 for invalid reorder request', async () => {
-      const res = await request(app)
+    it('should return 400 for invalid reorder request', async () => {
+      await request(app)
         .post('/api/kanban/reorder')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
           // Missing required fields
           taskPositions: []
-        });
-      
-      expect(res.status).toBe(400);
+        })
+        .expect(400);
     });
   });
 
   describe('Position in API Responses', () => {
-    test('should include position in kanban list response', async () => {
+    it('should include position in kanban list response', async () => {
       // Create a task
       await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'List Test Task',
+          columnName: 'todo',
+          title: 'List Test Task with Position',
           priority: 'medium'
-        });
+        })
+        .expect(201);
 
       // Get kanban data
       const listRes = await request(app)
         .get('/api/kanban')
-        .set('Authorization', `Bearer ${authToken}`);
+        .expect(200);
       
-      expect(listRes.status).toBe(200);
       expect(listRes.body.tasks).toBeDefined();
       
       // Check that tasks have position field
-      const columnTasks = listRes.body.tasks['test-ordering'];
+      const columnTasks = listRes.body.tasks['todo'];
       if (columnTasks && columnTasks.length > 0) {
         expect(columnTasks[0]).toHaveProperty('position');
       }
@@ -227,41 +195,40 @@ describe('Kanban Task Ordering', () => {
   });
 
   describe('Edge Cases', () => {
-    test('should handle moving task to different column', async () => {
-      // Create task in test column
+    it('should handle moving task to different column', async () => {
+      // Create task in todo column
       const createRes = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Move Test Task',
+          columnName: 'todo',
+          title: 'Move Test Task to InProgress',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
       const taskId = createRes.body.id;
 
-      // Move to todo column
+      // Move to inProgress column
       const moveRes = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'todo'
-        });
+          columnName: 'inProgress'
+        })
+        .expect(200);
       
-      expect(moveRes.status).toBe(200);
       expect(moveRes.body).toHaveProperty('position');
     });
 
-    test('should handle updating task without changing position', async () => {
+    it('should handle updating task without changing position', async () => {
       // Create a task
       const createRes = await request(app)
         .post('/api/kanban/tasks')
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          columnName: 'test-ordering',
-          title: 'Update Test Task',
+          columnName: 'todo',
+          title: 'Update Without Position Change',
           priority: 'medium'
-        });
+        })
+        .expect(201);
       
       const taskId = createRes.body.id;
       const originalPosition = createRes.body.position;
@@ -269,12 +236,11 @@ describe('Kanban Task Ordering', () => {
       // Update only title
       const updateRes = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
-        .set('Authorization', `Bearer ${authToken}`)
         .send({
-          title: 'Updated Title'
-        });
+          title: 'Updated Title Only'
+        })
+        .expect(200);
       
-      expect(updateRes.status).toBe(200);
       // Position should remain unchanged
       expect(updateRes.body.position).toBe(originalPosition);
     });
