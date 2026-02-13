@@ -337,6 +337,8 @@ function KanbanBoard() {
     // Determine target column
     let targetColumn: ColumnName | undefined;
     const overId = String(over.id);
+    let targetTaskId: string | number | undefined;
+    let insertAfter = false;
 
     // Check if dropped on a column droppable (id = "column-<name>")
     if (overId.startsWith('column-')) {
@@ -344,9 +346,14 @@ function KanbanBoard() {
     } else {
       // Dropped over another task — find its column
       targetColumn = findColumnForTask(over.id);
+      targetTaskId = over.id;
+      
+      // Determine if we should insert before or after the target task
+      // For now, we'll default to inserting after the target task
+      insertAfter = true;
     }
 
-    if (!targetColumn || sourceColumn === targetColumn) return;
+    if (!targetColumn) return;
 
     // Optimistic update
     const task = findTaskById(active.id);
@@ -354,13 +361,32 @@ function KanbanBoard() {
 
     setTasks((prev) => {
       const newTasks = { ...prev };
-      newTasks[sourceColumn] = (prev[sourceColumn] || []).filter(
-        (t) => t.id !== active.id
-      );
-      newTasks[targetColumn!] = [
-        ...(prev[targetColumn!] || []),
-        { ...task, columnName: targetColumn! },
-      ];
+      
+      if (sourceColumn === targetColumn) {
+        // Intra-column reordering
+        const columnTasks = [...(prev[sourceColumn] || [])];
+        const activeIndex = columnTasks.findIndex(t => t.id === active.id);
+        const overIndex = columnTasks.findIndex(t => t.id === over.id);
+        
+        if (activeIndex === -1 || overIndex === -1) return prev;
+        
+        // Remove from old position
+        columnTasks.splice(activeIndex, 1);
+        // Insert at new position (after the target if insertAfter is true)
+        const newIndex = insertAfter ? overIndex + (overIndex < activeIndex ? 0 : 1) : overIndex;
+        columnTasks.splice(newIndex, 0, task);
+        
+        newTasks[sourceColumn] = columnTasks;
+      } else {
+        // Cross-column move
+        newTasks[sourceColumn] = (prev[sourceColumn] || []).filter(
+          (t) => t.id !== active.id
+        );
+        newTasks[targetColumn!] = [
+          ...(prev[targetColumn!] || []),
+          { ...task, columnName: targetColumn! },
+        ];
+      }
       return newTasks;
     });
 
@@ -372,10 +398,17 @@ function KanbanBoard() {
         Authorization: token ? `Bearer ${token}` : '',
       };
 
+      const body: any = { columnName: targetColumn };
+      if (sourceColumn === targetColumn && targetTaskId) {
+        // Intra-column reorder - send targetTaskId and insertAfter flag
+        body.targetTaskId = targetTaskId;
+        body.insertAfter = insertAfter;
+      }
+
       const res = await fetch(`${API_URL}/api/kanban/tasks/${active.id}`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ columnName: targetColumn }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {

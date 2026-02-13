@@ -41,6 +41,7 @@ export interface KanbanCardTask {
   tags: string[];
   createdAt: string;
   columnName: ColumnName;
+  position?: number; // Added for sparse ordering
 }
 
 export interface KanbanColumnDef {
