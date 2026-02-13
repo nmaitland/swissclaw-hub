@@ -22,7 +22,7 @@
 
     "build": "npm run server:build && cd client && npm run build",
 
-    "start": "npm run db:migrate && npm run server",
+    "start": "npm run db:migrate && npm run db:seed && npm run server",
 
     "install-all": "npm install && cd client && npm install",
 
@@ -54,7 +54,7 @@
 
     "db:migrate:test": "cross-env NODE_ENV=test sequelize-cli db:migrate",
 
-    "db:seed": "sequelize-cli db:seed:all",
+    "db:seed": "cross-env NODE_ENV=production sequelize-cli db:seed:all",
 
     "db:seed:test": "cross-env NODE_ENV=test sequelize-cli db:seed:all",
 
