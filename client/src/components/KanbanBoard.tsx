@@ -26,7 +26,6 @@ import type {
 import './KanbanBoard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
-console.log('API_URL:', API_URL);
 
 const COLUMNS: (KanbanColumnDef & { special?: boolean })[] = [
   { name: 'backlog', displayName: 'Backlog', emoji: '\u{1F4DD}', position: 0 },
@@ -444,28 +443,13 @@ function KanbanBoard() {
           .filter((t) => t),
       };
 
-      console.log('Creating task:', {
-        API_URL,
-        url: `${API_URL}/api/kanban/tasks`,
-        taskData,
-        hasToken: !!token,
-        tokenLength: token?.length
-      });
-
       const res = await fetch(`${API_URL}/api/kanban/tasks`, {
         method: 'POST',
         headers,
         body: JSON.stringify(taskData),
       });
 
-      console.log('Response status:', res.status, res.statusText);
-      console.log('Response headers:', Object.fromEntries(res.headers.entries()));
-      
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => 'No response body');
-        console.error('Failed to create task:', res.status, errorText);
-        throw new Error(`Failed to create task: ${res.status} ${res.statusText} - ${errorText}`);
-      }
+      if (!res.ok) throw new Error('Failed to create task');
 
       await fetchKanbanData();
       setShowAddModal(false);
