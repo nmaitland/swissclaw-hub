@@ -180,11 +180,13 @@ function App() {
                     key={msg.id}
                     className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
                   >
-                    <span className="chat-sender">{msg.sender}</span>
+                    <div className="chat-message-header">
+                      <span className="chat-sender">{msg.sender}</span>
+                      <span className="chat-time">
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
                     <span className="chat-text">{msg.content}</span>
-                    <span className="chat-time">
-                      {new Date(msg.created_at).toLocaleTimeString()}
-                    </span>
                   </div>
                 ))
               )}

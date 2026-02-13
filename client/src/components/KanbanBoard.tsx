@@ -193,8 +193,6 @@ function KanbanBoard() {
   const [tasks, setTasks] = useState<TasksByColumn>({} as TasksByColumn);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<KanbanCardTask | null>(null);
-  const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addColumnName, setAddColumnName] = useState<ColumnName>('backlog');
   const [newTask, setNewTask] = useState<NewTaskForm>({
@@ -204,6 +202,8 @@ function KanbanBoard() {
     assignedTo: '',
     tags: '',
   });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editingTask, setEditingTask] = useState<KanbanCardTask | null>(null);
 
   // Search & filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -392,8 +392,16 @@ function KanbanBoard() {
   const handleTaskClick = (task: KanbanCardTask) => {
     // Don't open modal if we were dragging
     if (activeTask) return;
-    setSelectedTask(task);
-    setShowModal(true);
+    setEditingTask(task);
+    setAddColumnName(task.columnName);
+    setNewTask({
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority as 'low' | 'medium' | 'high',
+      assignedTo: task.assignedTo || '',
+      tags: task.tags?.join(', ') || '',
+    });
+    setShowAddModal(true);
   };
 
   const handleMoveTask = async (taskId: string | number, newColumn: ColumnName) => {
@@ -413,15 +421,40 @@ function KanbanBoard() {
       if (!res.ok) throw new Error('Failed to move task');
 
       await fetchKanbanData();
-      setShowModal(false);
-      setSelectedTask(null);
+      setShowAddModal(false);
+      setEditingTask(null);
     } catch (err) {
       console.error('Move task error:', err);
       alert('Failed to move task: ' + (err as Error).message);
     }
   };
 
-  const handleCreateTask = async (e: React.FormEvent) => {
+  const handleDeleteTask = async (taskId: string | number) => {
+    try {
+      const token = getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Authorization: token ? `Bearer ${token}` : '',
+      };
+
+      const res = await fetch(`${API_URL}/api/kanban/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!res.ok) throw new Error('Failed to delete task');
+
+      await fetchKanbanData();
+      setShowAddModal(false);
+      setEditingTask(null);
+      setShowDeleteConfirm(false);
+    } catch (err) {
+      console.error('Delete task error:', err);
+      alert('Failed to delete task: ' + (err as Error).message);
+    }
+  };
+
+  const handleSaveTask = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
@@ -443,20 +476,27 @@ function KanbanBoard() {
           .filter((t) => t),
       };
 
-      const res = await fetch(`${API_URL}/api/kanban/tasks`, {
-        method: 'POST',
+      const url = editingTask
+        ? `${API_URL}/api/kanban/tasks/${editingTask.id}`
+        : `${API_URL}/api/kanban/tasks`;
+      
+      const method = editingTask ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
         headers,
         body: JSON.stringify(taskData),
       });
 
-      if (!res.ok) throw new Error('Failed to create task');
+      if (!res.ok) throw new Error(`Failed to ${editingTask ? 'update' : 'create'} task`);
 
       await fetchKanbanData();
       setShowAddModal(false);
       setNewTask({ title: '', description: '', priority: 'medium', assignedTo: '', tags: '' });
+      setEditingTask(null);
     } catch (err) {
-      console.error('Create task error:', err);
-      alert('Failed to create task: ' + (err as Error).message);
+      console.error(`${editingTask ? 'Update' : 'Create'} task error:`, err);
+      alert(`Failed to ${editingTask ? 'update' : 'create'} task: ` + (err as Error).message);
     }
   };
 
@@ -468,11 +508,7 @@ function KanbanBoard() {
   const closeAddModal = () => {
     setShowAddModal(false);
     setNewTask({ title: '', description: '', priority: 'medium', assignedTo: '', tags: '' });
-  };
-
-  const closeTaskModal = () => {
-    setShowModal(false);
-    setSelectedTask(null);
+    setEditingTask(null);
   };
 
   // ─── Render ────────────────────────────────────────────────────────
@@ -574,75 +610,34 @@ function KanbanBoard() {
         </DragOverlay>
       </DndContext>
 
-      {/* Task Detail Modal */}
-      {showModal && selectedTask && (
-        <div className="modal-overlay" onClick={closeTaskModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && editingTask && (
+        <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="modal-content delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-task-id">{selectedTask.taskId}</span>
-              <button className="modal-close" onClick={closeTaskModal}>
+              <h3>Confirm Delete</h3>
+              <button className="modal-close" onClick={() => setShowDeleteConfirm(false)}>
                 {'\u00D7'}
               </button>
             </div>
-
             <div className="modal-body">
-              <h3 className="modal-title">{selectedTask.title}</h3>
-
-              {selectedTask.description && (
-                <p className="modal-description">{selectedTask.description}</p>
-              )}
-
-              <div className="modal-meta">
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Priority:</span>
-                  <span
-                    className="modal-priority-badge"
-                    style={{ background: getPriorityColor(selectedTask.priority) }}
-                  >
-                    {selectedTask.priority}
-                  </span>
-                </div>
-
-                {selectedTask.assignedTo && (
-                  <div className="modal-meta-item">
-                    <span className="modal-meta-label">Assigned to:</span>
-                    <span>{selectedTask.assignedTo}</span>
-                  </div>
-                )}
-
-                {selectedTask.tags && selectedTask.tags.length > 0 && (
-                  <div className="modal-meta-item">
-                    <span className="modal-meta-label">Tags:</span>
-                    <div className="modal-tags">
-                      {selectedTask.tags.map((tag, i) => (
-                        <span key={i} className="modal-tag">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="modal-meta-item">
-                  <span className="modal-meta-label">Created:</span>
-                  <span>{formatDate(selectedTask.createdAt)}</span>
-                </div>
-              </div>
-
-              <div className="modal-actions">
-                <p className="modal-actions-label">Move to:</p>
-                <div className="modal-move-buttons">
-                  {COLUMNS.map((col) => (
-                    <button
-                      key={col.name}
-                      className={`modal-move-btn ${selectedTask.columnName === col.name ? 'active' : ''}`}
-                      onClick={() => handleMoveTask(selectedTask.id, col.name)}
-                      disabled={selectedTask.columnName === col.name}
-                    >
-                      {col.emoji} {col.displayName}
-                    </button>
-                  ))}
-                </div>
+              <p className="delete-confirm-text">
+                Are you sure you want to delete task <strong>"{editingTask.title}"</strong>?
+                This action cannot be undone.
+              </p>
+              <div className="delete-confirm-actions">
+                <button
+                  className="btn-cancel"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-delete"
+                  onClick={() => handleDeleteTask(editingTask.id)}
+                >
+                  Delete Task
+                </button>
               </div>
             </div>
           </div>
@@ -655,14 +650,14 @@ function KanbanBoard() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>
-                Add Task to {COLUMNS.find((c) => c.name === addColumnName)?.displayName}
+                {editingTask ? 'Edit Task' : `Add Task to ${COLUMNS.find((c) => c.name === addColumnName)?.displayName}`}
               </h3>
               <button className="modal-close" onClick={closeAddModal}>
                 {'\u00D7'}
               </button>
             </div>
 
-            <form className="modal-form" onSubmit={handleCreateTask}>
+            <form className="modal-form" onSubmit={handleSaveTask}>
               <div className="form-group">
                 <label htmlFor="task-title">Title *</label>
                 <input
@@ -730,12 +725,25 @@ function KanbanBoard() {
               </div>
 
               <div className="modal-form-actions">
-                <button type="button" className="btn-cancel" onClick={closeAddModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-submit">
-                  Create Task
-                </button>
+                <div className="modal-form-actions-left">
+                  {editingTask && (
+                    <button
+                      type="button"
+                      className="btn-delete"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      Delete Task
+                    </button>
+                  )}
+                </div>
+                <div className="modal-form-actions-right">
+                  <button type="button" className="btn-cancel" onClick={closeAddModal}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-submit">
+                    {editingTask ? 'Save Changes' : 'Create Task'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
