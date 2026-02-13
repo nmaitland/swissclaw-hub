@@ -197,6 +197,12 @@
   box-shadow: 0 0 20px rgba(239, 68, 68, 0.1);
 }
 
+.kanban-column.special-column.drop-target {
+  border-color: #ff4500;
+  background: rgba(255, 69, 0, 0.08);
+  box-shadow: 0 0 16px rgba(255, 69, 0, 0.15);
+}
+
 .kanban-column.special-column .kanban-column-header {
   background: rgba(239, 68, 68, 0.15);
   border-bottom-color: rgba(239, 68, 68, 0.3);
@@ -673,6 +679,88 @@
   cursor: not-allowed;
 }
 
+.modal-actions-row {
+  margin-bottom: 1rem;
+}
+
+.modal-actions-row:last-child {
+  margin-bottom: 0;
+}
+
+.modal-action-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.modal-edit-btn {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  flex: 1;
+  transition: all 0.2s;
+}
+
+.modal-edit-btn:hover {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: #3b82f6;
+}
+
+.modal-delete-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #ef4444;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  flex: 1;
+  transition: all 0.2s;
+}
+
+.modal-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+}
+
+.delete-confirm-modal {
+  max-width: 400px;
+}
+
+.delete-confirm-text {
+  color: #e5e7eb;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.btn-delete {
+  background: #ef4444;
+  border: none;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-delete:hover {
+  background: #dc2626;
+}
+
 /* ─── Form Styles ─────────────────────────────────────────────────────── */
 
 .modal-form {
@@ -731,15 +819,26 @@
 
 .modal-form-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 0.75rem;
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.modal-form-actions-left {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.modal-form-actions-right {
+  display: flex;
+  gap: 0.75rem;
+}
+
 .btn-cancel,
-.btn-submit {
+.btn-submit,
+.btn-delete {
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   font-size: 0.95rem;

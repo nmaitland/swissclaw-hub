@@ -264,6 +264,13 @@
   font-size: 0.8125rem;
 }
 
+.chat-message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
 .chat-swissclaw {
   background: rgba(255, 69, 0, 0.1);
   border-left: 3px solid #ff4500;
@@ -292,7 +299,6 @@
 .chat-time {
   color: #6b7280;
   font-size: 0.75rem;
-  text-align: right;
 }
 
 .empty-state {
