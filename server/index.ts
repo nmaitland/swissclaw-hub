@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import cors from 'cors';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import fs from 'fs';
@@ -14,6 +14,85 @@ import swaggerSpec from './config/swagger';
 import logger from './lib/logger';
 import { asyncHandler, errorHandler } from './lib/errors';
 import type { ChatMessageData, RateLimitEntry, ParsedTask, BuildInfo } from './types';
+
+// Sparse ordering constants
+const POSITION_GAP = 1000000n; // 1 million as BigInt
+const REBALANCE_THRESHOLD = 100n; // Rebalance when gap < 100
+
+// Helper functions for sparse ordering
+async function calculateNewPosition(
+  pool: Pool | PoolClient,
+  columnId: number,
+  targetTaskId?: number,
+  insertAfter?: boolean
+): Promise<bigint> {
+  if (!targetTaskId) {
+    // No target - place at end
+    const result = await pool.query(
+      'SELECT MAX(position) as max_pos FROM kanban_tasks WHERE column_id = $1',
+      [columnId]
+    );
+    const maxPos = result.rows[0]?.max_pos || 0n;
+    return BigInt(maxPos) + POSITION_GAP;
+  }
+
+  // Get positions of target and adjacent tasks
+  const result = await pool.query(`
+    SELECT
+      (SELECT position FROM kanban_tasks WHERE id = $1) as target_pos,
+      (SELECT position FROM kanban_tasks WHERE column_id = $2 AND position < (SELECT position FROM kanban_tasks WHERE id = $1) ORDER BY position DESC LIMIT 1) as prev_pos,
+      (SELECT position FROM kanban_tasks WHERE column_id = $2 AND position > (SELECT position FROM kanban_tasks WHERE id = $1) ORDER BY position ASC LIMIT 1) as next_pos
+  `, [targetTaskId, columnId]);
+
+  const targetPos = BigInt(result.rows[0]?.target_pos || 0n);
+  const prevPos = result.rows[0]?.prev_pos !== null ? BigInt(result.rows[0].prev_pos) : null;
+  const nextPos = result.rows[0]?.next_pos !== null ? BigInt(result.rows[0].next_pos) : null;
+
+  if (insertAfter) {
+    // Insert after target task
+    if (nextPos !== null) {
+      // There's a task after the target
+      return (targetPos + nextPos) / 2n;
+    } else {
+      // Target is last task
+      return targetPos + POSITION_GAP;
+    }
+  } else {
+    // Insert before target task
+    if (prevPos !== null) {
+      // There's a task before the target
+      return (prevPos + targetPos) / 2n;
+    } else {
+      // Target is first task
+      return targetPos / 2n;
+    }
+  }
+}
+
+async function checkAndRebalanceIfNeeded(pool: Pool | PoolClient, columnId: number): Promise<boolean> {
+  // Check if any adjacent gap is too small
+  const result = await pool.query(`
+    WITH ordered_tasks AS (
+      SELECT position, LAG(position) OVER (ORDER BY position) as prev_position
+      FROM kanban_tasks
+      WHERE column_id = $1
+      ORDER BY position
+    )
+    SELECT EXISTS (
+      SELECT 1 FROM ordered_tasks
+      WHERE prev_position IS NOT NULL AND (position - prev_position) < $2
+    ) as needs_rebalance
+  `, [columnId, REBALANCE_THRESHOLD]);
+
+  const needsRebalance = result.rows[0]?.needs_rebalance || false;
+  
+  if (needsRebalance) {
+    await pool.query('SELECT rebalance_column_positions($1)', [columnId]);
+    return true;
+  }
+  
+  return false;
+}
 
 const app = express();
 const httpServer = createServer(app);
@@ -504,6 +583,7 @@ app.get('/api/kanban', asyncHandler(async (req: Request, res: Response) => {
       tags: task.tags || [],
       attachmentCount: task.attachment_count || 0,
       commentCount: task.comment_count || 0,
+      position: task.position,
       createdAt: task.created_at,
       updatedAt: task.updated_at
     }));
@@ -576,13 +656,14 @@ app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) =
 
   const columnId = columnResult.rows[0].id;
 
-  // Get max position for this column
+  // Get max position for this column using sparse positioning
   const posResult = await pool.query(
     'SELECT MAX(position) as max_pos FROM kanban_tasks WHERE column_id = $1',
     [columnId]
   );
 
-  const position = (posResult.rows[0]?.max_pos || 0) + 1;
+  const maxPos = posResult.rows[0]?.max_pos || 0n;
+  const position = BigInt(maxPos) + POSITION_GAP;
   const taskId = generateTaskId();
 
   const result = await pool.query(
@@ -646,7 +727,7 @@ app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) =
  */
 app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { columnName, title, description, priority, assignedTo, tags, position } = req.body;
+  const { columnName, title, description, priority, assignedTo, tags, position, targetTaskId, insertAfter } = req.body;
 
   let columnId: number | null = null;
   if (columnName) {
@@ -656,6 +737,17 @@ app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response
     );
     if (columnResult.rows.length > 0) {
       columnId = columnResult.rows[0].id;
+    }
+  }
+
+  // If targetTaskId is provided, calculate position automatically
+  let calculatedPosition: bigint | null = null;
+  if (targetTaskId !== undefined && columnId !== null) {
+    try {
+      calculatedPosition = await calculateNewPosition(pool, columnId, targetTaskId, insertAfter || false);
+    } catch (error) {
+      console.error('Error calculating position:', error);
+      // Fall back to explicit position if provided
     }
   }
 
@@ -687,7 +779,12 @@ app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response
     updates.push(`tags = $${paramCount++}`);
     values.push(JSON.stringify(tags));
   }
-  if (position !== undefined) {
+  
+  // Use calculated position if available, otherwise use explicit position
+  if (calculatedPosition !== null) {
+    updates.push(`position = $${paramCount++}`);
+    values.push(calculatedPosition.toString()); // Convert BigInt to string for PostgreSQL
+  } else if (position !== undefined) {
     updates.push(`position = $${paramCount++}`);
     values.push(position);
   }
@@ -706,6 +803,36 @@ app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response
   }
 
   const task = result.rows[0];
+  
+  // Check if rebalancing is needed
+  if (columnId !== null) {
+    const needsRebalance = await checkAndRebalanceIfNeeded(pool, columnId);
+    if (needsRebalance) {
+      // Refetch the task after rebalancing
+      const refreshedResult = await pool.query(
+        'SELECT * FROM kanban_tasks WHERE id = $1',
+        [id]
+      );
+      if (refreshedResult.rows.length > 0) {
+        const refreshedTask = refreshedResult.rows[0];
+        res.json({
+          id: refreshedTask.id,
+          taskId: refreshedTask.task_id,
+          title: refreshedTask.title,
+          description: refreshedTask.description,
+          priority: refreshedTask.priority,
+          assignedTo: refreshedTask.assigned_to,
+          tags: refreshedTask.tags || [],
+          position: refreshedTask.position,
+          createdAt: refreshedTask.created_at,
+          updatedAt: refreshedTask.updated_at,
+          rebalanced: true
+        });
+        return;
+      }
+    }
+  }
+
   res.json({
     id: task.id,
     taskId: task.task_id,
@@ -716,8 +843,101 @@ app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response
     tags: task.tags || [],
     position: task.position,
     createdAt: task.created_at,
-    updatedAt: task.updated_at
+    updatedAt: task.updated_at,
+    rebalanced: false
   });
+}));
+
+/**
+ * @swagger
+ * /api/kanban/reorder:
+ *   post:
+ *     tags: [Kanban]
+ *     summary: Batch reorder tasks within a column
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [columnId, taskPositions]
+ *             properties:
+ *               columnId:
+ *                 type: integer
+ *                 description: ID of the column to reorder tasks in
+ *               taskPositions:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [taskId, position]
+ *                   properties:
+ *                     taskId:
+ *                       type: integer
+ *                     position:
+ *                       type: integer
+ *     responses:
+ *       200:
+ *         description: Tasks reordered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 rebalanced:
+ *                   type: boolean
+ *                   description: Whether column was rebalanced due to small gaps
+ *       400:
+ *         description: Invalid request
+ *       404:
+ *         description: Column not found
+ */
+app.post('/api/kanban/reorder', asyncHandler(async (req: Request, res: Response) => {
+  const { columnId, taskPositions } = req.body;
+
+  if (!columnId || !Array.isArray(taskPositions) || taskPositions.length === 0) {
+    res.status(400).json({ error: 'columnId and taskPositions array required' });
+    return;
+  }
+
+  // Verify column exists
+  const columnResult = await pool.query(
+    'SELECT id FROM kanban_columns WHERE id = $1',
+    [columnId]
+  );
+  if (columnResult.rows.length === 0) {
+    res.status(404).json({ error: 'Column not found' });
+    return;
+  }
+
+  // Update positions in a transaction
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    for (const { taskId, position } of taskPositions) {
+      await client.query(
+        'UPDATE kanban_tasks SET position = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND column_id = $3',
+        [position, taskId, columnId]
+      );
+    }
+
+    // Check if rebalancing is needed
+    const needsRebalance = await checkAndRebalanceIfNeeded(client, columnId);
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, rebalanced: needsRebalance });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Reorder transaction failed:', error);
+    res.status(500).json({ error: 'Failed to reorder tasks' });
+  } finally {
+    client.release();
+  }
 }));
 
 /**
