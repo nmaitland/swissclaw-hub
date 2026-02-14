@@ -47,12 +47,6 @@ const getPriorityColor = (priority: string): string => {
   }
 };
 
-const formatDate = (dateStr: string | undefined): string => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
-
 // ─── Sortable Card ───────────────────────────────────────────────────────────
 
 interface SortableCardProps {
@@ -435,31 +429,6 @@ function KanbanBoard() {
       tags: task.tags?.join(', ') || '',
     });
     setShowAddModal(true);
-  };
-
-  const handleMoveTask = async (taskId: string | number, newColumn: ColumnName) => {
-    try {
-      const token = getAuthToken();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: token ? `Bearer ${token}` : '',
-      };
-
-      const res = await fetch(`${API_URL}/api/kanban/tasks/${taskId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ columnName: newColumn }),
-      });
-
-      if (!res.ok) throw new Error('Failed to move task');
-
-      await fetchKanbanData();
-      setShowAddModal(false);
-      setEditingTask(null);
-    } catch (err) {
-      console.error('Move task error:', err);
-      alert('Failed to move task: ' + (err as Error).message);
-    }
   };
 
   const handleDeleteTask = async (taskId: string | number) => {
