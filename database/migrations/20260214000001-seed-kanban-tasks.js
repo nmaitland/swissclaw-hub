@@ -3,6 +3,17 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    // Check if tasks already exist
+    const existingTasks = await queryInterface.sequelize.query(
+      `SELECT task_id FROM kanban_tasks WHERE task_id IN ('TASK-001', 'TASK-002', 'TASK-003', 'TASK-004', 'TASK-005', 'TASK-006')`,
+      { type: Sequelize.QueryTypes.SELECT }
+    );
+
+    if (existingTasks.length > 0) {
+      // Tasks already seeded, skip
+      return;
+    }
+
     // Get column IDs
     const columns = await queryInterface.sequelize.query(
       'SELECT id, name FROM kanban_columns',
@@ -105,6 +116,8 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('kanban_tasks', null, {});
+    await queryInterface.bulkDelete('kanban_tasks', {
+      task_id: ['TASK-001', 'TASK-002', 'TASK-003', 'TASK-004', 'TASK-005', 'TASK-006']
+    }, {});
   }
 };
