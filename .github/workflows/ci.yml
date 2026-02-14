@@ -63,16 +63,6 @@ jobs:
         TEST_DB_USER: postgres
         TEST_DB_PASSWORD: password
 
-    - name: Run database seeders
-      run: npm run db:seed:test
-      env:
-        NODE_ENV: test
-        TEST_DB_HOST: localhost
-        TEST_DB_PORT: 5433
-        TEST_DB_NAME: swissclaw_hub_test
-        TEST_DB_USER: postgres
-        TEST_DB_PASSWORD: password
-
     - name: Run all backend tests with coverage
       run: npm test -- --coverage --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=text --runInBand --forceExit
       env:
