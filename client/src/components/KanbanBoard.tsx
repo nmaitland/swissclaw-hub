@@ -661,7 +661,10 @@ function KanbanBoard() {
               <div className="delete-confirm-actions">
                 <button
                   className="btn-cancel"
-                  onClick={() => setShowDeleteConfirm(false)}
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setShowAddModal(true);
+                  }}
                 >
                   Cancel
                 </button>
@@ -763,7 +766,10 @@ function KanbanBoard() {
                     <button
                       type="button"
                       className="btn-delete"
-                      onClick={() => setShowDeleteConfirm(true)}
+                      onClick={() => {
+                        setShowAddModal(false);
+                        setShowDeleteConfirm(true);
+                      }}
                     >
                       Delete Task
                     </button>

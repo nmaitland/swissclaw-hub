@@ -512,4 +512,180 @@ describe('KanbanBoard Component', () => {
     // Search should be cleared
     expect(searchInput.value).toBe('');
   });
+  
+  // ─── Delete Task Tests ───────────────────────────────────────────────
+  
+  describe('Delete Task Functionality', () => {
+    it('shows delete confirmation when clicking Delete Task button in edit modal', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockKanbanResponse,
+      });
+  
+      render(<KanbanBoard />);
+  
+      await waitFor(() => {
+        expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      });
+  
+      // Click the task card to open edit modal
+      fireEvent.click(screen.getByText('Fix login bug'));
+  
+      await waitFor(() => {
+        expect(screen.getByText('Edit Task')).toBeInTheDocument();
+      });
+  
+      // Click Delete Task button
+      fireEvent.click(screen.getByText('Delete Task'));
+  
+      // Delete confirmation modal should appear with task title
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
+        expect(screen.getByText(/Are you sure you want to delete task/)).toBeInTheDocument();
+        // The task title appears in the confirmation text (wrapped in quotes)
+        expect(screen.getByText(/"Fix login bug"/)).toBeInTheDocument();
+      });
+  
+      // Edit modal should be closed
+      expect(screen.queryByText('Edit Task')).not.toBeInTheDocument();
+    });
+  
+    it('calls DELETE API when confirming delete', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockKanbanResponse,
+      });
+  
+      render(<KanbanBoard />);
+  
+      await waitFor(() => {
+        expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      });
+  
+      // Click the task card to open edit modal
+      fireEvent.click(screen.getByText('Fix login bug'));
+  
+      await waitFor(() => {
+        expect(screen.getByText('Edit Task')).toBeInTheDocument();
+      });
+  
+      // Click Delete Task button
+      fireEvent.click(screen.getByText('Delete Task'));
+  
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
+      });
+  
+      // Mock the DELETE response
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, deleted: { id: 1 } }),
+      });
+  
+      // Mock the refresh after delete
+      const updatedResponse = {
+        ...mockKanbanResponse,
+        tasks: {
+          ...mockKanbanResponse.tasks,
+          todo: [], // Task removed
+        },
+      };
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => updatedResponse,
+      });
+  
+      // Click Delete Task in confirmation modal
+      fireEvent.click(screen.getByText('Delete Task').closest('button') || screen.getAllByText('Delete Task')[1]);
+  
+      // Verify DELETE API was called
+      await waitFor(() => {
+        expect(fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/api/kanban/tasks/1'),
+          expect.objectContaining({
+            method: 'DELETE',
+          })
+        );
+      });
+    });
+  
+    it('cancelling delete returns to edit modal', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockKanbanResponse,
+      });
+  
+      render(<KanbanBoard />);
+  
+      await waitFor(() => {
+        expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      });
+  
+      // Click the task card to open edit modal
+      fireEvent.click(screen.getByText('Fix login bug'));
+  
+      await waitFor(() => {
+        expect(screen.getByText('Edit Task')).toBeInTheDocument();
+      });
+  
+      // Click Delete Task button
+      fireEvent.click(screen.getByText('Delete Task'));
+  
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
+      });
+  
+      // Click Cancel in delete confirmation
+      fireEvent.click(screen.getByText('Cancel'));
+  
+      // Delete confirmation should close and edit modal should reappear
+      await waitFor(() => {
+        expect(screen.queryByText('Confirm Delete')).not.toBeInTheDocument();
+        expect(screen.getByText('Edit Task')).toBeInTheDocument();
+      });
+    });
+  
+    it('shows error alert when delete API fails', async () => {
+      // Mock alert
+      const alertMock = jest.spyOn(window, 'alert').mockImplementation(() => {});
+  
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockKanbanResponse,
+      });
+  
+      render(<KanbanBoard />);
+  
+      await waitFor(() => {
+        expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+      });
+  
+      // Click the task card to open edit modal
+      fireEvent.click(screen.getByText('Fix login bug'));
+  
+      await waitFor(() => {
+        expect(screen.getByText('Edit Task')).toBeInTheDocument();
+      });
+  
+      // Click Delete Task button
+      fireEvent.click(screen.getByText('Delete Task'));
+  
+      await waitFor(() => {
+        expect(screen.getByText('Confirm Delete')).toBeInTheDocument();
+      });
+  
+      // Mock failed DELETE response
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+  
+      // Click Delete Task in confirmation modal
+      fireEvent.click(screen.getByText('Delete Task').closest('button') || screen.getAllByText('Delete Task')[1]);
+  
+      // Verify error alert was shown
+      await waitFor(() => {
+        expect(alertMock).toHaveBeenCalledWith(expect.stringContaining('Failed to delete task'));
+      });
+  
+      alertMock.mockRestore();
+    });
+  });
 });
