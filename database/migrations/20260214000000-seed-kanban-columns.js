@@ -3,7 +3,15 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.bulkInsert('kanban_columns', [
+    // Check if columns already exist
+    const existingColumns = await queryInterface.sequelize.query(
+      `SELECT name FROM kanban_columns WHERE name IN ('backlog', 'todo', 'inProgress', 'review', 'done', 'waiting-for-neil')`,
+      { type: Sequelize.QueryTypes.SELECT }
+    );
+
+    const existingNames = existingColumns.map(col => col.name);
+
+    const columnsToInsert = [
       {
         name: 'backlog',
         display_name: 'Backlog',
@@ -52,10 +60,17 @@ module.exports = {
         position: 5,
         created_at: new Date()
       }
-    ], {});
+    ].filter(col => !existingNames.includes(col.name));
+
+    if (columnsToInsert.length > 0) {
+      await queryInterface.bulkInsert('kanban_columns', columnsToInsert, {});
+    }
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.bulkDelete('kanban_columns', null, {});
+    // Remove the seeded columns
+    await queryInterface.bulkDelete('kanban_columns', {
+      name: ['backlog', 'todo', 'inProgress', 'review', 'done', 'waiting-for-neil']
+    }, {});
   }
 };
