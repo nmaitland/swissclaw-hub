@@ -100,6 +100,12 @@ describe('KanbanBoard Component', () => {
     Storage.prototype.getItem = jest.fn(() => 'test-token');
     Storage.prototype.setItem = jest.fn();
     Storage.prototype.removeItem = jest.fn();
+    // Mock console.error to suppress error logs in tests
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('shows loading skeleton initially', () => {
@@ -331,10 +337,12 @@ describe('KanbanBoard Component', () => {
     // Click the task card
     fireEvent.click(screen.getByText('Fix login bug'));
 
-    // Modal should show task details with move buttons
+    // Modal should show task details
     await waitFor(() => {
-      expect(screen.getByText('Move to:')).toBeInTheDocument();
-      expect(screen.getByText('Priority:')).toBeInTheDocument();
+      expect(screen.getByText('Edit Task')).toBeInTheDocument();
+      expect(screen.getByText('Priority')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Fix login bug')).toBeInTheDocument();
+      expect(screen.getByDisplayValue('Users cannot login with special chars')).toBeInTheDocument();
     });
   });
 

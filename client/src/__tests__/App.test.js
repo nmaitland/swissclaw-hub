@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import App from '../App';
 
 // Mock KanbanBoard so we don't deal with its own fetch calls
@@ -55,6 +55,8 @@ const mockKanbanData = {
 describe('App Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Mock console.error to suppress warnings
+    jest.spyOn(console, 'error').mockImplementation(() => {});
     // Mock localStorage
     Storage.prototype.getItem = jest.fn((key) => {
       if (key === 'authToken') return 'test-token';
@@ -78,10 +80,16 @@ describe('App Component', () => {
     });
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('renders the header', async () => {
     render(<App />);
-    const headings = screen.getAllByText(/Swissclaw Hub/);
-    expect(headings.length).toBeGreaterThanOrEqual(1);
+    await waitFor(() => {
+      const headings = screen.getAllByText(/Swissclaw Hub/);
+      expect(headings.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   it('fetches and displays status data', async () => {
@@ -112,9 +120,11 @@ describe('App Component', () => {
     });
   });
 
-  it('shows idle state before data loads', () => {
+  it('shows idle state before data loads', async () => {
     fetch.mockImplementation(() => new Promise(() => {})); // Never resolves
-    render(<App />);
+    await act(async () => {
+      render(<App />);
+    });
 
     expect(screen.getByText('idle')).toBeInTheDocument();
     expect(screen.getByText('Ready to help')).toBeInTheDocument();
@@ -122,7 +132,9 @@ describe('App Component', () => {
 
   it('renders the chat input', async () => {
     render(<App />);
-    expect(screen.getByPlaceholderText('Type a message...')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Type a message...')).toBeInTheDocument();
+    });
   });
 
   it('redirects to login when no auth token', () => {
@@ -138,7 +150,9 @@ describe('App Component', () => {
 
   it('renders the mocked KanbanBoard component', async () => {
     render(<App />);
-    expect(screen.getByTestId('kanban-board')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('kanban-board')).toBeInTheDocument();
+    });
   });
 
   it('displays recent activities', async () => {
