@@ -22,7 +22,7 @@
 
     "build": "npm run server:build && cd client && npm run build",
 
-    "start": "npm run db:migrate && npm run db:seed && npm run server",
+    "start": "npm run db:migrate && npm run server",
 
     "install-all": "npm install && cd client && npm install",
 
