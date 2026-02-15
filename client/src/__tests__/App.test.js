@@ -170,4 +170,80 @@ describe('App Component', () => {
       expect(screen.getByText('Hello')).toBeInTheDocument();
     });
   });
+
+  describe('auto-scroll behavior', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('does not auto-scroll on initial data fetch', async () => {
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Hello')).toBeInTheDocument();
+      });
+
+      // scrollIntoView should not be called on initial load
+      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+    });
+
+    it('does not auto-scroll on interval fetch', async () => {
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Hello')).toBeInTheDocument();
+      });
+
+      // Clear any calls from initial render
+      Element.prototype.scrollIntoView.mockClear();
+
+      // Advance timers to trigger interval fetch
+      await act(async () => {
+        jest.advanceTimersByTime(35000);
+      });
+
+      // Wait for fetch to complete
+      await waitFor(() => {
+        expect(fetch.mock.calls.length).toBeGreaterThanOrEqual(2);
+      });
+
+      // scrollIntoView should not be called on interval fetch
+      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+    });
+
+    it('auto-scrolls when socket message event is received', async () => {
+      const messageHandler = [];
+      mockSocket.on.mockImplementation((event, handler) => {
+        if (event === 'message') {
+          messageHandler.push(handler);
+        }
+      });
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Hello')).toBeInTheDocument();
+      });
+
+      // Clear any calls from initial render
+      Element.prototype.scrollIntoView.mockClear();
+
+      // Simulate receiving a message via socket
+      await act(async () => {
+        messageHandler[0]({ id: '2', sender: 'SwissClaw', content: 'New message', created_at: new Date().toISOString() });
+      });
+
+      // Wait for state update
+      await waitFor(() => {
+        expect(screen.getByText('New message')).toBeInTheDocument();
+      });
+
+      // scrollIntoView should NOT be called on socket message (only on user send)
+      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+    });
+  });
 });
