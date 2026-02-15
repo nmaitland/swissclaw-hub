@@ -553,16 +553,24 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
   );
   const activityCount = parseInt(activityCountResult.rows[0].count, 10);
 
-  // Get model usage since midnight UTC
+  // Get model usage since midnight UTC - grouped by model
   const modelUsageResult = await pool.query(
     `SELECT
+      model,
       COALESCE(SUM(input_tokens), 0) as input_tokens,
       COALESCE(SUM(output_tokens), 0) as output_tokens,
       COALESCE(SUM(estimated_cost), 0) as estimated_cost
     FROM model_usage
-    WHERE created_at >= $1`,
+    WHERE created_at >= $1
+    GROUP BY model
+    ORDER BY estimated_cost DESC`,
     [midnightUTC.toISOString()]
   );
+
+  // Calculate totals
+  const totalInputTokens = modelUsageResult.rows.reduce((sum, row) => sum + parseInt(row.input_tokens, 10), 0);
+  const totalOutputTokens = modelUsageResult.rows.reduce((sum, row) => sum + parseInt(row.output_tokens, 10), 0);
+  const totalCost = modelUsageResult.rows.reduce((sum, row) => sum + parseFloat(row.estimated_cost), 0);
 
   res.json({
     status: 'online',
@@ -573,9 +581,17 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
     },
     activityCount,
     modelUsage: {
-      inputTokens: parseInt(modelUsageResult.rows[0].input_tokens, 10),
-      outputTokens: parseInt(modelUsageResult.rows[0].output_tokens, 10),
-      estimatedCost: parseFloat(modelUsageResult.rows[0].estimated_cost),
+      total: {
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        estimatedCost: totalCost,
+      },
+      byModel: modelUsageResult.rows.map(row => ({
+        model: row.model,
+        inputTokens: parseInt(row.input_tokens, 10),
+        outputTokens: parseInt(row.output_tokens, 10),
+        estimatedCost: parseFloat(row.estimated_cost),
+      })),
       since: midnightUTC.toISOString()
     },
     recentMessages: messagesResult.rows,
