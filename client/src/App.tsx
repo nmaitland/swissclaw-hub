@@ -26,6 +26,7 @@ function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [buildInfo, setBuildInfo] = useState<BuildInfo>({ version: '2.1.0', commit: 'unknown' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldAutoScroll = useRef(false);
 
   // Check auth on mount
   useEffect(() => {
@@ -48,7 +49,6 @@ function App() {
 
     newSocket.on('activity', (activity: Activity) => {
       setActivities((prev) => [activity, ...prev].slice(0, 50));
-      fetchData();
     });
 
     return () => {
@@ -103,13 +103,17 @@ function App() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (shouldAutoScroll.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      shouldAutoScroll.current = false;
+    }
   }, [messages]);
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim() || !socket) return;
 
+    shouldAutoScroll.current = true;
     socket.emit('message', {
       sender: 'Neil',
       content: inputMessage.trim(),
