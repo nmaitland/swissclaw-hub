@@ -235,18 +235,6 @@ function App() {
     setInputMessage('');
   };
 
-  const getStatusColor = (state: string): string => {
-    switch (state) {
-      case 'active':
-        return '#4ade80';
-      case 'busy':
-        return '#fbbf24';
-      case 'idle':
-        return '#9ca3af';
-      default:
-        return '#9ca3af';
-    }
-  };
 
   return (
     <div className="app">
