@@ -5,15 +5,13 @@ import cors from 'cors';
 import { Pool, PoolClient } from 'pg';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
-import fs from 'fs';
-import path from 'path';
 import { execSync } from 'child_process';
 import 'dotenv/config';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import logger from './lib/logger';
 import { asyncHandler, errorHandler } from './lib/errors';
-import type { ChatMessageData, RateLimitEntry, ParsedTask, BuildInfo } from './types';
+import type { ChatMessageData, RateLimitEntry, BuildInfo } from './types';
 
 // Sparse ordering constants
 const POSITION_GAP = 1000000n; // 1 million as BigInt
@@ -108,7 +106,7 @@ const sessions = new Set<string>();
 const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   // Public endpoints that don't require auth
   // When mounted at /api, req.path is relative (e.g., /kanban not /api/kanban)
-  const publicApiPaths = ['/login', '/build', '/kanban', '/tasks', '/seed'];
+  const publicApiPaths = ['/login', '/build', '/kanban', '/seed'];
   const publicRootPaths = ['/health', '/login'];
 
   if (publicApiPaths.includes(req.path) || publicRootPaths.includes(req.path)) {
@@ -1075,105 +1073,6 @@ app.delete('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Respo
   }
 
   res.json({ success: true, deleted: result.rows[0] });
-}));
-
-// Tasks API - Neil's action items from kanban.md
-function parseTasksFromKanban(): ParsedTask[] {
-  try {
-    // Try multiple paths to find kanban.md
-    const possiblePaths = [
-      path.join(process.cwd(), '..', '..', 'kanban', 'kanban.md'),
-      path.join(process.cwd(), '..', 'kanban', 'kanban.md'),
-      path.join('/home/neil/.openclaw/workspace', 'kanban', 'kanban.md'),
-      '/opt/render/project/src/kanban/kanban.md'
-    ];
-
-    let kanbanPath: string | null = null;
-    for (const p of possiblePaths) {
-      if (fs.existsSync(p)) {
-        kanbanPath = p;
-        break;
-      }
-    }
-
-    if (!kanbanPath) {
-      logger.warn('Kanban file not found for tasks');
-      return [];
-    }
-
-    const content = fs.readFileSync(kanbanPath, 'utf8');
-
-    const tasks: ParsedTask[] = [];
-    let inActionItems = false;
-    let id = 1;
-
-    content.split('\n').forEach(line => {
-      if (line.includes("## \u{1F464} Neil's Action Items")) {
-        inActionItems = true;
-      } else if (line.startsWith('## ')) {
-        inActionItems = false;
-      } else if (inActionItems && line.trim().startsWith('- [ ]')) {
-        // Parse checkbox items: - [ ] **Title** — description
-        const match = line.match(/^- \[ \] \*\*(.+?)\*\*\s*[-\u2014]\s*(.+)$/);
-        if (match) {
-          tasks.push({
-            id: id++,
-            title: match[1]!.trim(),
-            description: match[2]!.trim(),
-            completed: false,
-            priority: 'medium',
-            dueDate: null
-          });
-        } else {
-          // Simple fallback
-          const simpleMatch = line.match(/^- \[ \] \*\*(.+?)\*\*/);
-          if (simpleMatch) {
-            tasks.push({
-              id: id++,
-              title: simpleMatch[1]!.trim(),
-              description: '',
-              completed: false,
-              priority: 'medium',
-              dueDate: null
-            });
-          }
-        }
-      }
-    });
-
-    return tasks;
-  } catch (err) {
-    logger.error({ err }, 'Error parsing tasks');
-    return [];
-  }
-}
-
-/**
- * @swagger
- * /api/tasks:
- *   get:
- *     tags: [Tasks]
- *     summary: Get action items parsed from kanban.md
- *     responses:
- *       200:
- *         description: Task list
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id: { type: integer }
- *                   title: { type: string }
- *                   description: { type: string }
- *                   completed: { type: boolean }
- *                   priority: { type: string }
- *                   dueDate: { type: string, nullable: true }
- */
-app.get('/api/tasks', asyncHandler(async (req: Request, res: Response) => {
-  const tasks = parseTasksFromKanban();
-  res.json(tasks);
 }));
 
 /**
