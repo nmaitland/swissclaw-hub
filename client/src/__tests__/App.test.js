@@ -42,6 +42,19 @@ const mockStatusData = {
     currentTask: 'Building Swissclaw Hub',
     lastActive: '2024-01-01T12:00:00Z',
   },
+  activityCount: 5,
+  modelUsage: {
+    total: {
+      inputTokens: 45230,
+      outputTokens: 12100,
+      estimatedCost: 0.42,
+    },
+    byModel: [
+      { model: 'claude-3-5-sonnet', inputTokens: 25000, outputTokens: 8000, estimatedCost: 0.25 },
+      { model: 'gpt-4', inputTokens: 20230, outputTokens: 4100, estimatedCost: 0.17 },
+    ],
+    since: '2024-01-01T00:00:00Z',
+  },
   recentMessages: [
     { id: '1', sender: 'Neil', content: 'Hello', created_at: '2024-01-01T00:00:00Z' },
   ],

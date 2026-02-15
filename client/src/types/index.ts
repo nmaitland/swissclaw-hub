@@ -62,10 +62,20 @@ export interface KanbanApiResponse {
 
 export type PriorityFilter = 'all' | 'high' | 'medium' | 'low';
 
-export interface ModelUsage {
+export interface ModelUsageEntry {
+  model: string;
   inputTokens: number;
   outputTokens: number;
   estimatedCost: number;
+}
+
+export interface ModelUsage {
+  total: {
+    inputTokens: number;
+    outputTokens: number;
+    estimatedCost: number;
+  };
+  byModel: ModelUsageEntry[];
   since: string;
 }
 
