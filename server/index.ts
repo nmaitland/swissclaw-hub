@@ -1262,8 +1262,14 @@ io.on('connection', (socket: Socket) => {
 
 // Build info - get commit hash from env or file
 const getBuildInfo = (): BuildInfo => {
-  const commitHash = process.env.RENDER_GIT_COMMIT ||
-    execSync('git rev-parse --short HEAD 2>/dev/null || echo "unknown"').toString().trim();
+  let commitHash = process.env.RENDER_GIT_COMMIT;
+  if (!commitHash) {
+    try {
+      commitHash = execSync('git rev-parse --short HEAD', { stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim();
+    } catch {
+      commitHash = 'unknown';
+    }
+  }
   return {
     buildDate: new Date().toISOString(),
     commit: commitHash
