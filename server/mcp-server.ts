@@ -198,6 +198,26 @@ server.tool(
   }
 );
 
+// ─── Model Usage ───────────────────────────────────────────────────────────
+
+server.tool(
+  'report_model_usage',
+  'Report AI model token usage and estimated cost',
+  {
+    inputTokens: z.number().describe('Number of input tokens used'),
+    outputTokens: z.number().describe('Number of output tokens used'),
+    model: z.string().describe('Model name (e.g., claude-sonnet-4-20250514)'),
+    estimatedCost: z.number().describe('Estimated cost in USD'),
+  },
+  async ({ inputTokens, outputTokens, model, estimatedCost }) => {
+    const data = await api('/api/service/model-usage', {
+      method: 'POST',
+      body: { inputTokens, outputTokens, model, estimatedCost },
+    });
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
 // ─── Build Info ──────────────────────────────────────────────────────────
 
 server.tool(

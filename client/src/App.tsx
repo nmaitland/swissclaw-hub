@@ -268,14 +268,31 @@ function App() {
             <h2>{'\u{1F4E1}'} Status</h2>
             <div className="panel-content status-content">
               <div className="status-header">
-                <div
-                  className="status-dot"
-                  style={{ background: getStatusColor(status?.swissclaw?.state || 'idle') }}
-                />
+                <span className="status-icon">
+                  {status?.swissclaw?.state === 'active' && '\u{1F980}'}
+                  {status?.swissclaw?.state === 'busy' && '\u{1F980}'}
+                  {status?.swissclaw?.state === 'idle' && '\u{1F980}'}
+                  {!status?.swissclaw?.state && '\u{1F980}'}
+                </span>
                 <span className="status-state">{status?.swissclaw?.state || 'idle'}</span>
               </div>
               <div className="current-task">
                 {status?.swissclaw?.currentTask || 'Ready to help'}
+              </div>
+              <div className="status-stats">
+                <div className="stat-row">
+                  <span className="stat-label">Activities today:</span>
+                  <span className="stat-value">{status?.activityCount ?? 0}</span>
+                </div>
+                {status?.modelUsage && (
+                  <div className="stat-row">
+                    <span className="stat-label">Model usage:</span>
+                    <span className="stat-value">
+                      {status.modelUsage.inputTokens.toLocaleString()} in / {status.modelUsage.outputTokens.toLocaleString()} out
+                      (${status.modelUsage.estimatedCost.toFixed(2)})
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="last-active">
                 Updated:{' '}

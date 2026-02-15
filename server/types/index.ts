@@ -120,6 +120,23 @@ export interface BuildInfo {
   commit: string;
 }
 
+// Model usage tracking
+export interface ModelUsageData {
+  inputTokens: number;
+  outputTokens: number;
+  model: string;
+  estimatedCost: number;
+}
+
+export interface ModelUsageRow {
+  id: number;
+  input_tokens: number;
+  output_tokens: number;
+  model: string;
+  estimated_cost: number;
+  created_at: string;
+}
+
 // Chat message data from socket
 export interface ChatMessageData {
   sender: string;

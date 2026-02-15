@@ -62,12 +62,21 @@ export interface KanbanApiResponse {
 
 export type PriorityFilter = 'all' | 'high' | 'medium' | 'low';
 
+export interface ModelUsage {
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCost: number;
+  since: string;
+}
+
 export interface StatusResponse {
   swissclaw: {
     state: 'active' | 'busy' | 'idle';
     currentTask: string;
     lastActive: string;
   };
+  activityCount: number;
+  modelUsage: ModelUsage;
   recentMessages: ChatMessage[];
   recentActivities: Activity[];
 }

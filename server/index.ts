@@ -398,6 +398,58 @@ app.post('/api/service/activities', asyncHandler(async (req: Request, res: Respo
   res.json(result.rows[0]);
 }));
 
+/**
+ * @swagger
+ * /api/service/model-usage:
+ *   post:
+ *     tags: [Model Usage]
+ *     summary: Report model usage (service-to-service)
+ *     security:
+ *       - ServiceToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [inputTokens, outputTokens, model, estimatedCost]
+ *             properties:
+ *               inputTokens: { type: number }
+ *               outputTokens: { type: number }
+ *               model: { type: string }
+ *               estimatedCost: { type: number }
+ *     responses:
+ *       200:
+ *         description: Model usage recorded
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ModelUsageReport'
+ *       401:
+ *         description: Invalid service token
+ */
+app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Response) => {
+  const serviceToken = req.headers['x-service-token'];
+  if (serviceToken !== SWISSCLAW_TOKEN) {
+    res.status(401).json({ error: 'Invalid service token' });
+    return;
+  }
+
+  const { inputTokens, outputTokens, model, estimatedCost } = req.body;
+
+  if (typeof inputTokens !== 'number' || typeof outputTokens !== 'number' || !model || typeof estimatedCost !== 'number') {
+    res.status(400).json({ error: 'inputTokens, outputTokens, model, and estimatedCost are required' });
+    return;
+  }
+
+  const result = await pool.query(
+    'INSERT INTO model_usage (input_tokens, output_tokens, model, estimated_cost) VALUES ($1, $2, $3, $4) RETURNING *',
+    [inputTokens, outputTokens, sanitizeString(model), estimatedCost]
+  );
+
+  res.json(result.rows[0]);
+}));
+
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {
@@ -492,12 +544,39 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
     'SELECT * FROM activities ORDER BY created_at DESC LIMIT 20'
   );
 
+  // Get activity count since midnight UTC
+  const midnightUTC = new Date();
+  midnightUTC.setUTCHours(0, 0, 0, 0);
+  const activityCountResult = await pool.query(
+    'SELECT COUNT(*) as count FROM activities WHERE created_at >= $1',
+    [midnightUTC.toISOString()]
+  );
+  const activityCount = parseInt(activityCountResult.rows[0].count, 10);
+
+  // Get model usage since midnight UTC
+  const modelUsageResult = await pool.query(
+    `SELECT
+      COALESCE(SUM(input_tokens), 0) as input_tokens,
+      COALESCE(SUM(output_tokens), 0) as output_tokens,
+      COALESCE(SUM(estimated_cost), 0) as estimated_cost
+    FROM model_usage
+    WHERE created_at >= $1`,
+    [midnightUTC.toISOString()]
+  );
+
   res.json({
     status: 'online',
     swissclaw: {
       state: 'active',
       currentTask: 'Building Swissclaw Hub',
       lastActive: new Date().toISOString()
+    },
+    activityCount,
+    modelUsage: {
+      inputTokens: parseInt(modelUsageResult.rows[0].input_tokens, 10),
+      outputTokens: parseInt(modelUsageResult.rows[0].output_tokens, 10),
+      estimatedCost: parseFloat(modelUsageResult.rows[0].estimated_cost),
+      since: midnightUTC.toISOString()
     },
     recentMessages: messagesResult.rows,
     recentActivities: activitiesResult.rows
@@ -1453,7 +1532,7 @@ if (require.main === module) {
 // For integration tests: reset database state
 async function resetTestDb(): Promise<void> {
   // Truncate tables to reset state for tests
-  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities, model_usage RESTART IDENTITY CASCADE');
   
   // Re-insert default kanban columns
   await pool.query(`

@@ -73,7 +73,7 @@
 
 .top-panels {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 280px 1fr;
   gap: 1rem;
   min-height: 0;
 }
@@ -421,4 +421,33 @@
 
 .activity-load-more {
   min-height: 40px;
+}
+
+/* Status panel enhancements */
+.status-icon {
+  font-size: 1.5rem;
+  margin-right: 0.5rem;
+}
+
+.status-stats {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 69, 0, 0.2);
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.stat-label {
+  color: #6b7280;
+}
+
+.stat-value {
+  color: #e5e7eb;
+  font-weight: 600;
 }

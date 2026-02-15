@@ -79,6 +79,26 @@ const options: swaggerJsdoc.Options = {
             commit: { type: 'string', example: 'abc1234' },
           },
         },
+        ModelUsage: {
+          type: 'object',
+          properties: {
+            inputTokens: { type: 'integer', example: 45230 },
+            outputTokens: { type: 'integer', example: 12100 },
+            estimatedCost: { type: 'number', format: 'decimal', example: 0.42 },
+            since: { type: 'string', format: 'date-time' },
+          },
+        },
+        ModelUsageReport: {
+          type: 'object',
+          properties: {
+            id: { type: 'integer' },
+            input_tokens: { type: 'integer' },
+            output_tokens: { type: 'integer' },
+            model: { type: 'string' },
+            estimated_cost: { type: 'number' },
+            created_at: { type: 'string', format: 'date-time' },
+          },
+        },
         Error: {
           type: 'object',
           properties: {
