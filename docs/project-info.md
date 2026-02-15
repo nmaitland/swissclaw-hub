@@ -62,6 +62,7 @@ REACT_APP_API_URL=  # empty for same-origin
 
 | Version | Date | Notes |
 |---------|------|-------|
+| V4.1 | 2026-02-14 | Sequelize migrations, task ordering with sparse positioning, enhanced auth middleware |
 | V4 | 2026-02-12 | Full TypeScript migration, drag-and-drop kanban, @dnd-kit |
 | V3.4 | 2026-02-07 | Docs added, repo restructured |
 | V3.3 | 2026-02-07 | Activity feed + chat panels |

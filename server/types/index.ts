@@ -116,9 +116,8 @@ export interface DatabaseHealthResult {
 
 // Build info
 export interface BuildInfo {
-  version: string;
+  buildDate: string;
   commit: string;
-  buildTime: string;
 }
 
 // Chat message data from socket

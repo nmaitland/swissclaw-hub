@@ -11,18 +11,25 @@ server/
 ├── index.ts                # Express + Socket.io server
 ├── mcp-server.ts           # MCP server for AI agent access
 ├── config/
-│   ├── database.ts         # PostgreSQL pool & schema (initDb)
+│   ├── database.ts         # PostgreSQL pool & health checks
 │   └── swagger.ts          # OpenAPI/Swagger base config
 ├── middleware/
 │   ├── auth.ts             # Session auth, CSRF, rate limiting
 │   └── security.ts         # Helmet, XSS, audit logging
 ├── routes/
-│   └── auth.ts             # Login/logout/session routes
+│   └── auth.ts             # Enhanced login/logout/session routes
 ├── lib/
 │   ├── logger.ts           # Pino structured logging
 │   └── errors.ts           # asyncHandler + error middleware
 └── types/
     └── index.ts            # Shared server type definitions
+
+config/
+└── database.js             # Sequelize CLI config (migrations)
+
+database/
+├── migrations/             # Sequelize migrations (schema management)
+└── seeders/
 
 client/src/
 ├── App.tsx                 # Main app (socket.io, real-time)
@@ -36,7 +43,7 @@ client/src/
     └── App.test.js
 
 tests/
-├── unit/                   # Unit tests (mocked DB)
+├── unit/                   # Unit tests (mocked dependencies, no DB)
 ├── api/                    # Contract tests (real server + DB)
 ├── integration/            # Full flow tests (real server + DB)
 └── zzz-teardown.test.js    # Closes pg pool & socket.io
@@ -50,6 +57,7 @@ tests/
 - Activity feed with timestamps
 - Session-based authentication with CSRF protection
 - PostgreSQL database with raw SQL (no ORM at runtime)
+- Database schema managed by Sequelize migrations
 - Structured logging (pino)
 - API documentation with Swagger UI at `/api-docs`
 - MCP server for AI agent integration
@@ -62,7 +70,7 @@ tests/
 | **Frontend** | React 18, TypeScript, @dnd-kit |
 | **Backend** | Node.js, Express, TypeScript |
 | **Real-time** | Socket.io |
-| **Database** | PostgreSQL 15+ (pg driver) |
+| **Database** | PostgreSQL 15+ (pg driver, Sequelize migrations) |
 | **Auth** | Session-based (bcrypt + secure cookies) |
 | **Security** | Helmet, rate limiting, CORS, input validation |
 | **API Docs** | Swagger UI (swagger-jsdoc + swagger-ui-express) |
@@ -125,7 +133,7 @@ npm run install-all
 2. Set up environment:
 ```bash
 cp .env.example .env
-# Edit .env with your database URL
+# Edit .env with your database URL and credentials
 ```
 
 3. Set up the database (see Database Setup above)
@@ -147,6 +155,9 @@ Quick start:
 ```bash
 # Start test database
 docker-compose -f docker-compose.test.yml up -d test-db
+
+# Run migrations on test database
+npm run db:migrate:test
 
 # Run all backend tests
 npm run test:with-db
@@ -174,7 +185,7 @@ An MCP (Model Context Protocol) server is included for AI agent access to the Hu
 |------|-------------|
 | `get_status` | Get server status, recent messages, and activities |
 | `get_messages` | Get recent chat messages |
-| `send_message` | Send a chat message |
+| `send_message` | Log a chat activity event (broadcasts via Socket.io) |
 | `get_kanban` | Get the full kanban board |
 | `create_task` | Create a new kanban task |
 | `update_task` | Update or move a kanban task |
@@ -189,6 +200,8 @@ npm run mcp
 
 **Claude Code integration:** The `.mcp.json` file configures the MCP server for use with Claude Code. Set `SWISSCLAW_HUB_URL` and `SWISSCLAW_TOKEN` environment variables for the target Hub instance.
 
+See [docs/mcp-server.md](docs/mcp-server.md) for full documentation.
+
 ## Environment Variables
 
 | Variable | Description | Required |
@@ -197,15 +210,17 @@ npm run mcp
 | `NODE_ENV` | `development` or `production` | Yes |
 | `PORT` | Server port (default: 3001) | No |
 | `CLIENT_URL` | Frontend URL for CORS | Production |
-| `AUTH_USERNAME` | Login username | Yes |
+| `AUTH_USERNAME` | Login username (default: admin) | Yes |
 | `AUTH_PASSWORD` | Login password | Yes |
 | `SWISSCLAW_TOKEN` | Service-to-service auth token | Yes |
+| `SWISSCLAW_AUTH_TOKEN` | Bearer token for MCP server (optional) | No |
+| `REACT_APP_API_URL` | API URL for React client (empty = same-origin) | No |
 
 ## Deployment
 
 Auto-deploys from `master` branch to Render (Pro plan). See [docs/project-info.md](docs/project-info.md) for hosting details.
 
-The database schema is managed by Sequelize migrations. Migrations run automatically during deployment via the start command (`npm run db:migrate && npm start`). For local development, run migrations manually:
+The database schema is managed by Sequelize migrations. Migrations run automatically during deployment via the start command (`npm run db:migrate && npm run server`). For local development, run migrations manually:
 
 ```bash
 npm run db:migrate
@@ -222,10 +237,18 @@ npm install && cd client && npm install && npm run build && cd .. && npm run bui
 |--------|-------------|
 | `npm run dev` | Start backend + frontend in dev mode |
 | `npm run build` | Build server (tsc) + client (react-scripts) |
-| `npm start` | Start production server |
+| `npm start` | Run migrations + start production server |
 | `npm test` | Run backend tests |
 | `npm run test:with-db` | Run backend tests with local Docker DB |
+| `npm run test:unit` | Run unit tests only (mocked, no DB required) |
+| `npm run test:integration` | Run integration tests only |
 | `npm run test:client` | Run React tests |
 | `npm run lint` | ESLint server code |
 | `npm run type-check` | TypeScript type checking |
 | `npm run mcp` | Start MCP server (stdio transport) |
+| `npm run db:migrate` | Run Sequelize migrations (production) |
+| `npm run db:migrate:test` | Run Sequelize migrations (test) |
+| `npm run db:seed` | Run Sequelize seeders (production) |
+| `npm run db:seed:test` | Run Sequelize seeders (test) |
+| `npm run db:reset` | Drop, create, migrate, seed (development) |
+| `npm run db:reset:test` | Drop, create, migrate, seed (test) |

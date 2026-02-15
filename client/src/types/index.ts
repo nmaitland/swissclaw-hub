@@ -80,7 +80,7 @@ export interface ChatMessage {
 }
 
 export interface BuildInfo {
-  version: string;
+  buildDate: string;
   commit: string;
 }
 

@@ -16,11 +16,11 @@ BetterStack is configured to receive monitoring information and logs from the Sw
 
 ### Endpoint
 ```
-https://telemetry.betterstack.com/api/v2/query/
+https://eu-fsn-3-connect.betterstackdata.com
 ```
 
 ### Authentication
-- **Method:** HTTP Basic Auth (Username:Password)
+- **Method:** HTTP Basic Auth (Username:Password) via `-u` flag
 - **Source:** AI SRE → MCP and API → Create "Connect ClickHouse HTTP client"
 - **Security:** Password shown once in flash message, store securely
 
@@ -41,31 +41,28 @@ https://telemetry.betterstack.com/api/v2/query/
 ```bash
 export BETTERSTACK_USER="username_from_1password"
 export BETTERSTACK_PASS="password_from_1password"
-export SOURCE_ID="t123456"  # Get from BetterStack dashboard
+export SOURCE_ID="t503255"  # Get from BetterStack dashboard
 
-curl -L --request GET \
-  --header "Authorization: Bearer $BETTERSTACK_USER:$BETTERSTACK_PASS" \
-  --data-urlencode "source_ids=$SOURCE_ID" \
-  --data-urlencode "query=SELECT * FROM remote(${SOURCE_ID}_swissclaw-hub_logs) WHERE dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 100" \
-  https://telemetry.betterstack.com/api/v2/query/live-tail
+curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
+  -H 'Content-type: plain/text' \
+  -X POST 'https://eu-fsn-3-connect.betterstackdata.com' \
+  -d "SELECT * FROM remote(${SOURCE_ID}_swissclaw_logs) WHERE dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 100 FORMAT Pretty"
 ```
 
 ### Search for Specific Errors
 ```bash
-curl -L --request GET \
-  --header "Authorization: Bearer $BETTERSTACK_USER:$BETTERSTACK_PASS" \
-  --data-urlencode "source_ids=$SOURCE_ID" \
-  --data-urlencode "query=SELECT * FROM remote(${SOURCE_ID}_swissclaw-hub_logs) WHERE message ILIKE '%error%' AND dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC" \
-  https://telemetry.betterstack.com/api/v2/query/live-tail
+curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
+  -H 'Content-type: plain/text' \
+  -X POST 'https://eu-fsn-3-connect.betterstackdata.com' \
+  -d "SELECT * FROM remote(${SOURCE_ID}_swissclaw_logs) WHERE raw ILIKE '%error%' AND dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 10 FORMAT JSONEachRow"
 ```
 
 ### Access Nested JSON Fields
 ```bash
-curl -L --request GET \
-  --header "Authorization: Bearer $BETTERSTACK_USER:$BETTERSTACK_PASS" \
-  --data-urlencode "source_ids=$SOURCE_ID" \
-  --data-urlencode "query=SELECT * FROM remote(${SOURCE_ID}_swissclaw-hub_logs) WHERE _level = 'error' AND dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC FORMAT JSONEachRow" \
-  https://telemetry.betterstack.com/api/v2/query/live-tail
+curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
+  -H 'Content-type: plain/text' \
+  -X POST 'https://eu-fsn-3-connect.betterstackdata.com' \
+  -d "SELECT * FROM remote(${SOURCE_ID}_swissclaw_logs) WHERE _level = 'error' AND dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC FORMAT JSONEachRow"
 ```
 
 ## Output Formats
@@ -113,14 +110,11 @@ To test the integration:
 # 2. Set environment variables
 export BETTERSTACK_USER="username"
 export BETTERSTACK_PASS="password"
-export SOURCE_ID="your_source_id"
 
 # 3. Run test query
-curl -L --request GET \
-  --header "Authorization: Bearer $BETTERSTACK_USER:$BETTERSTACK_PASS" \
-  --data-urlencode "source_ids=$SOURCE_ID" \
-  --data-urlencode "query=SELECT 1 as test" \
-  https://telemetry.betterstack.com/api/v2/query/live-tail
+curl -L "https://eu-fsn-3-connect.betterstackdata.com" \
+  -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
+  --data-urlencode "query=SELECT 1 AS test FORMAT JSON"
 ```
 
 ## Notes

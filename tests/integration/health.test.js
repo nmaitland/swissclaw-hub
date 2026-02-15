@@ -10,7 +10,7 @@ describe('Health & Build API (real server)', () => {
 
       expect(response.body).toHaveProperty('status', 'ok');
       expect(response.body).toHaveProperty('timestamp');
-      expect(response.body).toHaveProperty('version');
+      expect(response.body).toHaveProperty('buildDate');
     });
   });
 
@@ -20,9 +20,8 @@ describe('Health & Build API (real server)', () => {
         .get('/api/build')
         .expect(200);
 
-      expect(response.body).toHaveProperty('version');
+      expect(response.body).toHaveProperty('buildDate');
       expect(response.body).toHaveProperty('commit');
-      expect(response.body).toHaveProperty('buildTime');
     });
   });
 });

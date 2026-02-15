@@ -11,21 +11,21 @@
 - **Project Tracking** — Kanban columns: Backlog, To Do, In Progress, Review, Done, Waiting for Neil
 - **Authentication** — Session-based login with bcrypt, CSRF protection
 - **Responsive Design** — Mobile-friendly, card-based layout
+- **Database Migrations** — Sequelize migrations for schema management
 
 ## Decisions Made
 
 | Question | Decision |
 |----------|----------|
 | Tech stack | React 18 + Express + TypeScript |
-| Hosting | Render (free tier) |
+| Hosting | Render (Pro plan) |
 | Real-time | WebSocket via Socket.io |
 | Authentication | Session-based (bcrypt) |
-| Database | PostgreSQL with raw SQL (pg driver) |
+| Database | PostgreSQL with raw SQL (pg driver) + Sequelize migrations |
 | Domain | swissclaw.hydeabbey.net |
 
 ## Remaining Backlog
 
-- Database migrations (Sequelize or alternative) — replace `initDb()` approach
 - Dark/light theme toggle
 - Notification system
 - File attachments in chat

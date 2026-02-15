@@ -1202,9 +1202,8 @@ const getBuildInfo = (): BuildInfo => {
   const commitHash = process.env.RENDER_GIT_COMMIT ||
     execSync('git rev-parse --short HEAD 2>/dev/null || echo "unknown"').toString().trim();
   return {
-    version: '2.1.0',
-    commit: commitHash,
-    buildTime: new Date().toISOString()
+    buildDate: new Date().toISOString(),
+    commit: commitHash
   };
 };
 

@@ -74,7 +74,7 @@ describe('App Component', () => {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockKanbanData) });
       }
       if (typeof url === 'string' && url.includes('/api/build')) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ version: '2.1.0', commit: 'abc123' }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ buildDate: '2026-02-15T06:53:46.312Z', commit: 'abc123' }) });
       }
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
     });
@@ -104,7 +104,7 @@ describe('App Component', () => {
     });
   });
 
-  it('displays build version in footer', async () => {
+  it('displays build date in footer', async () => {
     render(<App />);
 
     await waitFor(() => {
@@ -114,9 +114,9 @@ describe('App Component', () => {
     });
 
     await waitFor(() => {
-      // Version appears in header and footer
-      const versionElements = screen.getAllByText(/v2\.1\.0/);
-      expect(versionElements.length).toBeGreaterThanOrEqual(1);
+      // Build date appears in header and footer
+      const dateElements = screen.getAllByText(/Built/);
+      expect(dateElements.length).toBeGreaterThanOrEqual(1);
     });
   });
 
