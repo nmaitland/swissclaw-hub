@@ -72,6 +72,7 @@ function App() {
   const [buildInfo, setBuildInfo] = useState<BuildInfo>({ buildDate: new Date().toISOString(), commit: 'unknown' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(false);
+  const hasInitiallyScrolled = useRef(false);
 
   // Activities pagination state
   const [hasMoreActivities, setHasMoreActivities] = useState(false);
@@ -199,10 +200,11 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Scroll to bottom when messages are first loaded
+  // Scroll to bottom only on initial message load
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && !hasInitiallyScrolled.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      hasInitiallyScrolled.current = true;
     }
   }, [messages.length]);
 
