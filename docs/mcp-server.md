@@ -1,6 +1,6 @@
 # MCP Server — How To
 
-The Swissclaw Hub includes an MCP (Model Context Protocol) server that lets AI agents interact with the Hub's REST API. It uses stdio transport and exposes 9 tools for managing chat, kanban tasks, activities, and server status.
+The Swissclaw Hub includes an MCP (Model Context Protocol) server that lets AI agents interact with the Hub's REST API. It uses stdio transport and exposes 11 tools for managing chat, kanban tasks, activities, model usage, and server status.
 
 ## Quick Start
 
@@ -87,14 +87,23 @@ For local development, the Hub accepts unauthenticated requests on most endpoint
 | Tool | Parameters | Description |
 |------|-----------|-------------|
 | `add_activity` | `type`, `description`, `metadata?` | Adds an activity event to the live feed. Broadcasts via Socket.io |
+| `get_activities` | `limit?`, `before?` | Get paginated activity history (cursor-based pagination) |
 
 Common activity types: `deployment`, `task`, `chat`, `system`
+
+**Pagination:** Use `limit` to control page size (default: 20, max: 100). Use `before` (timestamp cursor) to fetch older activities.
+
+### Model Usage
+
+| Tool | Parameters | Description |
+|------|-----------|-------------|
+| `report_model_usage` | `inputTokens`, `outputTokens`, `model`, `estimatedCost` | Report AI model token usage and estimated cost |
 
 ### Build Info
 
 | Tool | Description |
 |------|-------------|
-| `get_build_info` | Returns the current build version and git commit hash |
+| `get_build_info` | Returns the current build date and git commit hash |
 
 ## Example Usage
 

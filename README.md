@@ -191,7 +191,9 @@ An MCP (Model Context Protocol) server is included for AI agent access to the Hu
 | `update_task` | Update or move a kanban task |
 | `delete_task` | Delete a kanban task |
 | `add_activity` | Add an activity event |
-| `get_build_info` | Get build version and commit hash |
+| `get_activities` | Get paginated activity history |
+| `report_model_usage` | Report AI model token usage and cost |
+| `get_build_info` | Get build date and commit hash |
 
 **Running the MCP server:**
 ```bash
