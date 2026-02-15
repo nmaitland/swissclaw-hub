@@ -29,6 +29,13 @@ global.fetch = jest.fn();
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = jest.fn();
 
+// Mock IntersectionObserver
+global.IntersectionObserver = jest.fn(() => ({
+  observe: jest.fn(),
+  disconnect: jest.fn(),
+  unobserve: jest.fn(),
+}));
+
 const mockStatusData = {
   swissclaw: {
     state: 'active',
