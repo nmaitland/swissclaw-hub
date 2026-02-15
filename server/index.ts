@@ -1132,6 +1132,75 @@ app.post('/api/activities', asyncHandler(async (req: Request, res: Response) => 
   res.json(result.rows[0]);
 }));
 
+/**
+ * @swagger
+ * /api/activities:
+ *   get:
+ *     tags: [Activities]
+ *     summary: Get paginated activities
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of activities to return
+ *       - in: query
+ *         name: before
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Cursor for pagination (timestamp of oldest activity from previous page)
+ *     responses:
+ *       200:
+ *         description: List of activities
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 activities:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Activity'
+ *                 hasMore:
+ *                   type: boolean
+ */
+app.get('/api/activities', asyncHandler(async (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+  const before = req.query.before as string | undefined;
+
+  let query: string;
+  let params: (string | number)[];
+
+  if (before) {
+    query = `
+      SELECT * FROM activities
+      WHERE created_at < $1
+      ORDER BY created_at DESC
+      LIMIT $2
+    `;
+    params = [before, limit + 1];
+  } else {
+    query = `
+      SELECT * FROM activities
+      ORDER BY created_at DESC
+      LIMIT $1
+    `;
+    params = [limit + 1];
+  }
+
+  const result = await pool.query(query, params);
+
+  const hasMore = result.rows.length > limit;
+  const activities = hasMore ? result.rows.slice(0, limit) : result.rows;
+
+  res.json({
+    activities,
+    hasMore
+  });
+}));
+
 // Socket.io with authentication and rate limiting
 io.use((socket: Socket, next: (err?: Error) => void) => {
   // In production, verify auth token

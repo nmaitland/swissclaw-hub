@@ -1,3 +1,5 @@
+/* App.css - Swissclaw Hub Styles */
+
 .app {
   min-height: 100vh;
   display: flex;
@@ -46,155 +48,52 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
-/* Main Layout - Unified Dashboard */
-.main.unified {
+.main {
   flex: 1;
-  padding: 1.5rem;
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
-  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  padding: 1rem;
+  gap: 1rem;
+  overflow: hidden;
 }
 
-/* Top Panels: Status + Chat side by side */
+.main.unified {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .top-panels {
   display: grid;
-  grid-template-columns: 280px 1fr;
-  grid-template-rows: 260px;
-  gap: 1.5rem;
-  align-items: stretch;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  min-height: 0;
 }
-
-@media (max-width: 900px) {
-  .top-panels {
-    grid-template-columns: 1fr;
-  }
-}
-
-.status-content {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  flex: 1;
-}
-
-.status-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  box-shadow: 0 0 8px currentColor;
-}
-
-.status-state {
-  font-weight: 600;
-  text-transform: capitalize;
-  font-size: 0.9rem;
-  color: #e5e7eb;
-}
-
-.current-task {
-  font-size: 0.875rem;
-  color: #d1d5db;
-  margin-bottom: 0.5rem;
-}
-
-.last-active {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-/* Chat Input */
-.chat-input {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-top: 1px solid rgba(255, 69, 0, 0.1);
-}
-
-.chat-input input {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid rgba(255, 69, 0, 0.3);
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.3);
-  color: #e5e7eb;
-  font-size: 0.8125rem;
-}
-
-.chat-input input:focus {
-  outline: none;
-  border-color: #ff4500;
-}
-
-.chat-input button {
-  padding: 0.5rem 1rem;
-  background: #ff4500;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.chat-input button:hover:not(:disabled) {
-  background: #ff6b35;
-}
-
-.chat-input button:disabled {
-  background: #4b5563;
-  cursor: not-allowed;
-}
-
-/* Footer */
-.footer {
-  text-align: center;
-  padding: 1rem;
-  color: #6b7280;
-  font-size: 0.875rem;
-  border-top: 1px solid rgba(255, 69, 0, 0.1);
-}
-
-/* Mobile Optimizations */
-@media (max-width: 600px) {
-  .main.unified {
-    padding: 1rem;
-    gap: 1rem;
-  }
-
-  .header {
-    padding: 0.75rem 1rem;
-  }
-
-  .header h1 {
-    font-size: 1rem;
-  }
-}
-
-/* Activity Panel (standalone below kanban) */
 
 .panel {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(30, 30, 40, 0.6);
+  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 69, 0, 0.2);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
-  height: 260px;
+  overflow: hidden;
+}
+
+.panel.status-panel {
+  height: auto;
+}
+
+.panel.chat-panel {
+  height: auto;
 }
 
 .panel.activity-panel {
@@ -247,33 +146,26 @@
 .activity-text {
   color: #e5e7eb;
   line-height: 1.4;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .chat-messages {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  max-height: 200px;
 }
 
 .chat-message {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.5rem;
-  border-radius: 6px;
-  font-size: 0.8125rem;
-}
-
-.chat-message-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.25rem;
-}
-
-.chat-swissclaw {
-  background: rgba(255, 69, 0, 0.1);
-  border-left: 3px solid #ff4500;
+  padding: 0.75rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
 
 .chat-neil {
@@ -281,24 +173,133 @@
   border-left: 3px solid #3b82f6;
 }
 
-.chat-sender {
-  font-weight: 600;
-  color: #ff4500;
+.chat-swissclaw {
+  background: rgba(255, 69, 0, 0.1);
+  border-left: 3px solid #ff4500;
+}
+
+.chat-message-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
   font-size: 0.75rem;
 }
 
-.chat-neil .chat-sender {
-  color: #3b82f6;
-}
-
-.chat-text {
-  color: #e5e7eb;
-  line-height: 1.4;
+.chat-sender {
+  font-weight: 600;
+  color: #ff4500;
 }
 
 .chat-time {
   color: #6b7280;
+}
+
+.chat-text {
+  color: #e5e7eb;
+}
+
+.chat-input {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid rgba(255, 69, 0, 0.2);
+}
+
+.chat-input input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 69, 0, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  color: #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: #ff4500;
+}
+
+.chat-input input::placeholder {
+  color: #6b7280;
+}
+
+.chat-input button {
+  background: linear-gradient(135deg, #ff4500, #ff6b35);
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.chat-input button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.chat-input button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-state {
+  font-weight: 600;
+  text-transform: uppercase;
   font-size: 0.75rem;
+  letter-spacing: 0.05em;
+}
+
+.current-task {
+  color: #e5e7eb;
+  font-size: 0.875rem;
+}
+
+.last-active {
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.footer {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(10px);
+  padding: 0.75rem;
+  text-align: center;
+  border-top: 1px solid rgba(255, 69, 0, 0.3);
+}
+
+.footer p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.footer a {
+  color: #ff4500;
+  text-decoration: none;
+}
+
+.footer a:hover {
+  text-decoration: underline;
 }
 
 .empty-state {
@@ -308,3 +309,116 @@
   font-style: italic;
 }
 
+/* Activity Detail Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: #1e293b;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #334155;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: #f8fafc;
+}
+
+.modal-body {
+  padding: 1rem;
+}
+
+.detail-row {
+  margin-bottom: 1rem;
+}
+
+.detail-label {
+  display: block;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin-bottom: 0.25rem;
+}
+
+.detail-value {
+  color: #f8fafc;
+}
+
+.detail-description {
+  color: #f8fafc;
+  margin: 0.5rem 0 0 0;
+  line-height: 1.5;
+}
+
+.detail-metadata {
+  background: #0f172a;
+  border-radius: 4px;
+  padding: 0.75rem;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  overflow-x: auto;
+  margin: 0.5rem 0 0 0;
+}
+
+/* Activity item hover effect */
+.activity-item {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.activity-item:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.activity-item:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+/* Loading indicator */
+.loading-indicator {
+  text-align: center;
+  padding: 1rem;
+  color: #94a3b8;
+  font-size: 0.875rem;
+}
+
+.activity-load-more {
+  min-height: 40px;
+}

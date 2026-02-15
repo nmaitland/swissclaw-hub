@@ -179,6 +179,25 @@ server.tool(
   }
 );
 
+// ─── Activities ──────────────────────────────────────────────────────────
+
+server.tool(
+  'get_activities',
+  'Get paginated activity history',
+  {
+    limit: z.number().optional().describe('Number of activities to return (default: 20, max: 100)'),
+    before: z.string().optional().describe('Cursor for pagination (timestamp of oldest activity from previous page)'),
+  },
+  async ({ limit, before }) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (before) params.append('before', before);
+    const queryString = params.toString();
+    const data = await api(`/api/activities${queryString ? `?${queryString}` : ''}`);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
 // ─── Build Info ──────────────────────────────────────────────────────────
 
 server.tool(
