@@ -200,15 +200,15 @@ describe('App Component', () => {
       jest.useRealTimers();
     });
 
-    it('does not auto-scroll on initial data fetch', async () => {
+    it('auto-scrolls on initial data fetch', async () => {
       render(<App />);
 
       await waitFor(() => {
         expect(screen.getByText('Hello')).toBeInTheDocument();
       });
 
-      // scrollIntoView should not be called on initial load
-      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+      // scrollIntoView should be called on initial load to show last message
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto' });
     });
 
     it('does not auto-scroll on interval fetch', async () => {
@@ -235,7 +235,7 @@ describe('App Component', () => {
       expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     });
 
-    it('auto-scrolls when socket message event is received', async () => {
+    it('does not auto-scroll when socket message event is received', async () => {
       const messageHandler = [];
       mockSocket.on.mockImplementation((event, handler) => {
         if (event === 'message') {
@@ -262,7 +262,7 @@ describe('App Component', () => {
         expect(screen.getByText('New message')).toBeInTheDocument();
       });
 
-      // scrollIntoView should NOT be called on socket message (only on user send)
+      // scrollIntoView should NOT be called on socket message (only on initial load and user send)
       expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     });
   });
