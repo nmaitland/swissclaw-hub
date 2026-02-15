@@ -199,6 +199,13 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Scroll to bottom when messages are first loaded
+  useEffect(() => {
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [messages.length]);
+
   // Fetch build info
   useEffect(() => {
     const fetchBuildInfo = async () => {
