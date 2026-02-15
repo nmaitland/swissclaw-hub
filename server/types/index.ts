@@ -166,16 +166,6 @@ export interface KanbanTaskResponse {
   updatedAt: Date;
 }
 
-// Parsed task from kanban.md
-export interface ParsedTask {
-  id: number;
-  title: string;
-  description: string;
-  completed: boolean;
-  priority: string;
-  dueDate: string | null;
-}
-
 // Database config
 export interface DatabaseConfig {
   max: number;
