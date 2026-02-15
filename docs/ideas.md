@@ -10,12 +10,12 @@
 - ~~Structured logging (pino)~~ (Phase 3)
 - ~~Centralized error handling~~ (Phase 3)
 - ~~CI/CD with Codecov~~ (Phase 2)
+- ~~Database migrations (Sequelize)~~ (V4.1)
 
 ## Backlog
 - Dark/light theme toggle
 - Notification system (browser notifications, toast)
 - File attachments in chat
 - Message search
-- Database migrations (replace initDb approach)
 - Data visualization (token usage, job search stats)
 - Command palette (VS Code style)

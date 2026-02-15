@@ -5,7 +5,7 @@ const options: swaggerJsdoc.Options = {
     openapi: '3.0.3',
     info: {
       title: 'Swissclaw Hub API',
-      version: '2.1.0',
+      version: '0.0.0',
       description: 'Dashboard API for Swissclaw Hub — kanban board, chat, activities, and status.',
     },
     servers: [
@@ -75,9 +75,8 @@ const options: swaggerJsdoc.Options = {
         BuildInfo: {
           type: 'object',
           properties: {
-            version: { type: 'string', example: '2.1.0' },
+            buildDate: { type: 'string', format: 'date-time', example: '2026-02-15T06:53:46.312Z' },
             commit: { type: 'string', example: 'abc1234' },
-            buildTime: { type: 'string', format: 'date-time' },
           },
         },
         Error: {

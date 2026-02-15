@@ -24,7 +24,7 @@ function App() {
   const [inputMessage, setInputMessage] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [buildInfo, setBuildInfo] = useState<BuildInfo>({ version: '2.1.0', commit: 'unknown' });
+  const [buildInfo, setBuildInfo] = useState<BuildInfo>({ buildDate: new Date().toISOString(), commit: 'unknown' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(false);
 
@@ -144,7 +144,7 @@ function App() {
             className="indicator"
             style={{ background: socket?.connected ? '#4ade80' : '#ef4444' }}
           />
-          <span className="version">v{buildInfo.version}</span>
+          <span className="version">{new Date(buildInfo.buildDate).toLocaleDateString()}</span>
         </div>
       </header>
 
@@ -236,7 +236,7 @@ function App() {
 
       <footer className="footer">
         <p>
-          Swissclaw Hub v{buildInfo.version} {'\u2014'} Built with {'\u{1F980}'} {'\u2014'}{' '}
+          Swissclaw Hub {'\u2014'} Built: {new Date(buildInfo.buildDate).toLocaleString()} {'\u2014'} {'\u{1F980}'} {'\u2014'}{' '}
           <a
             href={`https://github.com/nmaitland/swissclaw-hub/commit/${buildInfo.commit}`}
             target="_blank"

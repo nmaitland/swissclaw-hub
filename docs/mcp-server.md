@@ -67,7 +67,7 @@ For local development, the Hub accepts unauthenticated requests on most endpoint
 | Tool | Parameters | Description |
 |------|-----------|-------------|
 | `get_messages` | _(none)_ | Returns the last 50 chat messages |
-| `send_message` | `content` (string) | Sends a chat message as Swissclaw. Broadcasts via Socket.io and logs an activity |
+| `send_message` | `content` (string) | Logs a chat activity event as Swissclaw. Creates an activity record and broadcasts via Socket.io (does not create a direct chat message) |
 
 ### Kanban Board
 

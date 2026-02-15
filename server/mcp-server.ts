@@ -84,13 +84,12 @@ server.tool(
 
 server.tool(
   'send_message',
-  'Send a chat message as Swissclaw (broadcasts via Socket.io)',
+  'Log a chat message as an activity event (creates activity record, broadcasts via Socket.io). Note: This creates an activity entry, not a direct chat message.',
   {
-    content: z.string().describe('The message content to send'),
+    content: z.string().describe('The message content to log'),
   },
   async ({ content }) => {
-    // Use the service activities endpoint to log the message,
-    // then also store it directly via the messages table
+    // Use the service activities endpoint to log the message as an activity
     const data = await api('/api/service/activities', {
       method: 'POST',
       body: {
