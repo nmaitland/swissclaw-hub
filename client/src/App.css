@@ -451,3 +451,28 @@
   color: #e5e7eb;
   font-weight: 600;
 }
+
+.model-breakdown {
+  margin-top: 0.5rem;
+  padding-left: 0.5rem;
+  border-left: 2px solid rgba(255, 69, 0, 0.3);
+}
+
+.model-entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.model-name {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.model-stats {
+  color: #d1d5db;
+  font-family: monospace;
+  font-size: 0.7rem;
+}

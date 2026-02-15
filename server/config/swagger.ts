@@ -82,9 +82,26 @@ const options: swaggerJsdoc.Options = {
         ModelUsage: {
           type: 'object',
           properties: {
-            inputTokens: { type: 'integer', example: 45230 },
-            outputTokens: { type: 'integer', example: 12100 },
-            estimatedCost: { type: 'number', format: 'decimal', example: 0.42 },
+            total: {
+              type: 'object',
+              properties: {
+                inputTokens: { type: 'integer', example: 45230 },
+                outputTokens: { type: 'integer', example: 12100 },
+                estimatedCost: { type: 'number', format: 'decimal', example: 0.42 },
+              },
+            },
+            byModel: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  model: { type: 'string', example: 'claude-3-5-sonnet' },
+                  inputTokens: { type: 'integer', example: 25000 },
+                  outputTokens: { type: 'integer', example: 8000 },
+                  estimatedCost: { type: 'number', format: 'decimal', example: 0.25 },
+                },
+              },
+            },
             since: { type: 'string', format: 'date-time' },
           },
         },

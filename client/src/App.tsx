@@ -285,13 +285,28 @@ function App() {
                   <span className="stat-value">{status?.activityCount ?? 0}</span>
                 </div>
                 {status?.modelUsage && (
-                  <div className="stat-row">
-                    <span className="stat-label">Model usage:</span>
-                    <span className="stat-value">
-                      {status.modelUsage.inputTokens.toLocaleString()} in / {status.modelUsage.outputTokens.toLocaleString()} out
-                      (${status.modelUsage.estimatedCost.toFixed(2)})
-                    </span>
-                  </div>
+                  <>
+                    <div className="stat-row">
+                      <span className="stat-label">Model usage:</span>
+                      <span className="stat-value">
+                        {status.modelUsage.total.inputTokens.toLocaleString()} in / {status.modelUsage.total.outputTokens.toLocaleString()} out
+                        (${status.modelUsage.total.estimatedCost.toFixed(2)})
+                      </span>
+                    </div>
+                    {status.modelUsage.byModel.length > 0 && (
+                      <div className="model-breakdown">
+                        {status.modelUsage.byModel.map((entry) => (
+                          <div key={entry.model} className="model-entry">
+                            <span className="model-name">{entry.model}:</span>
+                            <span className="model-stats">
+                              {entry.inputTokens.toLocaleString()} in / {entry.outputTokens.toLocaleString()} out
+                              (${entry.estimatedCost.toFixed(2)})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               <div className="last-active">
