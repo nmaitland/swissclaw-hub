@@ -52,5 +52,32 @@ describe('Status API (real server)', () => {
       expect(response.body.recentMessages).toEqual(expect.any(Array));
       expect(response.body.recentActivities).toEqual(expect.any(Array));
     });
+
+    it('returns activityCount and modelUsage in status response', async () => {
+      const response = await request(app)
+        .get('/api/status')
+        .expect(200);
+
+      // Check activityCount exists and is a number
+      expect(response.body).toHaveProperty('activityCount');
+      expect(typeof response.body.activityCount).toBe('number');
+
+      // Check modelUsage exists with correct structure
+      expect(response.body).toHaveProperty('modelUsage');
+      expect(response.body.modelUsage).toHaveProperty('total');
+      expect(response.body.modelUsage).toHaveProperty('byModel');
+      expect(response.body.modelUsage).toHaveProperty('since');
+
+      // Check total structure
+      expect(response.body.modelUsage.total).toHaveProperty('inputTokens');
+      expect(response.body.modelUsage.total).toHaveProperty('outputTokens');
+      expect(response.body.modelUsage.total).toHaveProperty('estimatedCost');
+      expect(typeof response.body.modelUsage.total.inputTokens).toBe('number');
+      expect(typeof response.body.modelUsage.total.outputTokens).toBe('number');
+      expect(typeof response.body.modelUsage.total.estimatedCost).toBe('number');
+
+      // Check byModel is an array
+      expect(Array.isArray(response.body.modelUsage.byModel)).toBe(true);
+    });
   });
 });

@@ -206,9 +206,15 @@ This requires a new database query for activity count and a dedicated table for 
   },
   "activityCount": 12,
   "modelUsage": {
-    "inputTokens": 45230,
-    "outputTokens": 12100,
-    "estimatedCost": 0.42,
+    "total": {
+      "inputTokens": 45230,
+      "outputTokens": 12100,
+      "estimatedCost": 0.42
+    },
+    "byModel": [
+      { "model": "claude-3-5-sonnet", "inputTokens": 25000, "outputTokens": 8000, "estimatedCost": 0.25 },
+      { "model": "gpt-4", "inputTokens": 20230, "outputTokens": 4100, "estimatedCost": 0.17 }
+    ],
     "since": "2026-02-15T00:00:00Z"
   },
   "recentMessages": [...],

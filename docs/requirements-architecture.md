@@ -39,3 +39,6 @@ Full-stack TypeScript (Option A from the original proposal):
 
 ### Status
 `id` (UUID), `status`, `current_task`, `last_updated`
+
+### Model Usage
+`id` (INTEGER), `input_tokens` (INTEGER), `output_tokens` (INTEGER), `model` (VARCHAR), `estimated_cost` (DECIMAL), `created_at` (TIMESTAMP)
