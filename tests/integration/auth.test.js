@@ -32,11 +32,11 @@ describe('Auth API (real server)', () => {
       expect(response.body).not.toHaveProperty('token');
     });
 
-    it('returns 401 with missing credentials', async () => {
+    it('returns 400 with missing credentials', async () => {
       const response = await request(app)
         .post('/api/login')
         .send({})
-        .expect(401);
+        .expect(400);
 
       expect(response.body).toHaveProperty('error');
     });
