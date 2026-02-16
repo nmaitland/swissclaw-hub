@@ -64,7 +64,7 @@ describe('database config module', () => {
       expect(config.host).toBe('localhost');
       expect(config.database).toBe('swissclaw_hub_test');
       expect(config.password).toBe('password');
-      expect(config.port).toBe(5432);
+      expect(config.port).toBe(5433);
     });
 
     it('returns development config when NODE_ENV is development', () => {

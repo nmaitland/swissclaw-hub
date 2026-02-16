@@ -19,7 +19,7 @@ const getDatabaseConfig = (): DatabaseConfig => {
       host: process.env.TEST_DB_HOST || 'localhost',
       database: process.env.TEST_DB_NAME || 'swissclaw_hub_test',
       password: process.env.TEST_DB_PASSWORD || 'password',
-      port: parseInt(process.env.TEST_DB_PORT || '5432', 10),
+      port: parseInt(process.env.TEST_DB_PORT || '5433', 10),
     };
   }
 

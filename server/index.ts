@@ -7,12 +7,15 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { execSync } from 'child_process';
 import { randomBytes } from 'crypto';
+import bcrypt from 'bcrypt';
 import 'dotenv/config';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import logger from './lib/logger';
 import { asyncHandler, errorHandler } from './lib/errors';
-import type { ChatMessageData, RateLimitEntry, BuildInfo } from './types';
+import { SessionStore } from './middleware/auth';
+import { pool } from './config/database';
+import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo } from './types';
 
 // Sparse ordering constants
 const POSITION_GAP = 1000000n; // 1 million as BigInt
@@ -100,11 +103,14 @@ const httpServer = createServer(app);
 const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
 const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme123';
 
-// Simple session store (in-memory, cleared on restart)
+// Simple session store (in-memory, cleared on restart) - kept for backward compatibility during transition
 const sessions = new Set<string>();
 
-// Auth middleware
-const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
+// Database-backed session store
+const sessionStore = new SessionStore(pool);
+
+// Auth middleware - uses database-backed sessions
+const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   // Public endpoints that don't require auth
   // When mounted at /api, req.path is relative (e.g., /kanban not /api/kanban)
   const publicApiPaths = ['/login', '/build'];
@@ -116,12 +122,27 @@ const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   }
 
   const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string | undefined);
-  if (!token || !sessions.has(token)) {
+  if (!token) {
     res.status(401).json({ error: 'Authentication required', loginUrl: '/login' });
     return;
   }
 
-  next();
+  // First check database-backed sessions
+  const session = await sessionStore.validateSession(token);
+  if (session) {
+    // Attach user info to request (using type assertion since we extended Request)
+    (req as Request & { user?: SessionInfo }).user = session;
+    next();
+    return;
+  }
+
+  // Fall back to in-memory sessions (for backward compatibility during transition)
+  if (sessions.has(token)) {
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: 'Authentication required', loginUrl: '/login' });
 };
 
 // Serve login page (defined before body parser, uses raw HTML)
@@ -240,27 +261,6 @@ const io = new Server(httpServer, {
   }
 });
 
-// Database setup with connection limits
-// In test env, support TEST_DB_* vars so CI can set them without DATABASE_URL
-function getConnectionString(): string | undefined {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  if (process.env.NODE_ENV === 'test') {
-    const user = process.env.TEST_DB_USER || 'postgres';
-    const password = process.env.TEST_DB_PASSWORD || 'password';
-    const host = process.env.TEST_DB_HOST || 'localhost';
-    const port = process.env.TEST_DB_PORT || '5433';
-    const database = process.env.TEST_DB_NAME || 'swissclaw_hub_test';
-    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
-  }
-  return undefined;
-}
-const pool = new Pool({
-  connectionString: getConnectionString(),
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000
-});
 
 // Security middleware
 app.use(helmet({
@@ -331,18 +331,64 @@ if (process.env.NODE_ENV !== 'production') {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.post('/api/login', (req: Request, res: Response) => {
+app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
   const { username, password } = req.body;
 
-  if (username !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
+  if (!username || !password) {
+    res.status(400).json({ error: 'Username and password are required' });
+    return;
+  }
+
+  // Look up user by username (name) or email
+  const userResult = await pool.query(
+    `SELECT id, email, name, password_hash, role FROM users
+     WHERE name = $1 OR email = $1`,
+    [username]
+  );
+
+  if (userResult.rows.length === 0) {
+    // Fall back to env-based auth for backward compatibility
+    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+      const token = randomBytes(32).toString('hex');
+      sessions.add(token);
+      res.json({ token, success: true });
+      return;
+    }
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
 
-  const token = randomBytes(32).toString('hex');
-  sessions.add(token);
+  const user = userResult.rows[0];
+
+  // Check password
+  let isValidPassword = false;
+  if (user.password_hash) {
+    isValidPassword = await bcrypt.compare(password, user.password_hash);
+  } else if (password === AUTH_PASSWORD) {
+    // Allow fallback to env password if no hash set
+    isValidPassword = true;
+  }
+
+  if (!isValidPassword) {
+    res.status(401).json({ error: 'Invalid credentials' });
+    return;
+  }
+
+  // Create database session
+  const token = await sessionStore.createSession(
+    user.id,
+    req.get('User-Agent'),
+    req.ip
+  );
+
+  // Update last login
+  await pool.query(
+    'UPDATE users SET last_login = NOW() WHERE id = $1',
+    [user.id]
+  );
+
   res.json({ token, success: true });
-});
+}));
 
 // Service token auth middleware
 const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
@@ -1197,13 +1243,32 @@ app.get('/api/activities', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // Socket.io with authentication and rate limiting
-io.use((socket: Socket, next: (err?: Error) => void) => {
-  // Verify auth token from handshake
-  const token = socket.handshake.auth?.token || socket.handshake.query?.token as string | undefined;
-  if (!token || !sessions.has(token)) {
+io.use(async (socket: Socket, next: (err?: Error) => void) => {
+  try {
+    // Verify auth token from handshake
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token as string | undefined;
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
+
+    // First check database-backed sessions
+    const session = await sessionStore.validateSession(token);
+    if (session) {
+      // Attach user info to socket
+      socket.data.user = session;
+      return next();
+    }
+
+    // Fall back to in-memory sessions (for backward compatibility during transition)
+    if (sessions.has(token)) {
+      return next();
+    }
+
     return next(new Error('Authentication required'));
+  } catch (error) {
+    logger.error({ err: error }, 'Socket.io auth error');
+    return next(new Error('Authentication error'));
   }
-  next();
 });
 
 const messageRateLimits = new Map<string, RateLimitEntry>();
@@ -1453,8 +1518,8 @@ if (require.main === module) {
 
 // For integration tests: reset database state
 async function resetTestDb(): Promise<void> {
-  // Truncate tables to reset state for tests
-  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities, model_usage RESTART IDENTITY CASCADE');
+  // Truncate tables to reset state for tests (preserve users and sessions for auth)
+  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities, model_usage, sessions RESTART IDENTITY CASCADE');
   
   // Re-insert default kanban columns
   await pool.query(`
@@ -1472,6 +1537,18 @@ async function resetTestDb(): Promise<void> {
       color = EXCLUDED.color,
       position = EXCLUDED.position
   `);
+
+  // Seed test admin user for backward compatibility
+  // Create admin user with bcrypt hash of 'changeme123' (idempotent)
+  const passwordHash = await bcrypt.hash('changeme123', 10);
+  await pool.query(
+    `INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       password_hash = EXCLUDED.password_hash,
+       updated_at = NOW()`,
+    ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'admin@example.com', 'admin', passwordHash, 'admin']
+  );
 }
 
 // Export pieces needed for integration tests (io needed for teardown so Jest can exit)
