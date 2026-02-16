@@ -1,15 +1,20 @@
 const request = require('supertest');
 const { app, pool, resetTestDb } = require('../../server/index');
+const { getAuthToken } = require('../helpers/auth');
 
 describe('Status API (real server)', () => {
+  let authToken;
+
   beforeAll(async () => {
     await resetTestDb();
+    authToken = await getAuthToken();
   });
 
   describe('GET /api/status', () => {
     it('returns status data with recent messages and activities arrays', async () => {
       const response = await request(app)
         .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('status');
@@ -30,6 +35,7 @@ describe('Status API (real server)', () => {
 
       const response = await request(app)
         .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       const messages = response.body.recentMessages;
@@ -46,6 +52,7 @@ describe('Status API (real server)', () => {
       // Just ensure the endpoint returns the expected keys even with empty data
       const response = await request(app)
         .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
       expect(response.body).toHaveProperty('status', 'online');
       expect(response.body).toHaveProperty('swissclaw');
@@ -56,6 +63,7 @@ describe('Status API (real server)', () => {
     it('returns activityCount and modelUsage in status response', async () => {
       const response = await request(app)
         .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       // Check activityCount exists and is a number

@@ -6,6 +6,7 @@ import { Pool, PoolClient } from 'pg';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { execSync } from 'child_process';
+import { randomBytes } from 'crypto';
 import 'dotenv/config';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
@@ -106,7 +107,7 @@ const sessions = new Set<string>();
 const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
   // Public endpoints that don't require auth
   // When mounted at /api, req.path is relative (e.g., /kanban not /api/kanban)
-  const publicApiPaths = ['/login', '/build', '/kanban', '/seed'];
+  const publicApiPaths = ['/login', '/build'];
   const publicRootPaths = ['/health', '/login'];
 
   if (publicApiPaths.includes(req.path) || publicRootPaths.includes(req.path)) {
@@ -287,13 +288,15 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 
-// API Documentation — Swagger UI (no auth required)
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customSiteTitle: 'Swissclaw Hub API Docs',
-}));
-app.get('/api-docs.json', (_req: Request, res: Response) => {
-  res.json(swaggerSpec);
-});
+// API Documentation — Swagger UI (no auth required in dev/test, disabled in production)
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'Swissclaw Hub API Docs',
+  }));
+  app.get('/api-docs.json', (_req: Request, res: Response) => {
+    res.json(swaggerSpec);
+  });
+}
 
 /**
  * @swagger
@@ -336,7 +339,7 @@ app.post('/api/login', (req: Request, res: Response) => {
     return;
   }
 
-  const token = Math.random().toString(36).substring(2);
+  const token = randomBytes(32).toString('hex');
   sessions.add(token);
   res.json({ token, success: true });
 });
@@ -473,10 +476,8 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // Protect API routes with auth (static files already served above)
-if (process.env.NODE_ENV === 'production') {
-  // Only apply auth to API routes
-  app.use('/api', requireAuth);
-}
+// Auth is now enforced in ALL environments (dev, test, production)
+app.use('/api', requireAuth);
 
 // Input validation helpers
 const validateMessage = (data: unknown): data is ChatMessageData => {
@@ -1197,10 +1198,10 @@ app.get('/api/activities', asyncHandler(async (req: Request, res: Response) => {
 
 // Socket.io with authentication and rate limiting
 io.use((socket: Socket, next: (err?: Error) => void) => {
-  // In production, verify auth token
-  if (process.env.NODE_ENV === 'production') {
-    // For now, accept any connection (can add JWT later)
-    // TODO: Implement proper JWT verification
+  // Verify auth token from handshake
+  const token = socket.handshake.auth?.token || socket.handshake.query?.token as string | undefined;
+  if (!token || !sessions.has(token)) {
+    return next(new Error('Authentication required'));
   }
   next();
 });

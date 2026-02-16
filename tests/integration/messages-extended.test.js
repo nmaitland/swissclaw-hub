@@ -1,17 +1,13 @@
 const request = require('supertest');
 const { app, pool, resetTestDb } = require('../../server/index');
+const { getAuthToken } = require('../helpers/auth');
 
 describe('Messages API extended', () => {
   let authToken;
 
   beforeAll(async () => {
     await resetTestDb();
-
-    // Get auth token
-    const loginRes = await request(app)
-      .post('/api/login')
-      .send({ username: 'admin', password: 'changeme123' });
-    authToken = loginRes.body.token;
+    authToken = await getAuthToken();
   });
 
   describe('GET /api/messages', () => {

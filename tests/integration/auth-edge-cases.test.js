@@ -1,9 +1,13 @@
 const request = require('supertest');
 const { app, resetTestDb } = require('../../server/index');
+const { getAuthToken } = require('../helpers/auth');
 
 describe('Auth edge cases', () => {
+  let authToken;
+
   beforeAll(async () => {
     await resetTestDb();
+    authToken = await getAuthToken();
   });
 
   describe('POST /api/login', () => {
@@ -66,15 +70,27 @@ describe('Auth edge cases', () => {
   });
 
   describe('Auth middleware - protected routes', () => {
-    it('GET /api/status is accessible without auth (public)', async () => {
+    it('GET /api/status requires authentication', async () => {
       await request(app)
         .get('/api/status')
+        .expect(401);
+
+      // Should work with auth token
+      await request(app)
+        .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
     });
 
-    it('GET /api/kanban is accessible without auth (public)', async () => {
+    it('GET /api/kanban requires authentication', async () => {
       await request(app)
         .get('/api/kanban')
+        .expect(401);
+
+      // Should work with auth token
+      await request(app)
+        .get('/api/kanban')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
     });
 
@@ -90,32 +106,29 @@ describe('Auth edge cases', () => {
         .expect(200);
     });
 
-    // Note: requireAuth middleware is only applied in production (NODE_ENV=production).
-    // In test environment, all API routes are accessible without auth.
+    it('GET /api/messages requires authentication', async () => {
+      await request(app)
+        .get('/api/messages')
+        .expect(401);
 
-    it('GET /api/messages is accessible in non-production mode', async () => {
+      // Should work with auth token
       const response = await request(app)
         .get('/api/messages')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       expect(Array.isArray(response.body)).toBe(true);
     });
 
-    it('GET /api/messages works with auth token too', async () => {
-      // Login first
-      const loginRes = await request(app)
-        .post('/api/login')
-        .send({
-          username: process.env.AUTH_USERNAME || 'admin',
-          password: process.env.AUTH_PASSWORD || 'changeme123',
-        })
-        .expect(200);
-
-      const token = loginRes.body.token;
-
+    it('POST /api/seed requires authentication', async () => {
       await request(app)
-        .get('/api/messages')
-        .set('Authorization', `Bearer ${token}`)
+        .post('/api/seed')
+        .expect(401);
+
+      // Should work with auth token
+      await request(app)
+        .post('/api/seed')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
     });
   });

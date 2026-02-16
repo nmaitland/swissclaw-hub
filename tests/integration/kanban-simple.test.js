@@ -1,5 +1,6 @@
 const request = require('supertest');
 const { app, resetTestDb } = require('../../server/index');
+const { getAuthToken } = require('../helpers/auth');
 
 /**
  * These tests exercise the real Kanban HTTP API implemented in
@@ -16,14 +17,18 @@ const { app, resetTestDb } = require('../../server/index');
  */
 
 describe('Kanban API (real server)', () => {
+  let authToken;
+
   beforeAll(async () => {
     await resetTestDb();
+    authToken = await getAuthToken();
   });
 
   describe('GET /api/kanban', () => {
     it('returns columns and tasks in the new kanban format', async () => {
       const response = await request(app)
         .get('/api/kanban')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       expect(response.body).toHaveProperty('columns');
@@ -56,6 +61,7 @@ describe('Kanban API (real server)', () => {
 
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send(newTask)
         .expect(201);
 
@@ -76,6 +82,7 @@ describe('Kanban API (real server)', () => {
 
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send(invalidTask)
         .expect(400);
 
@@ -85,9 +92,10 @@ describe('Kanban API (real server)', () => {
 
   describe('PUT /api/kanban/tasks/:id', () => {
     it('updates an existing kanban task', async () => {
-      // First create a task via the public API
+      // First create a task via the API
       const createResponse = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Task to update',
@@ -107,6 +115,7 @@ describe('Kanban API (real server)', () => {
 
       const updateResponse = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send(updateData)
         .expect(200);
 
@@ -120,6 +129,7 @@ describe('Kanban API (real server)', () => {
 
       const response = await request(app)
         .put(`/api/kanban/tasks/${fakeId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ title: 'Updated Title' })
         .expect(404);
 
@@ -132,6 +142,7 @@ describe('Kanban API (real server)', () => {
       // Create a task to delete
       const createResponse = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Task to delete',
@@ -143,6 +154,7 @@ describe('Kanban API (real server)', () => {
 
       await request(app)
         .delete(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
     });
 
@@ -151,6 +163,7 @@ describe('Kanban API (real server)', () => {
 
       const response = await request(app)
         .delete(`/api/kanban/tasks/${fakeId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(404);
 
       expect(response.body).toHaveProperty('error', 'Task not found');

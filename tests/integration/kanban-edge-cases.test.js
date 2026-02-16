@@ -1,15 +1,20 @@
 const request = require('supertest');
 const { app, resetTestDb } = require('../../server/index');
+const { getAuthToken } = require('../helpers/auth');
 
 describe('Kanban API edge cases', () => {
+  let authToken;
+
   beforeAll(async () => {
     await resetTestDb();
+    authToken = await getAuthToken();
   });
 
   describe('POST /api/kanban/tasks', () => {
     it('returns 404 when column does not exist', async () => {
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'nonexistent-column',
           title: 'Task in bad column',
@@ -22,6 +27,7 @@ describe('Kanban API edge cases', () => {
     it('returns 400 when title is missing', async () => {
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ columnName: 'todo' })
         .expect(400);
 
@@ -31,6 +37,7 @@ describe('Kanban API edge cases', () => {
     it('returns 400 when columnName is missing', async () => {
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ title: 'Title without column' })
         .expect(400);
 
@@ -40,6 +47,7 @@ describe('Kanban API edge cases', () => {
     it('creates task with default priority when not specified', async () => {
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'backlog',
           title: 'Default priority task',
@@ -52,6 +60,7 @@ describe('Kanban API edge cases', () => {
     it('creates task with empty tags when not specified', async () => {
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'backlog',
           title: 'No tags task',
@@ -64,11 +73,13 @@ describe('Kanban API edge cases', () => {
     it('generates unique task IDs', async () => {
       const task1 = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ columnName: 'backlog', title: 'Task A' })
         .expect(201);
 
       const task2 = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ columnName: 'backlog', title: 'Task B' })
         .expect(201);
 
@@ -84,6 +95,7 @@ describe('Kanban API edge cases', () => {
     beforeAll(async () => {
       const response = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Editable task',
@@ -100,6 +112,7 @@ describe('Kanban API edge cases', () => {
     it('updates only the title when only title is sent', async () => {
       const response = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ title: 'New title only' })
         .expect(200);
 
@@ -111,6 +124,7 @@ describe('Kanban API edge cases', () => {
     it('updates description to null when empty string sent', async () => {
       const response = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ description: '' })
         .expect(200);
 
@@ -120,6 +134,7 @@ describe('Kanban API edge cases', () => {
     it('updates tags', async () => {
       const response = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ tags: ['updated', 'new-tag'] })
         .expect(200);
 
@@ -129,6 +144,7 @@ describe('Kanban API edge cases', () => {
     it('updates assignedTo', async () => {
       const response = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ assignedTo: 'swissclaw' })
         .expect(200);
 
@@ -139,6 +155,7 @@ describe('Kanban API edge cases', () => {
       const before = new Date();
       const response = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ priority: 'high' })
         .expect(200);
 
@@ -151,11 +168,13 @@ describe('Kanban API edge cases', () => {
     it('returns the deleted task data', async () => {
       const created = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ columnName: 'backlog', title: 'To be deleted' })
         .expect(201);
 
       const response = await request(app)
         .delete(`/api/kanban/tasks/${created.body.id}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -165,15 +184,18 @@ describe('Kanban API edge cases', () => {
     it('task no longer appears in listing after deletion', async () => {
       const created = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ columnName: 'backlog', title: 'Delete-verify task' })
         .expect(201);
 
       await request(app)
         .delete(`/api/kanban/tasks/${created.body.id}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       const listing = await request(app)
         .get('/api/kanban')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
       const allTasks = Object.values(listing.body.tasks).flat();

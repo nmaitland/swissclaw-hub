@@ -1,5 +1,6 @@
 const request = require('supertest');
 const { app, resetTestDb } = require('../../server/index');
+const { getAuthToken } = require('../helpers/auth');
 
 /**
  * Additional integration tests around the real Kanban API, focused on
@@ -7,13 +8,17 @@ const { app, resetTestDb } = require('../../server/index');
  */
 
 describe('Kanban API (behavioural)', () => {
+  let authToken;
+
   beforeAll(async () => {
     await resetTestDb();
+    authToken = await getAuthToken();
   });
 
   it('lists tasks after creating one', async () => {
     const createResponse = await request(app)
       .post('/api/kanban/tasks')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         columnName: 'todo',
         title: 'List-after-create Task',
@@ -25,6 +30,7 @@ describe('Kanban API (behavioural)', () => {
 
     const listResponse = await request(app)
       .get('/api/kanban')
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
     const { columns, tasks } = listResponse.body;
@@ -38,6 +44,7 @@ describe('Kanban API (behavioural)', () => {
   it('reflects column changes when moving a task', async () => {
     const createResponse = await request(app)
       .post('/api/kanban/tasks')
+      .set('Authorization', `Bearer ${authToken}`)
       .send({
         columnName: 'todo',
         title: 'Move-me Task',
@@ -48,11 +55,13 @@ describe('Kanban API (behavioural)', () => {
 
     await request(app)
       .put(`/api/kanban/tasks/${taskId}`)
+      .set('Authorization', `Bearer ${authToken}`)
       .send({ columnName: 'done' })
       .expect(200);
 
     const listResponse = await request(app)
       .get('/api/kanban')
+      .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
 
     const { tasks } = listResponse.body;

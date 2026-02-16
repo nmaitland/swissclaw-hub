@@ -1,19 +1,24 @@
 const request = require('supertest');
-const { app, resetTestDb } = require('../../server/index');
+const { app, resetTestDb, pool } = require('../../server/index');
+const { getAuthToken } = require('../helpers/auth');
 
 /**
  * Integration tests for Kanban task ordering with sparse positioning
  */
 
 describe('Kanban Task Ordering', () => {
+  let authToken;
+
   beforeAll(async () => {
     await resetTestDb();
+    authToken = await getAuthToken();
   });
 
   describe('Task Creation with Position', () => {
     it('should create task with position field', async () => {
       const res = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Test Task with Position',
@@ -31,6 +36,7 @@ describe('Kanban Task Ordering', () => {
       // Create first task
       const res1 = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Task 1 for Position Test',
@@ -43,6 +49,7 @@ describe('Kanban Task Ordering', () => {
       // Create second task
       const res2 = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Task 2 for Position Test',
@@ -62,6 +69,7 @@ describe('Kanban Task Ordering', () => {
       // Create a task
       const createRes = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Task to Update Position',
@@ -74,6 +82,7 @@ describe('Kanban Task Ordering', () => {
       // Update with explicit position
       const updateRes = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           position: 999999
         })
@@ -87,6 +96,7 @@ describe('Kanban Task Ordering', () => {
       // Create two tasks
       const res1 = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Task A for Relative Position',
@@ -96,6 +106,7 @@ describe('Kanban Task Ordering', () => {
       
       const res2 = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Task B for Relative Position',
@@ -109,6 +120,7 @@ describe('Kanban Task Ordering', () => {
       // Move Task A to be positioned relative to Task B
       const updateRes = await request(app)
         .put(`/api/kanban/tasks/${taskAId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           targetTaskId: taskBId,
           insertAfter: false
@@ -126,6 +138,7 @@ describe('Kanban Task Ordering', () => {
       for (let i = 0; i < 3; i++) {
         const res = await request(app)
           .post('/api/kanban/tasks')
+          .set('Authorization', `Bearer ${authToken}`)
           .send({
             columnName: 'todo',
             title: `Batch Task ${i}`,
@@ -136,13 +149,13 @@ describe('Kanban Task Ordering', () => {
       }
 
       // Get todo column ID from database
-      const { pool } = require('../../server/index');
       const columnResult = await pool.query("SELECT id FROM kanban_columns WHERE name = 'todo'");
       const todoColumnId = columnResult.rows[0].id;
 
       // Batch reorder - reverse the order
       const reorderRes = await request(app)
         .post('/api/kanban/reorder')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnId: todoColumnId,
           taskPositions: [
@@ -159,6 +172,7 @@ describe('Kanban Task Ordering', () => {
     it('should return 400 for invalid reorder request', async () => {
       await request(app)
         .post('/api/kanban/reorder')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           // Missing required fields
           taskPositions: []
@@ -172,6 +186,7 @@ describe('Kanban Task Ordering', () => {
       // Create a task
       await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'List Test Task with Position',
@@ -182,6 +197,7 @@ describe('Kanban Task Ordering', () => {
       // Get kanban data
       const listRes = await request(app)
         .get('/api/kanban')
+        .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
       
       expect(listRes.body.tasks).toBeDefined();
@@ -199,6 +215,7 @@ describe('Kanban Task Ordering', () => {
       // Create task in todo column
       const createRes = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Move Test Task to InProgress',
@@ -211,6 +228,7 @@ describe('Kanban Task Ordering', () => {
       // Move to inProgress column
       const moveRes = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'inProgress'
         })
@@ -223,6 +241,7 @@ describe('Kanban Task Ordering', () => {
       // Create a task
       const createRes = await request(app)
         .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           columnName: 'todo',
           title: 'Update Without Position Change',
@@ -236,6 +255,7 @@ describe('Kanban Task Ordering', () => {
       // Update only title
       const updateRes = await request(app)
         .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           title: 'Updated Title Only'
         })
