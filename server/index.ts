@@ -16,6 +16,7 @@ import { asyncHandler, errorHandler } from './lib/errors';
 import { SessionStore } from './middleware/auth';
 import { pool } from './config/database';
 import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo } from './types';
+import authRouter from './routes/auth';
 
 // Sparse ordering constants
 const POSITION_GAP = 1000000n; // 1 million as BigInt
@@ -520,6 +521,10 @@ if (process.env.NODE_ENV === 'production') {
     }
   }));
 }
+
+// Mount enhanced auth router (must be before requireAuth middleware)
+// Provides /auth/login, /auth/logout, /auth/validate, /auth/me, /auth/change-password
+app.use('/auth', authRouter);
 
 // Protect API routes with auth (static files already served above)
 // Auth is now enforced in ALL environments (dev, test, production)
