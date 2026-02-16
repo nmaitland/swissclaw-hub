@@ -14,11 +14,26 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { io, Socket } from 'socket.io-client';
 import { z } from 'zod';
 
 const BASE_URL = process.env.SWISSCLAW_HUB_URL || 'http://localhost:3001';
 const SERVICE_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
 const AUTH_TOKEN = process.env.SWISSCLAW_AUTH_TOKEN || '';
+
+// Message buffer for chat_listen
+interface BufferedMessage {
+  id: number;
+  sender: string;
+  content: string;
+  created_at: string;
+  received_at: string;
+}
+
+const MAX_BUFFER_SIZE = 100;
+let messageBuffer: BufferedMessage[] = [];
+let socketClient: Socket | null = null;
+let isSocketConnected = false;
 
 // Helper: make authenticated API requests
 async function api(
@@ -52,6 +67,50 @@ async function api(
   return res.json();
 }
 
+// Initialize Socket.io client for real-time chat
+function initSocketClient(): void {
+  if (!AUTH_TOKEN) {
+    console.error('SWISSCLAW_AUTH_TOKEN not set. Socket.io client cannot connect.');
+    return;
+  }
+
+  socketClient = io(BASE_URL, {
+    auth: { token: AUTH_TOKEN },
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+  });
+
+  socketClient.on('connect', () => {
+    isSocketConnected = true;
+    console.error('Socket.io connected to Hub');
+  });
+
+  socketClient.on('disconnect', () => {
+    isSocketConnected = false;
+    console.error('Socket.io disconnected from Hub');
+  });
+
+  socketClient.on('message', (msg: BufferedMessage) => {
+    // Buffer the message
+    const bufferedMsg: BufferedMessage = {
+      ...msg,
+      received_at: new Date().toISOString(),
+    };
+    messageBuffer.push(bufferedMsg);
+
+    // Keep buffer size under control (FIFO)
+    if (messageBuffer.length > MAX_BUFFER_SIZE) {
+      messageBuffer = messageBuffer.slice(-MAX_BUFFER_SIZE);
+    }
+  });
+
+  socketClient.on('error', (err: Error) => {
+    console.error('Socket.io error:', err);
+  });
+}
+
 // Create MCP server
 const server = new McpServer({
   name: 'swissclaw-hub',
@@ -83,22 +142,88 @@ server.tool(
 );
 
 server.tool(
-  'send_message',
-  'Log a chat message as an activity event (creates activity record, broadcasts via Socket.io). Note: This creates an activity entry, not a direct chat message.',
+  'chat_listen',
+  'Listen for new chat messages from the Hub. Returns buffered messages received since last call. Call this in a loop to receive messages in real-time.',
   {
-    content: z.string().describe('The message content to log'),
+    since: z.string().optional().describe('ISO timestamp to filter messages (returns messages received after this time)'),
   },
-  async ({ content }) => {
-    // Use the service activities endpoint to log the message as an activity
-    const data = await api('/api/service/activities', {
-      method: 'POST',
-      body: {
-        type: 'chat',
-        description: `Swissclaw: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
-        metadata: { sender: 'Swissclaw', content },
-      },
-    });
-    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  async ({ since }) => {
+    if (!isSocketConnected) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ error: 'Socket.io not connected. Check SWISSCLAW_AUTH_TOKEN is set and Hub is running.' }) }],
+      };
+    }
+
+    // Filter messages by timestamp if provided
+    let messages = messageBuffer;
+    if (since) {
+      const sinceDate = new Date(since);
+      messages = messageBuffer.filter((msg) => new Date(msg.received_at) > sinceDate);
+    }
+
+    // Clear the buffer (messages are consumed)
+    const result = [...messages];
+    messageBuffer = [];
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ messages: result, count: result.length }) }],
+    };
+  }
+);
+
+server.tool(
+  'send_message',
+  'Send a chat message to the Hub chat window. The message will appear in the chat UI and be broadcast to all connected clients.',
+  {
+    content: z.string().describe('The message content to send'),
+    sender: z.string().optional().describe('Sender name (default: Swissclaw)'),
+  },
+  async ({ content, sender = 'Swissclaw' }) => {
+    // Try Socket.io first (real-time)
+    if (isSocketConnected && socketClient) {
+      return new Promise((resolve) => {
+        socketClient!.emit('message', { sender, content }, (_ack: unknown) => {
+          resolve({
+            content: [{ type: 'text', text: JSON.stringify({ success: true, sent_via: 'socket.io', sender, content }) }],
+          });
+        });
+
+        // Timeout fallback if no acknowledgment
+        setTimeout(() => {
+          resolve({
+            content: [{ type: 'text', text: JSON.stringify({ success: true, sent_via: 'socket.io', sender, content, note: 'No acknowledgment received' }) }],
+          });
+        }, 2000);
+      });
+    }
+
+    // Fallback to REST API if Socket.io not connected
+    try {
+      const data = await api('/api/service/messages', {
+        method: 'POST',
+        body: { sender, content },
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(data) }] };
+    } catch {
+      // Final fallback: create activity (old behavior)
+      const data = await api('/api/service/activities', {
+        method: 'POST',
+        body: {
+          type: 'chat',
+          description: `${sender}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+          metadata: { sender, content },
+        },
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            activity: data,
+            note: 'Socket.io not connected, message sent as activity instead of chat message',
+          }),
+        }],
+      };
+    }
   }
 );
 
@@ -233,6 +358,9 @@ server.tool(
 // ─── Start Server ────────────────────────────────────────────────────────
 
 async function main() {
+  // Initialize Socket.io client before starting MCP server
+  initSocketClient();
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

@@ -448,6 +448,71 @@ app.post('/api/service/activities', asyncHandler(async (req: Request, res: Respo
 
 /**
  * @swagger
+ * /api/service/messages:
+ *   post:
+ *     tags: [Chat]
+ *     summary: Send a chat message (service-to-service)
+ *     security:
+ *       - ServiceToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [sender, content]
+ *             properties:
+ *               sender: { type: string, maxLength: 50 }
+ *               content: { type: string, maxLength: 5000 }
+ *     responses:
+ *       200:
+ *         description: Message created and broadcast
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ChatMessage'
+ *       401:
+ *         description: Invalid service token
+ *       400:
+ *         description: Invalid input
+ */
+app.post('/api/service/messages', asyncHandler(async (req: Request, res: Response) => {
+  const serviceToken = req.headers['x-service-token'];
+  if (serviceToken !== SWISSCLAW_TOKEN) {
+    res.status(401).json({ error: 'Invalid service token' });
+    return;
+  }
+
+  const { sender, content } = req.body;
+
+  if (!sender || typeof sender !== 'string' || sender.length > 50) {
+    res.status(400).json({ error: 'Invalid sender' });
+    return;
+  }
+  if (!content || typeof content !== 'string' || content.length > 5000) {
+    res.status(400).json({ error: 'Invalid content' });
+    return;
+  }
+
+  const result = await pool.query(
+    'INSERT INTO messages (sender, content) VALUES ($1, $2) RETURNING *',
+    [sanitizeString(sender), sanitizeString(content)]
+  );
+
+  // Broadcast to all connected Socket.io clients
+  io.emit('message', result.rows[0]);
+
+  // Also create an activity for the feed
+  await pool.query(
+    'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3)',
+    ['chat', `${sender}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`, JSON.stringify({ sender, messageId: result.rows[0].id })]
+  );
+
+  res.json(result.rows[0]);
+}));
+
+/**
+ * @swagger
  * /api/service/model-usage:
  *   post:
  *     tags: [Model Usage]

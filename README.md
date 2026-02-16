@@ -204,6 +204,35 @@ npm run mcp
 
 See [docs/mcp-server.md](docs/mcp-server.md) for full documentation.
 
+## Agent Chat Bridge
+
+A standalone script for connecting local AI agents to the Hub's chat via Socket.io (event-driven, works behind firewalls).
+
+**Quick start:**
+```bash
+# Set credentials
+set SWISSCLAW_USERNAME=admin
+set SWISSCLAW_PASSWORD=yourpassword
+
+# Interactive chat mode
+npx ts-node scripts/agent-chat-bridge.ts
+
+# Daemon mode (output messages as JSON lines)
+npx ts-node scripts/agent-chat-bridge.ts --daemon
+
+# Send a message
+npx ts-node scripts/agent-chat-bridge.ts --send "Hello" --sender "MyBot"
+```
+
+**Environment variables:**
+| Variable | Description |
+|----------|-------------|
+| `SWISSCLAW_USERNAME` | Hub login username |
+| `SWISSCLAW_PASSWORD` | Hub login password |
+| `SWISSCLAW_HUB_URL` | Hub URL (default: https://swissclaw.hydeabbey.net) |
+
+The script saves the auth token to `~/.swissclaw-token` for reuse.
+
 ## Environment Variables
 
 | Variable | Description | Required |
