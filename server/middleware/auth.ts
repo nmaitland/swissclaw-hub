@@ -36,11 +36,16 @@ class SessionStore {
 
   async validateSession(token: string): Promise<SessionInfo | null> {
     try {
+      // Combined query: validate session AND update last_accessed_at in one round-trip
       const result = await this.pool.query(
-        `SELECT s.*, u.email, u.name, u.role
-         FROM sessions s
-         JOIN users u ON s.user_id = u.id
-         WHERE s.token = $1 AND s.expires_at > NOW() AND s.revoked_at IS NULL`,
+        `WITH updated AS (
+          UPDATE sessions SET last_accessed_at = NOW()
+          WHERE token = $1 AND expires_at > NOW() AND revoked_at IS NULL
+          RETURNING id, user_id, token, expires_at, created_at, last_accessed_at
+        )
+        SELECT u.email, u.name, u.role, updated.*
+        FROM updated
+        JOIN users u ON updated.user_id = u.id`,
         [token]
       );
 
@@ -49,13 +54,6 @@ class SessionStore {
       }
 
       const session = result.rows[0];
-
-      // Update last accessed time
-      await this.pool.query(
-        'UPDATE sessions SET last_accessed_at = NOW() WHERE id = $1',
-        [session.id]
-      );
-
       return {
         userId: session.user_id,
         email: session.email,

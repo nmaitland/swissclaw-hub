@@ -153,7 +153,8 @@ describe('App Component', () => {
   it('renders the chat input', async () => {
     render(<App />);
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Type a message...')).toBeInTheDocument();
+      // Input is always rendered; placeholder shows "Connecting..." initially, then "Type a message..."
+      expect(screen.getByRole('textbox')).toBeInTheDocument();
     });
   });
 

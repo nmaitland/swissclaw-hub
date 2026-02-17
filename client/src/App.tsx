@@ -68,11 +68,13 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [buildInfo, setBuildInfo] = useState<BuildInfo>({ buildDate: new Date().toISOString(), commit: 'unknown' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(false);
   const hasInitiallyScrolled = useRef(false);
+  const pendingMessagesRef = useRef<Array<{ sender: string; content: string }>>([]);
 
   // Activities pagination state
   const [hasMoreActivities, setHasMoreActivities] = useState(false);
@@ -93,8 +95,22 @@ function App() {
   useEffect(() => {
     const newSocket = io(API_URL || window.location.origin, {
       auth: { token: getAuthToken() },
+      transports: ['websocket'],
     });
     setSocket(newSocket);
+
+    newSocket.on('connect', () => {
+      setSocketConnected(true);
+      // Flush any messages queued while connecting
+      while (pendingMessagesRef.current.length > 0) {
+        const msg = pendingMessagesRef.current.shift();
+        if (msg) newSocket.emit('message', msg);
+      }
+    });
+
+    newSocket.on('disconnect', () => {
+      setSocketConnected(false);
+    });
 
     newSocket.on('message', (msg: ChatMessage) => {
       setMessages((prev) => [msg, ...prev]);
@@ -233,13 +249,17 @@ function App() {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputMessage.trim() || !socket) return;
+    if (!inputMessage.trim()) return;
 
-    shouldAutoScroll.current = true;
-    socket.emit('message', {
-      sender: 'Neil',
-      content: inputMessage.trim(),
-    });
+    const msg = { sender: 'Neil', content: inputMessage.trim() };
+
+    if (socket?.connected) {
+      shouldAutoScroll.current = true;
+      socket.emit('message', msg);
+    } else {
+      // Queue message to send when connected
+      pendingMessagesRef.current.push(msg);
+    }
 
     setInputMessage('');
   };
@@ -359,7 +379,12 @@ function App() {
 
         {/* Chat Panel (moved to bottom) */}
         <section className="panel chat-panel">
-          <h2>{'\u{1F4AC}'} Chat</h2>
+          <h2>
+            {'\u{1F4AC}'} Chat
+            {!socketConnected && (
+              <span className="chat-connecting"> connecting...</span>
+            )}
+          </h2>
           <div className="panel-content chat-messages">
             {messages.length === 0 ? (
               <div className="empty-state">No messages yet</div>
@@ -386,10 +411,9 @@ function App() {
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Type a message..."
-              disabled={!socket?.connected}
+              placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
             />
-            <button type="submit" disabled={!socket?.connected || !inputMessage.trim()}>
+            <button type="submit" disabled={!inputMessage.trim()}>
               Send
             </button>
           </form>
