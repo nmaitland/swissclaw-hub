@@ -215,10 +215,54 @@ async function ensureHubAuth(forceLogin: boolean): Promise<string> {
   return loginToHub();
 }
 
+// Fetch recent chat history from Hub
+async function fetchRecentChatHistory(hubToken: string, limit: number = 10): Promise<ChatMessage[]> {
+  try {
+    const response = await fetch(`${HUB_URL}/api/messages`, {
+      headers: { Authorization: `Bearer ${hubToken}` },
+    });
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch chat history: ${response.status}`);
+      return [];
+    }
+    
+    const messages = (await response.json()) as ChatMessage[];
+    // API returns newest first, reverse to get chronological order
+    // Take only the most recent N messages
+    return messages.slice(0, limit).reverse();
+  } catch (err) {
+    console.error('Error fetching chat history:', err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+// Format chat history for context
+function formatChatHistory(messages: ChatMessage[], currentMsgId: number): string {
+  // Filter out the current message and format the rest
+  const history = messages
+    .filter(m => m.id !== currentMsgId)
+    .map(m => {
+      const time = new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return `[${time}] ${m.sender}: ${m.content}`;
+    })
+    .join('\n');
+  
+  return history || '(no recent messages)';
+}
+
 // Forward message to OpenClaw webhook
-async function forwardToOpenClaw(msg: ChatMessage, hooksToken: string): Promise<void> {
+async function forwardToOpenClaw(msg: ChatMessage, hooksToken: string, hubToken: string): Promise<void> {
+  // Fetch recent chat history for context
+  const recentMessages = await fetchRecentChatHistory(hubToken, 15);
+  const chatHistory = formatChatHistory(recentMessages, msg.id);
+  
   const payload = {
     message: `[Hub Chat] ${msg.sender}: ${msg.content}
+
+--- RECENT CHAT HISTORY (for context) ---
+${chatHistory}
+--- END HISTORY ---
 
 📤 TO REPLY TO HUB CHAT: You MUST run this exact command:
 export PATH="$HOME/.bun/bin:$HOME/.npm-global/bin:$PATH" && \
@@ -231,6 +275,7 @@ This sends your response back to ${msg.sender} in the Hub chat.`,
   };
 
   console.error(`[${new Date().toISOString()}] Forwarding to OpenClaw: ${msg.sender}: ${msg.content.substring(0, 50)}...`);
+  console.error(`  Including ${recentMessages.length - 1} messages of chat history for context`);
 
   try {
     const response = await fetch(`${OPENCLAW_URL}/hooks/agent`, {
@@ -282,7 +327,7 @@ async function daemonMode(hubToken: string, hooksToken: string): Promise<void> {
     }
 
     console.error(`[${new Date().toISOString()}] Received: [${msg.sender}] ${msg.content}`);
-    await forwardToOpenClaw(msg, hooksToken);
+    await forwardToOpenClaw(msg, hooksToken, hubToken);
   });
 
   socket.on('error', (err: Error) => {

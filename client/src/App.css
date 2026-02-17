@@ -203,6 +203,7 @@
 
 .chat-text {
   color: #e5e7eb;
+  white-space: pre-wrap;
 }
 
 .chat-input {
