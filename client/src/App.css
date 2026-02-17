@@ -56,6 +56,13 @@
   }
 }
 
+.chat-connecting {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  font-weight: normal;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 .main {
   flex: 1;
   display: flex;
