@@ -563,6 +563,83 @@ app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Resp
   res.json(result.rows[0]);
 }));
 
+/**
+ * @swagger
+ * /api/service/status:
+ *   put:
+ *     tags: [Status]
+ *     summary: Update server status (service-to-service)
+ *     security:
+ *       - ServiceToken: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [state, currentTask]
+ *             properties:
+ *               state:
+ *                 type: string
+ *                 enum: [active, busy, idle]
+ *                 description: Current state of the Swissclaw agent
+ *               currentTask:
+ *                 type: string
+ *                 description: Description of what the agent is currently doing
+ *     responses:
+ *       200:
+ *         description: Status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 state: { type: string }
+ *                 currentTask: { type: string }
+ *                 lastActive: { type: string, format: date-time }
+ *       401:
+ *         description: Invalid service token
+ *       400:
+ *         description: Invalid input
+ */
+app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) => {
+  const serviceToken = req.headers['x-service-token'];
+  if (serviceToken !== SWISSCLAW_TOKEN) {
+    res.status(401).json({ error: 'Invalid service token' });
+    return;
+  }
+
+  const { state, currentTask } = req.body;
+
+  if (!state || !['active', 'busy', 'idle'].includes(state)) {
+    res.status(400).json({ error: 'state must be one of: active, busy, idle' });
+    return;
+  }
+
+  if (!currentTask || typeof currentTask !== 'string') {
+    res.status(400).json({ error: 'currentTask is required' });
+    return;
+  }
+
+  const lastActive = new Date().toISOString();
+
+  // Upsert status - there should only be one row
+  await pool.query(
+    `INSERT INTO status (id, status, current_task, last_updated)
+     VALUES (gen_random_uuid(), $1, $2, $3)
+     ON CONFLICT (id) DO UPDATE SET
+       status = EXCLUDED.status,
+       current_task = EXCLUDED.current_task,
+       last_updated = EXCLUDED.last_updated`,
+    [state, currentTask, lastActive]
+  );
+
+  // Broadcast to all connected clients
+  io.emit('status-update', { state, currentTask, lastActive });
+
+  res.json({ state, currentTask, lastActive });
+}));
+
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {
@@ -687,13 +764,26 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
   const totalOutputTokens = modelUsageResult.rows.reduce((sum, row) => sum + parseInt(row.output_tokens, 10), 0);
   const totalCost = modelUsageResult.rows.reduce((sum, row) => sum + parseFloat(row.estimated_cost), 0);
 
+  // Get swissclaw status from database (or use defaults if not set)
+  const statusResult = await pool.query(
+    'SELECT status, current_task, last_updated FROM status ORDER BY last_updated DESC LIMIT 1'
+  );
+
+  const swissclawStatus = statusResult.rows.length > 0
+    ? {
+        state: statusResult.rows[0].status,
+        currentTask: statusResult.rows[0].current_task,
+        lastActive: statusResult.rows[0].last_updated
+      }
+    : {
+        state: 'idle',
+        currentTask: 'Ready to help',
+        lastActive: new Date().toISOString()
+      };
+
   res.json({
     status: 'online',
-    swissclaw: {
-      state: 'active',
-      currentTask: 'Building Swissclaw Hub',
-      lastActive: new Date().toISOString()
-    },
+    swissclaw: swissclawStatus,
     activityCount,
     modelUsage: {
       total: {

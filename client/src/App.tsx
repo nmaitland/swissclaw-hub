@@ -120,6 +120,17 @@ function App() {
       setActivities((prev) => [activity, ...prev].slice(0, 50));
     });
 
+    newSocket.on('status-update', (update: { state: string; currentTask: string; lastActive: string }) => {
+      setStatus((prev) => prev ? {
+        ...prev,
+        swissclaw: {
+          state: update.state as 'active' | 'busy' | 'idle',
+          currentTask: update.currentTask,
+          lastActive: update.lastActive
+        }
+      } : null);
+    });
+
     return () => {
       newSocket.close();
     };

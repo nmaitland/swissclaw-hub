@@ -88,4 +88,62 @@ describe('Status API (real server)', () => {
       expect(Array.isArray(response.body.modelUsage.byModel)).toBe(true);
     });
   });
+
+  describe('PUT /api/service/status', () => {
+    const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+
+    it('updates the status with valid service token', async () => {
+      const response = await request(app)
+        .put('/api/service/status')
+        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .send({ state: 'busy', currentTask: 'Testing status update' })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('state', 'busy');
+      expect(response.body).toHaveProperty('currentTask', 'Testing status update');
+      expect(response.body).toHaveProperty('lastActive');
+    });
+
+    it('rejects invalid service token', async () => {
+      await request(app)
+        .put('/api/service/status')
+        .set('X-Service-Token', 'invalid-token')
+        .send({ state: 'active', currentTask: 'Test' })
+        .expect(401);
+    });
+
+    it('rejects invalid state values', async () => {
+      await request(app)
+        .put('/api/service/status')
+        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .send({ state: 'invalid', currentTask: 'Test' })
+        .expect(400);
+    });
+
+    it('rejects missing currentTask', async () => {
+      await request(app)
+        .put('/api/service/status')
+        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .send({ state: 'active' })
+        .expect(400);
+    });
+
+    it('GET /api/status reflects the updated status', async () => {
+      // First update the status
+      await request(app)
+        .put('/api/service/status')
+        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .send({ state: 'active', currentTask: 'Integration testing' })
+        .expect(200);
+
+      // Then verify it's returned by GET /api/status
+      const response = await request(app)
+        .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body.swissclaw).toHaveProperty('state', 'active');
+      expect(response.body.swissclaw).toHaveProperty('currentTask', 'Integration testing');
+    });
+  });
 });
