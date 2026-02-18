@@ -129,6 +129,22 @@ server.tool(
   }
 );
 
+server.tool(
+  'update_status',
+  'Update the server status panel (state and current task)',
+  {
+    state: z.enum(['active', 'busy', 'idle']).describe('Current state of the Swissclaw agent'),
+    currentTask: z.string().describe('Description of what the agent is currently doing'),
+  },
+  async ({ state, currentTask }) => {
+    const data = await api('/api/service/status', {
+      method: 'PUT',
+      body: { state, currentTask },
+    });
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
 // ─── Chat Messages ───────────────────────────────────────────────────────
 
 server.tool(
