@@ -63,6 +63,33 @@
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+/* Message state indicators */
+.message-state {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  vertical-align: middle;
+}
+
+.message-state-received {
+  color: #4ade80;
+}
+
+.message-state-processing {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+.message-state-thinking {
+  color: #f59e0b;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .main {
   flex: 1;
   display: flex;

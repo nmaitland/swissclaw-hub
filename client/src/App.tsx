@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import KanbanBoard from './components/KanbanBoard';
-import type { Activity, ChatMessage, BuildInfo, StatusResponse } from './types';
+import type { Activity, ChatMessage, BuildInfo, StatusResponse, MessageProcessingState, MessageStateUpdate } from './types';
 import './App.css';
 
 // Activity Detail Modal Component
@@ -83,6 +83,9 @@ function App() {
   const activityLoadMoreRef = useRef<HTMLDivElement>(null);
   const activityFeedRef = useRef<HTMLDivElement>(null);
 
+  // Message processing states
+  const [messageStates, setMessageStates] = useState<Record<string, MessageProcessingState>>({});
+
   // Check auth on mount
   useEffect(() => {
     const token = getAuthToken();
@@ -133,6 +136,10 @@ function App() {
           lastActive: update.lastActive
         }
       } : null);
+    });
+
+    newSocket.on('message-state', ({ messageId, state }: MessageStateUpdate) => {
+      setMessageStates((prev) => ({ ...prev, [messageId]: state }));
     });
 
     return () => {
@@ -404,7 +411,16 @@ function App() {
                   className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
                 >
                   <div className="chat-message-header">
-                    <span className="chat-sender">{msg.sender}</span>
+                    <span className="chat-sender">
+                      {msg.sender}
+                      {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
+                        <span className={`message-state message-state-${messageStates[msg.id]}`}>
+                          {messageStates[msg.id] === 'received' && ' ✓'}
+                          {messageStates[msg.id] === 'processing' && ' ⚙️'}
+                          {messageStates[msg.id] === 'thinking' && ' ...'}
+                        </span>
+                      )}
+                    </span>
                     <span className="chat-time">
                       {new Date(msg.created_at).toLocaleTimeString()}
                     </span>
