@@ -82,6 +82,7 @@ function App() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const activityObserverRef = useRef<IntersectionObserver | null>(null);
   const activityLoadMoreRef = useRef<HTMLDivElement>(null);
+  const activityFeedRef = useRef<HTMLDivElement>(null);
 
   // Check auth on mount
   useEffect(() => {
@@ -118,6 +119,10 @@ function App() {
 
     newSocket.on('activity', (activity: Activity) => {
       setActivities((prev) => [activity, ...prev].slice(0, 50));
+      // Scroll to top to show latest activity
+      setTimeout(() => {
+        activityFeedRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 50);
     });
 
     newSocket.on('status-update', (update: { state: string; currentTask: string; lastActive: string }) => {
@@ -349,7 +354,7 @@ function App() {
           {/* Activities Panel (moved to top) */}
           <section className="panel activity-panel">
             <h2>{'\u26A1'} Activities</h2>
-            <div className="panel-content activity-feed">
+            <div className="panel-content activity-feed" ref={activityFeedRef}>
               {activities.length === 0 ? (
                 <div className="empty-state">No recent activity</div>
               ) : (
