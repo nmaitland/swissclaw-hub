@@ -98,6 +98,13 @@ export interface ChatMessage {
   created_at: string;
 }
 
+export type MessageProcessingState = 'received' | 'processing' | 'thinking' | 'responded';
+
+export interface MessageStateUpdate {
+  messageId: string;
+  state: MessageProcessingState;
+}
+
 export interface BuildInfo {
   buildDate: string;
   commit: string;

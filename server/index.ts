@@ -640,6 +640,113 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
   res.json({ state, currentTask, lastActive });
 }));
 
+/**
+ * @openapi
+ * /api/service/messages/{id}/state:
+ *   put:
+ *     summary: Update message processing state
+ *     description: Update the processing state of a chat message (received, processing, thinking, responded). Service token required.
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Message ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - state
+ *             properties:
+ *               state:
+ *                 type: string
+ *                 enum: [received, processing, thinking, responded]
+ *                 description: The processing state of the message
+ *     responses:
+ *       200:
+ *         description: Message state updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id:
+ *                   type: integer
+ *                 state:
+ *                   type: string
+ *                 updatedAt:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Invalid state value
+ *       401:
+ *         description: Unauthorized - Invalid or missing service token
+ *       404:
+ *         description: Message not found
+ *       500:
+ *         description: Server error
+ */
+app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res: Response) => {
+  const serviceToken = req.headers['x-service-token'];
+  if (serviceToken !== SWISSCLAW_TOKEN) {
+    res.status(401).json({ error: 'Invalid service token' });
+    return;
+  }
+
+  const idParam = req.params.id;
+  if (!idParam) {
+    res.status(400).json({ error: 'Message ID is required' });
+    return;
+  }
+  const messageId = parseInt(idParam, 10);
+  const { state } = req.body;
+
+  // Validate state
+  const validStates = ['received', 'processing', 'thinking', 'responded'];
+  if (!validStates.includes(state)) {
+    res.status(400).json({ error: 'Invalid state. Must be one of: received, processing, thinking, responded' });
+    return;
+  }
+
+  // Check if message exists
+  const messageResult = await pool.query(
+    'SELECT id, sender FROM messages WHERE id = $1',
+    [messageId]
+  );
+
+  if (messageResult.rows.length === 0) {
+    res.status(404).json({ error: 'Message not found' });
+    return;
+  }
+
+  // Update message state
+  await pool.query(
+    'UPDATE messages SET processing_state = $1, updated_at = NOW() WHERE id = $2',
+    [state, messageId]
+  );
+
+  // Broadcast state update to all connected clients
+  io.emit('message-state', {
+    messageId,
+    state,
+    sender: messageResult.rows[0].sender,
+    updatedAt: new Date().toISOString()
+  });
+
+  res.json({
+    id: messageId,
+    state,
+    updatedAt: new Date().toISOString()
+  });
+}));
+
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {

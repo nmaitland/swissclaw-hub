@@ -73,6 +73,7 @@ For local development, you can get a session token by logging in via the Hub UI 
 | `get_messages` | _(none)_ | Returns the last 50 chat messages (one-time fetch) |
 | `chat_listen` | `since?` (ISO timestamp) | **Real-time chat.** Returns buffered messages received since last call. Call this in a loop to receive messages as they arrive. Requires `SWISSCLAW_AUTH_TOKEN`. |
 | `send_message` | `content` (string), `sender?` (string) | Sends a chat message that appears in the Hub's chat window. Uses Socket.io if connected, falls back to REST API. |
+| `update_message_state` | `messageId` (string), `state` (enum) | Updates the processing state of a message (received, processing, thinking, responded). Shows animated indicators in the UI. |
 
 **Chat Bridge Usage:**
 

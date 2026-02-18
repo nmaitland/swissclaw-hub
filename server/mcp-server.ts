@@ -243,6 +243,22 @@ server.tool(
   }
 );
 
+server.tool(
+  'update_message_state',
+  'Update the processing state of a chat message (received, processing, thinking, responded)',
+  {
+    messageId: z.string().describe('The message ID to update'),
+    state: z.enum(['received', 'processing', 'thinking', 'responded']).describe('The new processing state'),
+  },
+  async ({ messageId, state }) => {
+    const data = await api(`/api/service/messages/${messageId}/state`, {
+      method: 'PUT',
+      body: { state },
+    });
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
+  }
+);
+
 // ─── Kanban Board ────────────────────────────────────────────────────────
 
 server.tool(

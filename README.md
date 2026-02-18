@@ -187,6 +187,7 @@ An MCP (Model Context Protocol) server is included for AI agent access to the Hu
 | `update_status` | Update the status panel (state and current task) |
 | `get_messages` | Get recent chat messages |
 | `send_message` | Log a chat activity event (broadcasts via Socket.io) |
+| `update_message_state` | Update message processing state (shows UI indicators) |
 | `get_kanban` | Get the full kanban board |
 | `create_task` | Create a new kanban task |
 | `update_task` | Update or move a kanban task |
