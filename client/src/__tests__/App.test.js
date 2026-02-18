@@ -263,8 +263,8 @@ describe('App Component', () => {
         expect(screen.getByText('New message')).toBeInTheDocument();
       });
 
-      // scrollIntoView should NOT be called on socket message (only on initial load and user send)
-      expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+      // scrollIntoView SHOULD be called on socket message (always scroll to bottom)
+      expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
     });
   });
 });
