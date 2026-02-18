@@ -72,7 +72,6 @@ function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [buildInfo, setBuildInfo] = useState<BuildInfo>({ buildDate: new Date().toISOString(), commit: 'unknown' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const shouldAutoScroll = useRef(false);
   const hasInitiallyScrolled = useRef(false);
   const pendingMessagesRef = useRef<Array<{ sender: string; content: string }>>([]);
 
@@ -232,13 +231,15 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Scroll to bottom only on initial message load
+  // Always scroll to bottom when messages change
   useEffect(() => {
-    if (messages.length > 0 && !hasInitiallyScrolled.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: hasInitiallyScrolled.current ? 'smooth' : 'auto'
+      });
       hasInitiallyScrolled.current = true;
     }
-  }, [messages.length]);
+  }, [messages]);
 
   // Fetch build info
   useEffect(() => {
@@ -256,13 +257,6 @@ function App() {
     fetchBuildInfo();
   }, []);
 
-  useEffect(() => {
-    if (shouldAutoScroll.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      shouldAutoScroll.current = false;
-    }
-  }, [messages]);
-
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim()) return;
@@ -270,7 +264,6 @@ function App() {
     const msg = { sender: 'Neil', content: inputMessage.trim() };
 
     if (socket?.connected) {
-      shouldAutoScroll.current = true;
       socket.emit('message', msg);
     } else {
       // Queue message to send when connected
