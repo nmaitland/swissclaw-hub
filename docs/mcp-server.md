@@ -64,6 +64,7 @@ For local development, you can get a session token by logging in via the Hub UI 
 | Tool | Description |
 |------|-------------|
 | `get_status` | Returns server status, recent chat messages, and recent activities |
+| `update_status` | Updates the status panel (state: active/busy/idle, currentTask: description) |
 
 ### Chat
 
