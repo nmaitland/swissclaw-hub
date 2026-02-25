@@ -26,7 +26,6 @@ The project includes a `.mcp.json` file that configures the MCP server for Claud
       "args": ["ts-node", "server/mcp-server.ts"],
       "env": {
         "SWISSCLAW_HUB_URL": "http://localhost:3001",
-        "SWISSCLAW_TOKEN": "your-secure-service-token",
         "SWISSCLAW_AUTH_TOKEN": "your-session-token-here"
       }
     }
@@ -43,17 +42,15 @@ When you open this project in Claude Code, the MCP server is automatically avail
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SWISSCLAW_HUB_URL` | `http://localhost:3001` | Base URL of the running Hub server |
-| `SWISSCLAW_TOKEN` | _(none)_ | Service token for `/api/service/*` endpoints (required for service tools) |
-| `SWISSCLAW_AUTH_TOKEN` | _(empty)_ | **Required for chat.** Bearer token for Socket.io connection and user-facing endpoints |
+| `SWISSCLAW_AUTH_TOKEN` | _(empty)_ | **Required for chat/tools.** Bearer token for Socket.io and authenticated endpoints |
 
 The Hub server must be running for MCP tools to work. The MCP server calls the Hub's REST API over HTTP and maintains a Socket.io connection for real-time chat.
 
 ### Authentication
 
-The MCP server uses two auth mechanisms depending on the endpoint:
+The MCP server uses a single auth mechanism:
 
-- **Bearer token** (`SWISSCLAW_AUTH_TOKEN`): Used for user-facing endpoints like `/api/status`, `/api/messages`, `/api/kanban` and for the Socket.io connection. Set this to a valid session token.
-- **Service token** (`SWISSCLAW_TOKEN`): Used for service-to-service endpoints like `/api/service/activities`. Sent as `X-Service-Token` header.
+- **Bearer token** (`SWISSCLAW_AUTH_TOKEN`): Used for `/api/status`, `/api/messages`, `/api/kanban`, `/api/service/*` and Socket.io. Set this to a valid session token.
 
 For local development, you can get a session token by logging in via the Hub UI and copying the token from localStorage, or by using the `/api/login` endpoint.
 

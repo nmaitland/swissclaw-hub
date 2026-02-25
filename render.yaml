@@ -18,8 +18,6 @@ services:
         sync: false
       - key: AUTH_PASSWORD
         sync: false
-      - key: SWISSCLAW_TOKEN
-        sync: false
 
 databases:
   - name: swissclaw-hub-db

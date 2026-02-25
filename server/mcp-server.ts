@@ -18,7 +18,6 @@ import { io, Socket } from 'socket.io-client';
 import { z } from 'zod';
 
 const BASE_URL = process.env.SWISSCLAW_HUB_URL || 'http://localhost:3001';
-const SERVICE_TOKEN = process.env.SWISSCLAW_TOKEN;
 const AUTH_TOKEN = process.env.SWISSCLAW_AUTH_TOKEN || '';
 
 // Message buffer for chat_listen
@@ -45,15 +44,12 @@ async function api(
     'Content-Type': 'application/json',
   };
 
-  // Use auth token for user-facing endpoints, service token for service endpoints
+  // Use bearer auth for all endpoints
   if (AUTH_TOKEN) {
     headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
   }
-  if (path.includes('/service/')) {
-    if (!SERVICE_TOKEN) {
-      throw new Error('SWISSCLAW_TOKEN is required for /api/service/* endpoints.');
-    }
-    headers['X-Service-Token'] = SERVICE_TOKEN;
+  if (!AUTH_TOKEN) {
+    throw new Error('SWISSCLAW_AUTH_TOKEN is required for authenticated API endpoints.');
   }
 
   const res = await fetch(`${BASE_URL}${path}`, {

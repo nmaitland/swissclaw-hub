@@ -202,7 +202,7 @@ An MCP (Model Context Protocol) server is included for AI agent access to the Hu
 npm run mcp
 ```
 
-**Claude Code integration:** The `.mcp.json` file configures the MCP server for use with Claude Code. Set `SWISSCLAW_HUB_URL` and `SWISSCLAW_TOKEN` in your local environment for the target Hub instance (no insecure default token is provided).
+**Claude Code integration:** The `.mcp.json` file configures the MCP server for use with Claude Code. Set `SWISSCLAW_HUB_URL` and `SWISSCLAW_AUTH_TOKEN` in your local environment for the target Hub instance.
 
 See [docs/mcp-server.md](docs/mcp-server.md) for full documentation.
 
@@ -248,8 +248,7 @@ The script saves the auth token to `~/.swissclaw-token` for reuse.
 | `CLIENT_URL` | Frontend URL for CORS | Production |
 | `AUTH_USERNAME` | Login username (default: admin) | Yes |
 | `AUTH_PASSWORD` | Login password (required in production; server fails fast if missing) | Yes |
-| `SWISSCLAW_TOKEN` | Service-to-service auth token (required in production; server fails fast if missing) | Yes |
-| `SWISSCLAW_AUTH_TOKEN` | Bearer token for MCP server (optional) | No |
+| `SWISSCLAW_AUTH_TOKEN` | Bearer session token for MCP server/automation tools (optional) | No |
 | `REACT_APP_API_URL` | API URL for React client (empty = same-origin) | No |
 
 ## Deployment

@@ -18,12 +18,6 @@ const options: swaggerJsdoc.Options = {
           scheme: 'bearer',
           description: 'Session token from POST /api/login',
         },
-        ServiceToken: {
-          type: 'apiKey',
-          in: 'header',
-          name: 'X-Service-Token',
-          description: 'Service-to-service authentication token',
-        },
       },
       schemas: {
         KanbanTask: {

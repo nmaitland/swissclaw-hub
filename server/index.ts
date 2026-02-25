@@ -448,23 +448,20 @@ app.post('/api/login', apiLoginRateLimit, asyncHandler(async (req: Request, res:
   res.json({ token, success: true });
 }));
 
-// Service token auth middleware
-const SWISSCLAW_TOKEN =
-  process.env.SWISSCLAW_TOKEN ||
-  process.env.SWISSCLAW_AUTH_TOKEN ||
-  (process.env.NODE_ENV === 'test' ? 'test-service-token' : undefined);
+const hasServiceAccess = async (req: Request): Promise<boolean> => {
+  const authHeader = req.headers.authorization;
+  const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : null;
 
-if (process.env.NODE_ENV === 'production' && !SWISSCLAW_TOKEN) {
-  logger.warn('SWISSCLAW_TOKEN is not set; service-token endpoints will reject all requests');
-}
+  if (bearerToken) {
+    const session = await sessionStore.validateSession(bearerToken);
+    if (session || sessions.has(bearerToken)) {
+      return true;
+    }
+  }
 
-const hasValidServiceToken = (serviceToken: unknown): boolean => {
-  return (
-    typeof SWISSCLAW_TOKEN === 'string' &&
-    SWISSCLAW_TOKEN.length > 0 &&
-    typeof serviceToken === 'string' &&
-    serviceToken === SWISSCLAW_TOKEN
-  );
+  return false;
 };
 
 /**
@@ -472,9 +469,9 @@ const hasValidServiceToken = (serviceToken: unknown): boolean => {
  * /api/service/activities:
  *   post:
  *     tags: [Activities]
- *     summary: Create activity (service-to-service)
+ *     summary: Create activity (authenticated)
  *     security:
- *       - ServiceToken: []
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -495,12 +492,11 @@ const hasValidServiceToken = (serviceToken: unknown): boolean => {
  *             schema:
  *               $ref: '#/components/schemas/Activity'
  *       401:
- *         description: Invalid service token
+ *         description: Authentication required
  */
 app.post('/api/service/activities', asyncHandler(async (req: Request, res: Response) => {
-  const serviceToken = req.headers['x-service-token'];
-  if (!hasValidServiceToken(serviceToken)) {
-    res.status(401).json({ error: 'Invalid service token' });
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
@@ -531,9 +527,9 @@ app.post('/api/service/activities', asyncHandler(async (req: Request, res: Respo
  * /api/service/messages:
  *   post:
  *     tags: [Chat]
- *     summary: Send a chat message (service-to-service)
+ *     summary: Send a chat message (authenticated)
  *     security:
- *       - ServiceToken: []
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -552,14 +548,13 @@ app.post('/api/service/activities', asyncHandler(async (req: Request, res: Respo
  *             schema:
  *               $ref: '#/components/schemas/ChatMessage'
  *       401:
- *         description: Invalid service token
+ *         description: Authentication required
  *       400:
  *         description: Invalid input
  */
 app.post('/api/service/messages', asyncHandler(async (req: Request, res: Response) => {
-  const serviceToken = req.headers['x-service-token'];
-  if (!hasValidServiceToken(serviceToken)) {
-    res.status(401).json({ error: 'Invalid service token' });
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
@@ -599,9 +594,9 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
  * /api/service/model-usage:
  *   post:
  *     tags: [Model Usage]
- *     summary: Report model usage (service-to-service)
+ *     summary: Report model usage (authenticated)
  *     security:
- *       - ServiceToken: []
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -622,12 +617,11 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
  *             schema:
  *               $ref: '#/components/schemas/ModelUsageReport'
  *       401:
- *         description: Invalid service token
+ *         description: Authentication required
  */
 app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Response) => {
-  const serviceToken = req.headers['x-service-token'];
-  if (!hasValidServiceToken(serviceToken)) {
-    res.status(401).json({ error: 'Invalid service token' });
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
@@ -651,9 +645,9 @@ app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Resp
  * /api/service/status:
  *   put:
  *     tags: [Status]
- *     summary: Update server status (service-to-service)
+ *     summary: Update server status (authenticated)
  *     security:
- *       - ServiceToken: []
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -681,14 +675,13 @@ app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Resp
  *                 currentTask: { type: string }
  *                 lastActive: { type: string, format: date-time }
  *       401:
- *         description: Invalid service token
+ *         description: Authentication required
  *       400:
  *         description: Invalid input
  */
 app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) => {
-  const serviceToken = req.headers['x-service-token'];
-  if (!hasValidServiceToken(serviceToken)) {
-    res.status(401).json({ error: 'Invalid service token' });
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
@@ -728,7 +721,7 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
  * /api/service/messages/{id}/state:
  *   put:
  *     summary: Update message processing state
- *     description: Update the processing state of a chat message (received, processing, thinking, responded). Service token required.
+ *     description: Update the processing state of a chat message (received, processing, thinking, responded). Bearer token required.
  *     tags: [Service]
  *     security:
  *       - bearerAuth: []
@@ -770,16 +763,15 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
  *       400:
  *         description: Invalid state value
  *       401:
- *         description: Unauthorized - Invalid or missing service token
+ *         description: Unauthorized - Invalid or missing bearer token
  *       404:
  *         description: Message not found
  *       500:
  *         description: Server error
  */
 app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res: Response) => {
-  const serviceToken = req.headers['x-service-token'];
-  if (!hasValidServiceToken(serviceToken)) {
-    res.status(401).json({ error: 'Invalid service token' });
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
     return;
   }
 

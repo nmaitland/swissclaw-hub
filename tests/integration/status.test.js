@@ -90,12 +90,10 @@ describe('Status API (real server)', () => {
   });
 
   describe('PUT /api/service/status', () => {
-    const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'test-service-token';
-
-    it('updates the status with valid service token', async () => {
+    it('updates the status with bearer session token', async () => {
       const response = await request(app)
         .put('/api/service/status')
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'busy', currentTask: 'Testing status update' })
         .expect(200);
 
@@ -104,10 +102,9 @@ describe('Status API (real server)', () => {
       expect(response.body).toHaveProperty('lastActive');
     });
 
-    it('rejects invalid service token', async () => {
+    it('rejects missing bearer token', async () => {
       await request(app)
         .put('/api/service/status')
-        .set('X-Service-Token', 'invalid-token')
         .send({ state: 'active', currentTask: 'Test' })
         .expect(401);
     });
@@ -115,7 +112,7 @@ describe('Status API (real server)', () => {
     it('rejects invalid state values', async () => {
       await request(app)
         .put('/api/service/status')
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'invalid', currentTask: 'Test' })
         .expect(400);
     });
@@ -123,7 +120,7 @@ describe('Status API (real server)', () => {
     it('rejects missing currentTask', async () => {
       await request(app)
         .put('/api/service/status')
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'active' })
         .expect(400);
     });
@@ -132,7 +129,7 @@ describe('Status API (real server)', () => {
       // First update the status
       await request(app)
         .put('/api/service/status')
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'active', currentTask: 'Integration testing' })
         .expect(200);
 

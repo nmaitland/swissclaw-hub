@@ -38,9 +38,7 @@ describe('Messages API (real server)', () => {
   });
 
   describe('POST /api/service/messages', () => {
-    const serviceToken = process.env.SWISSCLAW_TOKEN || 'test-service-token';
-
-    it('creates a chat message with valid service token', async () => {
+    it('creates a chat message with bearer session token', async () => {
       const messageData = {
         sender: 'TestAgent',
         content: 'Hello from service endpoint test'
@@ -48,7 +46,7 @@ describe('Messages API (real server)', () => {
 
       const response = await request(app)
         .post('/api/service/messages')
-        .set('X-Service-Token', serviceToken)
+        .set('Authorization', `Bearer ${authToken}`)
         .send(messageData)
         .expect(200);
 
@@ -58,29 +56,29 @@ describe('Messages API (real server)', () => {
       expect(response.body).toHaveProperty('created_at');
     });
 
-    it('rejects requests without service token', async () => {
+    it('rejects requests without bearer token', async () => {
       const response = await request(app)
         .post('/api/service/messages')
         .send({ sender: 'Test', content: 'Test' })
         .expect(401);
 
-      expect(response.body.error).toBe('Invalid service token');
+      expect(response.body.error).toBe('Authentication required');
     });
 
-    it('rejects requests with invalid service token', async () => {
+    it('rejects requests with service-token header only', async () => {
       const response = await request(app)
         .post('/api/service/messages')
         .set('X-Service-Token', 'invalid-token')
         .send({ sender: 'Test', content: 'Test' })
         .expect(401);
 
-      expect(response.body.error).toBe('Invalid service token');
+      expect(response.body.error).toBe('Authentication required');
     });
 
     it('validates sender field', async () => {
       const response = await request(app)
         .post('/api/service/messages')
-        .set('X-Service-Token', serviceToken)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ content: 'Test' })
         .expect(400);
 
@@ -90,7 +88,7 @@ describe('Messages API (real server)', () => {
     it('validates content field', async () => {
       const response = await request(app)
         .post('/api/service/messages')
-        .set('X-Service-Token', serviceToken)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ sender: 'Test' })
         .expect(400);
 
@@ -100,7 +98,7 @@ describe('Messages API (real server)', () => {
     it('sanitizes sender and content', async () => {
       const response = await request(app)
         .post('/api/service/messages')
-        .set('X-Service-Token', serviceToken)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           sender: 'Test<script>alert(1)</script>',
           content: '<p>Hello</p>'
@@ -120,7 +118,7 @@ describe('Messages API (real server)', () => {
 
       await request(app)
         .post('/api/service/messages')
-        .set('X-Service-Token', serviceToken)
+        .set('Authorization', `Bearer ${authToken}`)
         .send(messageData)
         .expect(200);
 

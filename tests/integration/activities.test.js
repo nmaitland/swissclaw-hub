@@ -116,12 +116,10 @@ describe('Activities API (real server)', () => {
   });
 
   describe('POST /api/service/activities', () => {
-    it('creates an activity with valid service token', async () => {
-      const serviceToken = process.env.SWISSCLAW_TOKEN || 'test-service-token';
-
+    it('creates an activity with bearer session token', async () => {
       const response = await request(app)
         .post('/api/service/activities')
-        .set('x-service-token', serviceToken)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({
           type: 'deploy',
           description: 'Automated deployment',
@@ -133,22 +131,19 @@ describe('Activities API (real server)', () => {
       expect(response.body).toHaveProperty('type', 'deploy');
     });
 
-    it('returns 401 with invalid service token', async () => {
+    it('returns 401 without bearer token', async () => {
       const response = await request(app)
         .post('/api/service/activities')
-        .set('x-service-token', 'wrong-token')
         .send({ type: 'test', description: 'Should fail' })
         .expect(401);
 
-      expect(response.body).toHaveProperty('error', 'Invalid service token');
+      expect(response.body).toHaveProperty('error', 'Authentication required');
     });
 
     it('returns 400 with missing required fields', async () => {
-      const serviceToken = process.env.SWISSCLAW_TOKEN || 'test-service-token';
-
       const response = await request(app)
         .post('/api/service/activities')
-        .set('x-service-token', serviceToken)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ metadata: {} })
         .expect(400);
 

@@ -17,13 +17,11 @@ describe('Message State API (real server)', () => {
     messageId = result.rows[0].id;
   });
 
-  const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'test-service-token';
-
   describe('PUT /api/service/messages/:id/state', () => {
-    it('updates message state with valid service token', async () => {
+    it('updates message state with bearer session token', async () => {
       const response = await request(app)
         .put(`/api/service/messages/${messageId}/state`)
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'received' })
         .expect(200);
 
@@ -37,7 +35,7 @@ describe('Message State API (real server)', () => {
       for (const state of states) {
         const response = await request(app)
           .put(`/api/service/messages/${messageId}/state`)
-          .set('X-Service-Token', SWISSCLAW_TOKEN)
+          .set('Authorization', `Bearer ${authToken}`)
           .send({ state })
           .expect(200);
 
@@ -45,10 +43,9 @@ describe('Message State API (real server)', () => {
       }
     });
 
-    it('rejects invalid service token', async () => {
+    it('rejects missing bearer token', async () => {
       await request(app)
         .put(`/api/service/messages/${messageId}/state`)
-        .set('X-Service-Token', 'invalid-token')
         .send({ state: 'received' })
         .expect(401);
     });
@@ -56,7 +53,7 @@ describe('Message State API (real server)', () => {
     it('rejects invalid state values', async () => {
       await request(app)
         .put(`/api/service/messages/${messageId}/state`)
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'invalid-state' })
         .expect(400);
     });
@@ -64,7 +61,7 @@ describe('Message State API (real server)', () => {
     it('rejects missing state', async () => {
       await request(app)
         .put(`/api/service/messages/${messageId}/state`)
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({})
         .expect(400);
     });
@@ -72,7 +69,7 @@ describe('Message State API (real server)', () => {
     it('returns 404 for non-existent message', async () => {
       await request(app)
         .put('/api/service/messages/99999/state')
-        .set('X-Service-Token', SWISSCLAW_TOKEN)
+        .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'received' })
         .expect(404);
     });
