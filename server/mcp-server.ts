@@ -18,7 +18,7 @@ import { io, Socket } from 'socket.io-client';
 import { z } from 'zod';
 
 const BASE_URL = process.env.SWISSCLAW_HUB_URL || 'http://localhost:3001';
-const SERVICE_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+const SERVICE_TOKEN = process.env.SWISSCLAW_TOKEN;
 const AUTH_TOKEN = process.env.SWISSCLAW_AUTH_TOKEN || '';
 
 // Message buffer for chat_listen
@@ -50,6 +50,9 @@ async function api(
     headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
   }
   if (path.includes('/service/')) {
+    if (!SERVICE_TOKEN) {
+      throw new Error('SWISSCLAW_TOKEN is required for /api/service/* endpoints.');
+    }
     headers['X-Service-Token'] = SERVICE_TOKEN;
   }
 

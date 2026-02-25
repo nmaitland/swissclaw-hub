@@ -117,7 +117,7 @@ describe('Activities API (real server)', () => {
 
   describe('POST /api/service/activities', () => {
     it('creates an activity with valid service token', async () => {
-      const serviceToken = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+      const serviceToken = process.env.SWISSCLAW_TOKEN || 'test-service-token';
 
       const response = await request(app)
         .post('/api/service/activities')
@@ -144,7 +144,7 @@ describe('Activities API (real server)', () => {
     });
 
     it('returns 400 with missing required fields', async () => {
-      const serviceToken = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+      const serviceToken = process.env.SWISSCLAW_TOKEN || 'test-service-token';
 
       const response = await request(app)
         .post('/api/service/activities')
