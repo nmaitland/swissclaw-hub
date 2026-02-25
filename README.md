@@ -240,6 +240,9 @@ The script saves the auth token to `~/.swissclaw-token` for reuse.
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `DB_SSL` | Enable TLS for PostgreSQL (`true`/`false`). Defaults to `true` when `DATABASE_URL` is set. | No |
+| `DB_SSL_CA` | PEM CA cert content for DB TLS verification (supports `\n` escaped newlines). | No |
+| `DB_SSL_CA_FILE` | Path to PEM CA cert file for DB TLS verification. | No |
 | `NODE_ENV` | `development` or `production` | Yes |
 | `PORT` | Server port (default: 3001) | No |
 | `CLIENT_URL` | Frontend URL for CORS | Production |

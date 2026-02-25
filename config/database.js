@@ -1,4 +1,5 @@
 require('dotenv').config();
+const fs = require('fs');
 
 // Helper function to parse DATABASE_URL
 const parseDatabaseUrl = (url) => {
@@ -21,6 +22,34 @@ const parseDatabaseUrl = (url) => {
 
 // Parse DATABASE_URL if present
 const dbUrlConfig = process.env.DATABASE_URL ? parseDatabaseUrl(process.env.DATABASE_URL) : null;
+
+const parseBoolean = (value, defaultValue = false) => {
+  if (value === undefined) return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
+};
+
+const getSslConfig = () => {
+  const shouldUseSsl = parseBoolean(process.env.DB_SSL, Boolean(process.env.DATABASE_URL));
+  if (!shouldUseSsl) return false;
+
+  let ca;
+  if (process.env.DB_SSL_CA) {
+    ca = process.env.DB_SSL_CA.replace(/\\n/g, '\n');
+  } else if (process.env.DB_SSL_CA_FILE) {
+    ca = fs.readFileSync(process.env.DB_SSL_CA_FILE, 'utf8');
+  }
+
+  const sslConfig = {
+    require: true,
+    rejectUnauthorized: true,
+  };
+
+  if (ca) {
+    sslConfig.ca = ca;
+  }
+
+  return sslConfig;
+};
 
 module.exports = {
   development: {
@@ -51,10 +80,7 @@ module.exports = {
     dialect: 'postgres',
     logging: false,
     dialectOptions: {
-      ssl: process.env.DATABASE_URL ? {
-        require: true,
-        rejectUnauthorized: false
-      } : false
+      ssl: getSslConfig()
     }
   }
 };
