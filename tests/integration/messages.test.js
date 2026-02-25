@@ -38,7 +38,7 @@ describe('Messages API (real server)', () => {
   });
 
   describe('POST /api/service/messages', () => {
-    const serviceToken = 'dev-token-change-in-production';
+    const serviceToken = process.env.SWISSCLAW_TOKEN || 'test-service-token';
 
     it('creates a chat message with valid service token', async () => {
       const messageData = {
