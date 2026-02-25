@@ -150,7 +150,9 @@ describe('Auth enforcement', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty('status', 'online');
+      expect(response.body).toHaveProperty('state', 'idle');
+      expect(response.body).toHaveProperty('currentTask');
+      expect(response.body).toHaveProperty('lastActive');
     });
 
     it('GET /api/status rejects query-string tokens', async () => {
