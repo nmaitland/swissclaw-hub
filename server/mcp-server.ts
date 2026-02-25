@@ -120,7 +120,7 @@ const server = new McpServer({
 
 server.tool(
   'get_status',
-  'Get current server status, recent messages, and recent activities',
+  'Get current status snapshot (state, task, counts, and latest model usage)',
   {},
   async () => {
     const data = await api('/api/status');
@@ -360,17 +360,27 @@ server.tool(
 
 server.tool(
   'report_model_usage',
-  'Report AI model token usage and estimated cost',
+  'Upsert daily AI model usage snapshot',
   {
-    inputTokens: z.number().describe('Number of input tokens used'),
-    outputTokens: z.number().describe('Number of output tokens used'),
-    model: z.string().describe('Model name (e.g., claude-sonnet-4-20250514)'),
-    estimatedCost: z.number().describe('Estimated cost in USD'),
+    usageDate: z.string().describe('Usage date in YYYY-MM-DD'),
+    updatedAt: z.string().describe('ISO datetime for when totals were calculated'),
+    models: z.array(z.object({
+      model: z.string(),
+      provider: z.string().optional(),
+      source: z.string().optional(),
+      inputTokens: z.number(),
+      outputTokens: z.number(),
+      requestCount: z.number(),
+      costs: z.array(z.object({
+        type: z.enum(['paid', 'free_tier_potential']),
+        amount: z.number(),
+      })),
+    })).describe('Per-model daily totals snapshot'),
   },
-  async ({ inputTokens, outputTokens, model, estimatedCost }) => {
+  async ({ usageDate, updatedAt, models }) => {
     const data = await api('/api/service/model-usage', {
-      method: 'POST',
-      body: { inputTokens, outputTokens, model, estimatedCost },
+      method: 'PUT',
+      body: { usageDate, updatedAt, models },
     });
     return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   }

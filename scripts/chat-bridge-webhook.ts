@@ -2,39 +2,25 @@
 /**
  * Chat Bridge Webhook - Connects Hub chat to OpenClaw via webhooks
  *
- * This script:
- * 1. Connects to Swissclaw Hub via Socket.io
- * 2. When a message arrives, POSTs to OpenClaw's webhook endpoint
- * 3. Can also send messages back to Hub (--send mode)
- *
- * Usage:
- *   npx ts-node scripts/chat-bridge-webhook.ts                    # Daemon mode
- *   npx ts-node scripts/chat-bridge-webhook.ts --send "Hello"     # Send a message
- *
- * Environment variables:
- *   SWISSCLAW_HUB_URL      - Hub URL (default: https://your-instance.example.com)
- *   SWISSCLAW_USERNAME     - Username for Hub login
- *   SWISSCLAW_PASSWORD     - Password for Hub login
- *   OPENCLAW_HOOKS_URL     - OpenClaw webhook URL (default: http://127.0.0.1:18789)
- *   OPENCLAW_HOOKS_TOKEN   - OpenClaw webhook token (or read from ~/.openclaw/credentials/hooks-token.txt)
+ * Responsibilities:
+ * 1. Listen on Swissclaw Hub Socket.io chat stream.
+ * 2. Forward inbound human messages to OpenClaw webhook.
+ * 3. Keep --send compatibility by delegating chat send via shared Hub API client.
  */
 
 import { io, Socket } from 'socket.io-client';
 import * as fs from 'fs';
-import * as path from 'path';
 import * as os from 'os';
-
-// Load .env file only if env vars aren't already set
+import * as path from 'path';
 import { config } from 'dotenv';
+import { ensureHubAuth, HUB_URL } from './lib/hub-auth';
+import { HubApiClient } from './lib/hub-api-client';
+
 config({ override: false });
 
-// Configuration
-const HUB_TOKEN_FILE = path.join(os.homedir(), '.swissclaw-token');
 const HOOKS_TOKEN_FILE = path.join(os.homedir(), '.openclaw/credentials/hooks-token.txt');
-const HUB_URL = process.env.SWISSCLAW_HUB_URL || 'https://your-instance.example.com';
 const OPENCLAW_URL = process.env.OPENCLAW_HOOKS_URL || 'http://127.0.0.1:18789';
 
-// Message types
 interface ChatMessage {
   id: number;
   sender: string;
@@ -42,13 +28,6 @@ interface ChatMessage {
   created_at: string;
 }
 
-interface LoginResponse {
-  token?: string;
-  success?: boolean;
-  error?: string;
-}
-
-// Parse command line arguments
 function parseArgs(): { mode: 'daemon' | 'send'; message: string; sender: string; forceLogin: boolean } {
   const args = process.argv.slice(2);
   let mode: 'daemon' | 'send' = 'daemon';
@@ -69,7 +48,15 @@ function parseArgs(): { mode: 'daemon' | 'send'; message: string; sender: string
         forceLogin = true;
         break;
       case '--help':
-        showUsage();
+        console.log(`
+Usage: npx ts-node scripts/chat-bridge-webhook.ts [OPTIONS]
+
+OPTIONS:
+    --send "MESSAGE"      Send a message to Hub and exit
+    --sender NAME         Set sender name (default: Swissclaw)
+    --login               Force re-login to Hub
+    --help                Show this help
+`);
         process.exit(0);
         break;
     }
@@ -78,185 +65,45 @@ function parseArgs(): { mode: 'daemon' | 'send'; message: string; sender: string
   return { mode, message, sender, forceLogin };
 }
 
-function showUsage(): void {
-  console.log(`
-Usage: npx ts-node scripts/chat-bridge-webhook.ts [OPTIONS]
-
-Bridges Swissclaw Hub chat to OpenClaw via webhooks.
-
-OPTIONS:
-    --send "MESSAGE"      Send a message to Hub and exit
-    --sender NAME         Set sender name (default: Swissclaw)
-    --login               Force re-login to Hub
-    --help                Show this help message
-
-ENVIRONMENT VARIABLES:
-    SWISSCLAW_HUB_URL      Hub URL (default: https://your-instance.example.com)
-    SWISSCLAW_USERNAME     Username for Hub login
-    SWISSCLAW_PASSWORD     Password for Hub login
-    OPENCLAW_HOOKS_URL     OpenClaw URL (default: http://127.0.0.1:18789)
-    OPENCLAW_HOOKS_TOKEN   OpenClaw webhook token
-
-EXAMPLES:
-    # Run as daemon (listens for messages, forwards to OpenClaw)
-    npx ts-node scripts/chat-bridge-webhook.ts
-
-    # Send a reply back to Hub
-    npx ts-node scripts/chat-bridge-webhook.ts --send "Hello from Swissclaw!"
-
-TOKEN STORAGE:
-    Hub token: ${HUB_TOKEN_FILE}
-    Hooks token: ${HOOKS_TOKEN_FILE}
-`);
-}
-
-// Load Hub token
-function loadHubToken(): string | null {
-  try {
-    if (fs.existsSync(HUB_TOKEN_FILE)) {
-      return fs.readFileSync(HUB_TOKEN_FILE, 'utf-8').trim() || null;
-    }
-  } catch { /* ignore */ }
-  return null;
-}
-
-// Save Hub token
-function saveHubToken(token: string): void {
-  try {
-    fs.writeFileSync(HUB_TOKEN_FILE, token, { mode: 0o600 });
-    console.error(`Hub token saved to ${HUB_TOKEN_FILE}`);
-  } catch (err) {
-    console.error('Warning: Could not save Hub token:', err);
-  }
-}
-
-// Clear Hub token
-function clearHubToken(): void {
-  try {
-    if (fs.existsSync(HUB_TOKEN_FILE)) fs.unlinkSync(HUB_TOKEN_FILE);
-  } catch { /* ignore */ }
-}
-
-// Load OpenClaw hooks token
 function loadHooksToken(): string {
-  // First try env var
   if (process.env.OPENCLAW_HOOKS_TOKEN) {
     return process.env.OPENCLAW_HOOKS_TOKEN;
   }
-  // Then try file
-  try {
-    if (fs.existsSync(HOOKS_TOKEN_FILE)) {
-      return fs.readFileSync(HOOKS_TOKEN_FILE, 'utf-8').trim();
-    }
-  } catch { /* ignore */ }
+  if (fs.existsSync(HOOKS_TOKEN_FILE)) {
+    return fs.readFileSync(HOOKS_TOKEN_FILE, 'utf-8').trim();
+  }
   throw new Error(`OpenClaw hooks token not found. Set OPENCLAW_HOOKS_TOKEN or create ${HOOKS_TOKEN_FILE}`);
 }
 
-// Validate Hub token
-async function validateHubToken(token: string): Promise<boolean> {
+async function fetchRecentChatHistory(client: HubApiClient, limit = 15): Promise<ChatMessage[]> {
   try {
-    const response = await fetch(`${HUB_URL}/api/status`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return response.status === 200;
-  } catch {
-    return false;
-  }
-}
-
-// Login to Hub
-async function loginToHub(): Promise<string> {
-  const username = process.env.SWISSCLAW_USERNAME;
-  const password = process.env.SWISSCLAW_PASSWORD;
-
-  if (!username || !password) {
-    throw new Error(
-      'SWISSCLAW_USERNAME and SWISSCLAW_PASSWORD must be set.\n' +
-      'Export them before running:\n' +
-      '  export SWISSCLAW_USERNAME=admin\n' +
-      '  export SWISSCLAW_PASSWORD=yourpassword'
-    );
-  }
-
-  console.error(`Logging in to Hub at ${HUB_URL}...`);
-
-  const response = await fetch(`${HUB_URL}/api/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
-  });
-
-  const data = (await response.json()) as LoginResponse;
-
-  if (!response.ok || !data.token) {
-    throw new Error(`Hub login failed: ${data.error || `HTTP ${response.status}`}`);
-  }
-
-  saveHubToken(data.token);
-  console.error('Hub login successful!');
-  return data.token;
-}
-
-// Ensure we have a valid Hub token
-async function ensureHubAuth(forceLogin: boolean): Promise<string> {
-  if (forceLogin) clearHubToken();
-
-  const existingToken = loadHubToken();
-  if (existingToken) {
-    console.error('Found existing Hub token, validating...');
-    if (await validateHubToken(existingToken)) {
-      console.error('Hub token is valid');
-      return existingToken;
-    }
-    console.error('Hub token expired');
-    clearHubToken();
-  }
-
-  return loginToHub();
-}
-
-// Fetch recent chat history from Hub
-async function fetchRecentChatHistory(hubToken: string, limit: number = 10): Promise<ChatMessage[]> {
-  try {
-    const response = await fetch(`${HUB_URL}/api/messages`, {
-      headers: { Authorization: `Bearer ${hubToken}` },
-    });
-    
-    if (!response.ok) {
-      console.error(`Failed to fetch chat history: ${response.status}`);
-      return [];
-    }
-    
-    const messages = (await response.json()) as ChatMessage[];
-    // API returns newest first, reverse to get chronological order
-    // Take only the most recent N messages
-    return messages.slice(0, limit).reverse();
-  } catch (err) {
-    console.error('Error fetching chat history:', err instanceof Error ? err.message : String(err));
+    const result = await client.request(`/api/messages?limit=${Math.max(limit, 1)}`) as ChatMessage[];
+    return [...result].reverse();
+  } catch (error) {
+    console.error('Failed to fetch recent chat history:', error instanceof Error ? error.message : String(error));
     return [];
   }
 }
 
-// Format chat history for context
 function formatChatHistory(messages: ChatMessage[], currentMsgId: number): string {
-  // Filter out the current message and format the rest
   const history = messages
-    .filter(m => m.id !== currentMsgId)
-    .map(m => {
-      const time = new Date(m.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-      return `[${time}] ${m.sender}: ${m.content}`;
+    .filter((message) => message.id !== currentMsgId)
+    .map((message) => {
+      const time = new Date(message.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      return `[${time}] ${message.sender}: ${message.content}`;
     })
     .join('\n');
-  
+
   return history || '(no recent messages)';
 }
 
-// Forward message to OpenClaw webhook
-async function forwardToOpenClaw(msg: ChatMessage, hooksToken: string, hubToken: string): Promise<void> {
-  // Fetch recent chat history for context
-  const recentMessages = await fetchRecentChatHistory(hubToken, 15);
+async function forwardToOpenClaw(
+  msg: ChatMessage,
+  hooksToken: string,
+  client: HubApiClient
+): Promise<void> {
+  const recentMessages = await fetchRecentChatHistory(client, 15);
   const chatHistory = formatChatHistory(recentMessages, msg.id);
-  
   const payload = {
     message: `[Hub Chat] ${msg.sender}: ${msg.content}
 
@@ -271,35 +118,25 @@ bash scripts/chat-reply.sh "Your response here"
 
 This sends your response back to ${msg.sender} in the Hub chat.`,
     name: 'HubChat',
-    deliver: false,  // We'll handle reply ourselves
+    deliver: false,
   };
 
-  console.error(`[${new Date().toISOString()}] Forwarding to OpenClaw: ${msg.sender}: ${msg.content.substring(0, 50)}...`);
-  console.error(`  Including ${recentMessages.length - 1} messages of chat history for context`);
+  const response = await fetch(`${OPENCLAW_URL}/hooks/agent`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${hooksToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 
-  try {
-    const response = await fetch(`${OPENCLAW_URL}/hooks/agent`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${hooksToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`OpenClaw webhook error: ${response.status} ${text}`);
-    } else {
-      console.error(`OpenClaw webhook accepted (${response.status})`);
-    }
-  } catch (err) {
-    console.error('OpenClaw webhook failed:', err instanceof Error ? err.message : String(err));
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`OpenClaw webhook error: ${response.status} ${text}`);
   }
 }
 
-// Daemon mode - listen for messages and forward to OpenClaw
-async function daemonMode(hubToken: string, hooksToken: string): Promise<void> {
+async function daemonMode(hubToken: string, hooksToken: string, client: HubApiClient): Promise<void> {
   const socket: Socket = io(HUB_URL, {
     auth: { token: hubToken },
     transports: ['websocket', 'polling'],
@@ -321,21 +158,30 @@ async function daemonMode(hubToken: string, hooksToken: string): Promise<void> {
   });
 
   socket.on('message', async (msg: ChatMessage) => {
-    // Skip messages from the agent (ourselves)
     if (msg.sender === 'Swissclaw' || msg.sender === 'Agent') {
       return;
     }
 
-    console.error(`[${new Date().toISOString()}] Received: [${msg.sender}] ${msg.content}`);
-    await forwardToOpenClaw(msg, hooksToken, hubToken);
+    try {
+      await client.request(`/api/service/messages/${msg.id}/state`, {
+        method: 'PUT',
+        body: { state: 'received' },
+      });
+      await forwardToOpenClaw(msg, hooksToken, client);
+      console.error(`[${new Date().toISOString()}] Forwarded message ${msg.id} from ${msg.sender}`);
+    } catch (error) {
+      console.error(
+        `[${new Date().toISOString()}] Failed handling inbound message ${msg.id}:`,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
   });
 
   socket.on('error', (err: Error) => {
     console.error(`[${new Date().toISOString()}] Socket error:`, err.message);
   });
 
-  // Keep running until interrupted
-  return new Promise((resolve) => {
+  await new Promise<void>((resolve) => {
     process.on('SIGINT', () => {
       console.error('\nShutting down...');
       socket.disconnect();
@@ -349,66 +195,32 @@ async function daemonMode(hubToken: string, hooksToken: string): Promise<void> {
   });
 }
 
-// Send mode - send a message to Hub
-async function sendMode(hubToken: string, content: string, sender: string): Promise<void> {
-  const socket: Socket = io(HUB_URL, {
-    auth: { token: hubToken },
-    transports: ['websocket', 'polling'],
-    timeout: 5000,
+async function sendMode(client: HubApiClient, content: string, sender: string): Promise<void> {
+  await client.request('/api/service/messages', {
+    method: 'POST',
+    body: { sender, content },
   });
-
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error('Connection timeout'));
-    }, 5000);
-
-    socket.on('connect', () => {
-      clearTimeout(timeout);
-      console.error(`Connected to Hub, sending message as ${sender}...`);
-      socket.emit('message', { sender, content });
-      // Wait longer for message to actually transmit
-      setTimeout(() => {
-        socket.disconnect();
-        console.error('✅ Message sent to Hub successfully');
-        resolve();
-      }, 2000);
-    });
-
-    socket.on('connect_error', (err) => {
-      clearTimeout(timeout);
-      console.error('❌ Socket.io connection error:', err.message);
-      reject(new Error(`Socket connection failed: ${err.message}`));
-    });
-
-    socket.on('error', (err: Error) => {
-      clearTimeout(timeout);
-      console.error('❌ Socket error:', err.message);
-      reject(err);
-    });
-  });
+  console.error('Message sent to Hub successfully');
 }
 
-// Main
 async function main(): Promise<void> {
   const { mode, message, sender, forceLogin } = parseArgs();
-
   try {
     const hubToken = await ensureHubAuth(forceLogin);
+    const client = await HubApiClient.create(false);
 
-    switch (mode) {
-      case 'daemon':
-        const hooksToken = loadHooksToken();
-        await daemonMode(hubToken, hooksToken);
-        break;
-      case 'send':
-        if (!message) {
-          throw new Error('No message provided. Use --send "your message"');
-        }
-        await sendMode(hubToken, message, sender);
-        break;
+    if (mode === 'daemon') {
+      const hooksToken = loadHooksToken();
+      await daemonMode(hubToken, hooksToken, client);
+      return;
     }
-  } catch (err) {
-    console.error('Error:', err instanceof Error ? err.message : String(err));
+
+    if (!message) {
+      throw new Error('No message provided. Use --send "your message"');
+    }
+    await sendMode(client, message, sender);
+  } catch (error) {
+    console.error('Error:', error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }

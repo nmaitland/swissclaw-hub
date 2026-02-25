@@ -62,33 +62,60 @@ export interface KanbanApiResponse {
 
 export type PriorityFilter = 'all' | 'high' | 'medium' | 'low';
 
-export interface ModelUsageEntry {
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  estimatedCost: number;
+export type ModelUsageCostType = 'paid' | 'free_tier_potential';
+
+export interface ModelUsageCostBucket {
+  type: ModelUsageCostType;
+  amount: number;
 }
 
-export interface ModelUsage {
-  total: {
-    inputTokens: number;
-    outputTokens: number;
-    estimatedCost: number;
-  };
-  byModel: ModelUsageEntry[];
-  since: string;
+export interface ModelUsageEntry {
+  model: string;
+  provider?: string | null;
+  source?: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  requestCount: number;
+  costs: ModelUsageCostBucket[];
+}
+
+export interface ModelUsageTotals {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  requestCount: number;
+  costs: ModelUsageCostBucket[];
+}
+
+export interface ModelUsageSnapshot {
+  usageDate: string;
+  updatedAt: string;
+  models: ModelUsageEntry[];
+  totals: ModelUsageTotals;
 }
 
 export interface StatusResponse {
-  swissclaw: {
-    state: 'active' | 'busy' | 'idle';
-    currentTask: string;
-    lastActive: string;
-  };
+  state: 'active' | 'busy' | 'idle';
+  currentTask: string;
+  lastActive: string;
+  chatCount: number;
   activityCount: number;
-  modelUsage: ModelUsage;
-  recentMessages: ChatMessage[];
-  recentActivities: Activity[];
+  modelUsage: ModelUsageSnapshot | null;
+}
+
+// Legacy type kept for compatibility in older tests/docs.
+export interface ModelUsage {
+  totals: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    requestCount: number;
+    costs: ModelUsageCostBucket[];
+  };
+  models: ModelUsageEntry[];
+  usageDate: string;
+  updatedAt: string;
 }
 
 export interface ChatMessage {

@@ -122,19 +122,33 @@ export interface BuildInfo {
 }
 
 // Model usage tracking
-export interface ModelUsageData {
+export type ModelUsageCostType = 'paid' | 'free_tier_potential';
+
+export interface ModelUsageCostBucket {
+  type: ModelUsageCostType;
+  amount: number;
+}
+
+export interface ModelUsageModelData {
+  model: string;
+  provider?: string | null;
+  source?: string | null;
   inputTokens: number;
   outputTokens: number;
-  model: string;
-  estimatedCost: number;
+  requestCount: number;
+  costs: ModelUsageCostBucket[];
+}
+
+export interface ModelUsageSnapshotData {
+  usageDate: string; // YYYY-MM-DD
+  updatedAt: string; // ISO datetime
+  models: ModelUsageModelData[];
 }
 
 export interface ModelUsageRow {
-  id: number;
-  input_tokens: number;
-  output_tokens: number;
-  model: string;
-  estimated_cost: number;
+  usage_date: string;
+  updated_at: string;
+  models_json: ModelUsageModelData[];
   created_at: string;
 }
 

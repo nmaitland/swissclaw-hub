@@ -123,7 +123,7 @@ Common activity types: `deployment`, `task`, `chat`, `system`
 
 | Tool | Parameters | Description |
 |------|-----------|-------------|
-| `report_model_usage` | `inputTokens`, `outputTokens`, `model`, `estimatedCost` | Report AI model token usage and estimated cost |
+| `report_model_usage` | `usageDate`, `updatedAt`, `models[]` | Upsert daily model usage snapshot (latest update per day wins) |
 
 ### Build Info
 
