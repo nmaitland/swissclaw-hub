@@ -4,51 +4,6 @@ import KanbanBoard from './components/KanbanBoard';
 import type { Activity, ChatMessage, BuildInfo, StatusResponse, MessageProcessingState, MessageStateUpdate } from './types';
 import './App.css';
 
-// Activity Detail Modal Component
-interface ActivityDetailModalProps {
-  activity: Activity | null;
-  onClose: () => void;
-}
-
-function ActivityDetailModal({ activity, onClose }: ActivityDetailModalProps) {
-  if (!activity) return null;
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>Activity Details</h3>
-          <button className="modal-close" onClick={onClose}>Ã—</button>
-        </div>
-        <div className="modal-body">
-          <div className="detail-row">
-            <span className="detail-label">Type:</span>
-            <span className="detail-value">{activity.type || 'N/A'}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Time:</span>
-            <span className="detail-value">
-              {new Date(activity.created_at).toLocaleString()}
-            </span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Description:</span>
-            <p className="detail-description">{activity.description}</p>
-          </div>
-          {activity.metadata && Object.keys(activity.metadata).length > 0 && (
-            <div className="detail-row">
-              <span className="detail-label">Metadata:</span>
-              <pre className="detail-metadata">
-                {JSON.stringify(activity.metadata, null, 2)}
-              </pre>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const API_URL = process.env.REACT_APP_API_URL || '';
 
 const getAuthToken = (): string | null => {
@@ -71,7 +26,7 @@ function App() {
   // Activities pagination state
   const [hasMoreActivities, setHasMoreActivities] = useState(false);
   const [isLoadingActivities, setIsLoadingActivities] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
   const activityObserverRef = useRef<IntersectionObserver | null>(null);
   const activityLoadMoreRef = useRef<HTMLDivElement>(null);
   const activityFeedRef = useRef<HTMLDivElement>(null);
@@ -156,7 +111,21 @@ function App() {
 
       setStatus(statusData);
       if (statusData.recentMessages) {
-        setMessages(statusData.recentMessages);
+        setMessages((prev) => {
+          const next = statusData.recentMessages;
+          if (
+            prev.length === next.length &&
+            prev.every((msg, idx) =>
+              msg.id === next[idx]?.id &&
+              msg.sender === next[idx]?.sender &&
+              msg.content === next[idx]?.content &&
+              msg.created_at === next[idx]?.created_at
+            )
+          ) {
+            return prev;
+          }
+          return next;
+        });
       }
       setActivities(statusData.recentActivities || []);
     } catch (err) {
@@ -259,6 +228,10 @@ function App() {
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
+    sendCurrentMessage();
+  };
+
+  const sendCurrentMessage = () => {
     if (!inputMessage.trim()) return;
 
     const msg = { sender: 'operator', content: inputMessage.trim() };
@@ -271,6 +244,13 @@ function App() {
     }
 
     setInputMessage('');
+  };
+
+  const handleChatInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendCurrentMessage();
+    }
   };
 
 
@@ -352,25 +332,63 @@ function App() {
                 <div className="empty-state">No recent activity</div>
               ) : (
                 <>
-                  {activities.map((activity, i) => (
-                    <div
-                      key={i}
-                      className="activity-item"
-                      onClick={() => setSelectedActivity(activity)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          setSelectedActivity(activity);
-                        }
-                      }}
-                    >
-                      <span className="activity-time">
-                        {new Date(activity.created_at || (activity as any).timestamp).toLocaleTimeString()}
-                      </span>
-                      <span className="activity-text">{activity.description}</span>
-                    </div>
-                  ))}
+                  {activities.map((activity, i) => {
+                    const activityId = String(activity.id || `${activity.created_at}-${i}`);
+                    const isExpanded = expandedActivityId === activityId;
+                    const activitySender = activity.sender || (
+                      typeof activity.metadata?.sender === 'string' ? activity.metadata.sender : null
+                    );
+                    const activityDetails = (
+                      activitySender && activity.description.startsWith(`${activitySender}: `)
+                        ? activity.description.slice(activitySender.length + 2)
+                        : activity.description
+                    );
+
+                    return (
+                      <div
+                        key={activityId}
+                        className={`activity-item ${isExpanded ? 'expanded' : ''}`}
+                        onClick={() => setExpandedActivityId(isExpanded ? null : activityId)}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={isExpanded}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setExpandedActivityId(isExpanded ? null : activityId);
+                          }
+                        }}
+                      >
+                        <span className="activity-time">
+                          {new Date(activity.created_at || (activity as any).timestamp).toLocaleTimeString()}
+                        </span>
+                        <span className="activity-text">{activityDetails}</span>
+
+                        {isExpanded && (
+                          <div className="activity-inline-details">
+                            <div className="detail-row">
+                              <span className="detail-label">Type:</span>
+                              <span className="detail-value">{activity.type || 'N/A'}</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="detail-label">Sender:</span>
+                              <span className="detail-value">{activitySender || 'N/A'}</span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="detail-label">Time:</span>
+                              <span className="detail-value">
+                                {new Date(activity.created_at).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="detail-row">
+                              <span className="detail-label">Details:</span>
+                              <p className="detail-description">{activityDetails}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                   {/* Infinite scroll sentinel */}
                   <div ref={activityLoadMoreRef} className="activity-load-more">
                     {isLoadingActivities && (
@@ -425,11 +443,12 @@ function App() {
             <div ref={messagesEndRef} />
           </div>
           <form className="chat-input" onSubmit={sendMessage}>
-            <input
-              type="text"
+            <textarea
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleChatInputKeyDown}
               placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
+              rows={1}
             />
             <button type="submit" disabled={!inputMessage.trim()}>
               Send
@@ -437,12 +456,6 @@ function App() {
           </form>
         </section>
       </main>
-
-      {/* Activity Detail Modal */}
-      <ActivityDetailModal
-        activity={selectedActivity}
-        onClose={() => setSelectedActivity(null)}
-      />
 
       <footer className="footer">
         <p>
@@ -461,3 +474,4 @@ function App() {
 }
 
 export default App;
+

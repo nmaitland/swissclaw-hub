@@ -128,6 +128,7 @@ export interface Activity {
   id: string;
   type: string;
   description: string;
+  sender?: string | null;
   metadata: Record<string, any>;
   user_id?: string;
   created_at: string;

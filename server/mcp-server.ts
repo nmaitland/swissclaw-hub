@@ -230,6 +230,7 @@ server.tool(
         body: {
           type: 'chat',
           description: `${sender}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`,
+          sender,
           metadata: { sender, content },
         },
       });
@@ -331,6 +332,7 @@ server.tool(
   {
     type: z.string().max(50).describe('Activity type (e.g. deployment, task, chat, system)'),
     description: z.string().max(500).describe('What happened'),
+    sender: z.string().max(50).optional().describe('Who initiated the activity'),
     metadata: z.record(z.string(), z.unknown()).optional().describe('Additional data'),
   },
   async (args) => {
