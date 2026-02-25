@@ -131,10 +131,12 @@ describe('Messages API (real server)', () => {
         .expect(200);
 
       const chatActivity = activitiesResponse.body.activities.find(
-        a => a.type === 'chat' && a.description.includes('ActivityTest')
+        a => a.type === 'chat' && a.sender === messageData.sender
       );
 
       expect(chatActivity).toBeDefined();
+      expect(chatActivity.description).toBe(messageData.content);
+      expect(chatActivity.sender).toBe(messageData.sender);
       expect(chatActivity.metadata.sender).toBe(messageData.sender);
     });
   });

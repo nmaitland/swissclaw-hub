@@ -19,8 +19,13 @@ const getSslConfig = (): DatabaseConfig['ssl'] => {
     ca = fs.readFileSync(process.env.DB_SSL_CA_FILE, 'utf8');
   }
 
+  const rejectUnauthorized = parseBoolean(
+    process.env.DB_SSL_REJECT_UNAUTHORIZED,
+    Boolean(ca)
+  );
+
   return {
-    rejectUnauthorized: true,
+    rejectUnauthorized,
     ...(ca ? { ca } : {}),
   };
 };
