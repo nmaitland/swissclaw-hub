@@ -110,8 +110,27 @@ class SessionStore {
 // Input validation utilities
 const validateInput = {
   email: (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    if (typeof email !== 'string') return false;
+    const value = email.trim();
+
+    // Conservative parser to avoid regex DoS patterns.
+    if (!value || value.length > 254 || value.includes(' ')) return false;
+
+    const atIndex = value.indexOf('@');
+    if (atIndex <= 0 || atIndex !== value.lastIndexOf('@') || atIndex === value.length - 1) {
+      return false;
+    }
+
+    const localPart = value.slice(0, atIndex);
+    const domainPart = value.slice(atIndex + 1);
+    if (!localPart || !domainPart || domainPart.startsWith('.') || domainPart.endsWith('.')) {
+      return false;
+    }
+
+    if (!domainPart.includes('.')) return false;
+
+    const labels = domainPart.split('.');
+    return labels.every((label) => label.length > 0);
   },
 
   password: (password: string): boolean => {
@@ -125,16 +144,6 @@ const validateInput = {
     return str.trim().replace(/[<>]/g, '');
   },
 
-  sanitizeHtml: (str: string): string => {
-    if (typeof str !== 'string') return '';
-    // Basic HTML sanitization - consider using a library like DOMPurify for production
-    return str
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-      .replace(/javascript:/gi, '')
-      .replace(/on\w+\s*=/gi, '');
-  },
-
   validateTaskTitle: (title: string): boolean => {
     const sanitized = validateInput.sanitizeString(title);
     return sanitized.length >= 1 && sanitized.length <= 255;
@@ -146,7 +155,7 @@ const validateInput = {
   },
 
   validateMessage: (message: string): boolean => {
-    const sanitized = validateInput.sanitizeHtml(message);
+    const sanitized = validateInput.sanitizeString(message);
     return sanitized.length >= 1 && sanitized.length <= 2000;
   },
 };
