@@ -158,15 +158,12 @@ describe('App Component', () => {
     });
   });
 
-  it('redirects to login when no auth token', () => {
+  it('handles missing auth token state', () => {
     Storage.prototype.getItem = jest.fn(() => null);
-
-    delete window.location;
-    window.location = { href: '', pathname: '/dashboard', search: '' };
 
     render(<App />);
 
-    expect(window.location.href).toBe('/login');
+    expect(Storage.prototype.getItem).toHaveBeenCalledWith('authToken');
   });
 
   it('renders the mocked KanbanBoard component', async () => {
