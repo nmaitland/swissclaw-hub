@@ -464,6 +464,172 @@ const hasServiceAccess = async (req: Request): Promise<boolean> => {
   return false;
 };
 
+type ModelUsageCostType = 'paid' | 'free_tier_potential';
+
+interface ModelUsageCostBucket {
+  type: ModelUsageCostType;
+  amount: number;
+}
+
+interface ModelUsageModelSnapshot {
+  model: string;
+  provider: string | null;
+  source: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  requestCount: number;
+  costs: ModelUsageCostBucket[];
+}
+
+interface ModelUsageTotalsSnapshot {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  requestCount: number;
+  costs: ModelUsageCostBucket[];
+}
+
+interface ModelUsageSnapshot {
+  usageDate: string;
+  updatedAt: string;
+  models: ModelUsageModelSnapshot[];
+  totals: ModelUsageTotalsSnapshot;
+}
+
+const COST_TYPES: readonly ModelUsageCostType[] = ['paid', 'free_tier_potential'];
+
+const parseNonNegativeNumber = (value: unknown): number | null => {
+  if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
+    return null;
+  }
+  return value;
+};
+
+const parseIsoDateOnly = (value: unknown): string | null => {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  if (typeof value !== 'string') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : value;
+};
+
+const parseIsoDateTime = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+};
+
+const normalizeCostBuckets = (raw: unknown): ModelUsageCostBucket[] | null => {
+  if (!Array.isArray(raw)) return null;
+  const buckets: ModelUsageCostBucket[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') return null;
+    const item = entry as Record<string, unknown>;
+    if (typeof item.type !== 'string' || !COST_TYPES.includes(item.type as ModelUsageCostType)) {
+      return null;
+    }
+    const amount = parseNonNegativeNumber(item.amount);
+    if (amount === null) return null;
+    buckets.push({ type: item.type as ModelUsageCostType, amount });
+  }
+  return buckets;
+};
+
+const normalizeModelUsageModels = (rawModels: unknown): ModelUsageModelSnapshot[] | null => {
+  if (!Array.isArray(rawModels)) return null;
+
+  const normalized: ModelUsageModelSnapshot[] = [];
+  for (const rawModel of rawModels) {
+    if (!rawModel || typeof rawModel !== 'object') return null;
+    const model = rawModel as Record<string, unknown>;
+    if (typeof model.model !== 'string' || model.model.trim().length === 0) return null;
+
+    const inputTokens = parseNonNegativeNumber(model.inputTokens);
+    const outputTokens = parseNonNegativeNumber(model.outputTokens);
+    const requestCount = parseNonNegativeNumber(model.requestCount);
+    const costs = normalizeCostBuckets(model.costs);
+
+    if (inputTokens === null || outputTokens === null || requestCount === null || costs === null) {
+      return null;
+    }
+
+    const provider = typeof model.provider === 'string' && model.provider.trim() !== ''
+      ? sanitizeString(model.provider)
+      : null;
+    const source = typeof model.source === 'string' && model.source.trim() !== ''
+      ? sanitizeString(model.source)
+      : null;
+
+    normalized.push({
+      model: sanitizeString(model.model),
+      provider,
+      source,
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      requestCount,
+      costs,
+    });
+  }
+
+  return normalized;
+};
+
+const calculateModelUsageTotals = (models: ModelUsageModelSnapshot[]): ModelUsageTotalsSnapshot => {
+  const costMap = new Map<ModelUsageCostType, number>([
+    ['paid', 0],
+    ['free_tier_potential', 0],
+  ]);
+
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let requestCount = 0;
+
+  for (const model of models) {
+    inputTokens += model.inputTokens;
+    outputTokens += model.outputTokens;
+    requestCount += model.requestCount;
+    for (const cost of model.costs) {
+      costMap.set(cost.type, (costMap.get(cost.type) || 0) + cost.amount);
+    }
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    requestCount,
+    costs: COST_TYPES.map((type) => ({ type, amount: costMap.get(type) || 0 })),
+  };
+};
+
+const buildModelUsageSnapshot = (row: Record<string, unknown>): ModelUsageSnapshot | null => {
+  const usageDate = parseIsoDateOnly(row.usage_date);
+  const updatedAt = parseIsoDateTime(
+    row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at
+  );
+  const models = normalizeModelUsageModels(row.models_json);
+
+  if (!usageDate || !updatedAt || models === null) {
+    return null;
+  }
+
+  return {
+    usageDate,
+    updatedAt,
+    models,
+    totals: calculateModelUsageTotals(models),
+  };
+};
+
 /**
  * @swagger
  * /api/service/activities:
@@ -592,9 +758,9 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
 /**
  * @swagger
  * /api/service/model-usage:
- *   post:
+ *   put:
  *     tags: [Model Usage]
- *     summary: Report model usage (authenticated)
+ *     summary: Upsert daily model usage snapshot (authenticated)
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -603,41 +769,95 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
  *         application/json:
  *           schema:
  *             type: object
- *             required: [inputTokens, outputTokens, model, estimatedCost]
+ *             required: [usageDate, updatedAt, models]
  *             properties:
- *               inputTokens: { type: number }
- *               outputTokens: { type: number }
- *               model: { type: string }
- *               estimatedCost: { type: number }
+ *               usageDate: { type: string, format: date }
+ *               updatedAt: { type: string, format: date-time }
+ *               models:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   required: [model, inputTokens, outputTokens, requestCount, costs]
+ *                   properties:
+ *                     model: { type: string }
+ *                     provider: { type: string }
+ *                     source: { type: string }
+ *                     inputTokens: { type: number }
+ *                     outputTokens: { type: number }
+ *                     requestCount: { type: number }
+ *                     costs:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         required: [type, amount]
+ *                         properties:
+ *                           type: { type: string, enum: [paid, free_tier_potential] }
+ *                           amount: { type: number }
  *     responses:
  *       200:
- *         description: Model usage recorded
+ *         description: Daily snapshot stored
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/ModelUsageReport'
+ *               $ref: '#/components/schemas/ModelUsageSnapshot'
  *       401:
  *         description: Authentication required
+ *       400:
+ *         description: Invalid input
  */
-app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Response) => {
+app.put('/api/service/model-usage', asyncHandler(async (req: Request, res: Response) => {
   if (!(await hasServiceAccess(req))) {
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
 
-  const { inputTokens, outputTokens, model, estimatedCost } = req.body;
+  const { usageDate, updatedAt, models } = req.body;
+  const normalizedUsageDate = parseIsoDateOnly(usageDate);
+  const normalizedUpdatedAt = parseIsoDateTime(updatedAt);
+  const normalizedModels = normalizeModelUsageModels(models);
 
-  if (typeof inputTokens !== 'number' || typeof outputTokens !== 'number' || !model || typeof estimatedCost !== 'number') {
-    res.status(400).json({ error: 'inputTokens, outputTokens, model, and estimatedCost are required' });
+  if (!normalizedUsageDate || !normalizedUpdatedAt || normalizedModels === null) {
+    res.status(400).json({
+      error: 'usageDate (YYYY-MM-DD), updatedAt (ISO datetime), and models[] are required',
+    });
     return;
   }
 
-  const result = await pool.query(
-    'INSERT INTO model_usage (input_tokens, output_tokens, model, estimated_cost) VALUES ($1, $2, $3, $4) RETURNING *',
-    [inputTokens, outputTokens, sanitizeString(model), estimatedCost]
+  // Keep latest update for each day; older updates cannot overwrite newer snapshots.
+  const upsertResult = await pool.query(
+    `INSERT INTO model_usage (usage_date, updated_at, models_json)
+     VALUES ($1, $2, $3::jsonb)
+     ON CONFLICT (usage_date) DO UPDATE
+     SET updated_at = EXCLUDED.updated_at,
+         models_json = EXCLUDED.models_json
+     WHERE EXCLUDED.updated_at >= model_usage.updated_at
+     RETURNING usage_date, updated_at, models_json`,
+    [normalizedUsageDate, normalizedUpdatedAt, JSON.stringify(normalizedModels)]
   );
 
-  res.json(result.rows[0]);
+  let row: Record<string, unknown> | undefined = upsertResult.rows[0];
+  let updated = upsertResult.rows.length > 0;
+  if (!row) {
+    const currentResult = await pool.query(
+      'SELECT usage_date, updated_at, models_json FROM model_usage WHERE usage_date = $1',
+      [normalizedUsageDate]
+    );
+    row = currentResult.rows[0];
+    updated = false;
+  }
+
+  if (!row) {
+    res.status(500).json({ error: 'Failed to store model usage snapshot' });
+    return;
+  }
+
+  const snapshot = buildModelUsageSnapshot(row);
+  if (!snapshot) {
+    res.status(500).json({ error: 'Stored model usage snapshot is invalid' });
+    return;
+  }
+
+  res.json({ ...snapshot, updated });
 }));
 
 /**
@@ -654,7 +874,7 @@ app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Resp
  *         application/json:
  *           schema:
  *             type: object
- *             required: [state, currentTask]
+ *             required: [state, currentTask, lastActive]
  *             properties:
  *               state:
  *                 type: string
@@ -663,6 +883,10 @@ app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Resp
  *               currentTask:
  *                 type: string
  *                 description: Description of what the agent is currently doing
+ *               lastActive:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Last active timestamp provided by service
  *     responses:
  *       200:
  *         description: Status updated successfully
@@ -685,7 +909,7 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
     return;
   }
 
-  const { state, currentTask } = req.body;
+  const { state, currentTask, lastActive } = req.body;
 
   if (!state || !['active', 'busy', 'idle'].includes(state)) {
     res.status(400).json({ error: 'state must be one of: active, busy, idle' });
@@ -697,23 +921,28 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
     return;
   }
 
-  const lastActive = new Date().toISOString();
+  const normalizedLastActive = parseIsoDateTime(lastActive);
+  if (!normalizedLastActive) {
+    res.status(400).json({ error: 'lastActive must be a valid ISO datetime' });
+    return;
+  }
 
-  // Upsert status - there should only be one row
+  // True singleton row keyed on id=1.
   await pool.query(
-    `INSERT INTO status (id, status, current_task, last_updated)
-     VALUES (gen_random_uuid(), $1, $2, $3)
+    `INSERT INTO status (id, state, current_task, last_active, updated_at)
+     VALUES (1, $1, $2, $3, NOW())
      ON CONFLICT (id) DO UPDATE SET
-       status = EXCLUDED.status,
+       state = EXCLUDED.state,
        current_task = EXCLUDED.current_task,
-       last_updated = EXCLUDED.last_updated`,
-    [state, currentTask, lastActive]
+       last_active = EXCLUDED.last_active,
+       updated_at = NOW()`,
+    [state, currentTask, normalizedLastActive]
   );
 
   // Broadcast to all connected clients
-  io.emit('status-update', { state, currentTask, lastActive });
+  io.emit('status-update', { state, currentTask, lastActive: normalizedLastActive });
 
-  res.json({ state, currentTask, lastActive });
+  res.json({ state, currentTask, lastActive: normalizedLastActive });
 }));
 
 /**
@@ -888,107 +1117,62 @@ const generateTaskId = (): string => {
  * /api/status:
  *   get:
  *     tags: [Status]
- *     summary: Get server status, recent messages, and activities
+ *     summary: Get current status snapshot for the status UI
  *     security:
  *       - BearerAuth: []
  *     responses:
  *       200:
- *         description: Current server status
+ *         description: Current status snapshot
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 status: { type: string, example: online }
- *                 swissclaw:
- *                   type: object
- *                   properties:
- *                     state: { type: string, enum: [active, busy, idle] }
- *                     currentTask: { type: string }
- *                     lastActive: { type: string, format: date-time }
- *                 recentMessages:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/ChatMessage'
- *                 recentActivities:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Activity'
+ *                 state: { type: string, enum: [active, busy, idle] }
+ *                 currentTask: { type: string }
+ *                 lastActive: { type: string, format: date-time }
+ *                 chatCount: { type: integer }
+ *                 activityCount: { type: integer }
+ *                 modelUsage:
+ *                   allOf:
+ *                     - $ref: '#/components/schemas/ModelUsageSnapshot'
+ *                   nullable: true
  */
 app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
-  const messagesResult = await pool.query(
-    'SELECT * FROM messages ORDER BY created_at DESC LIMIT 10'
-  );
-
-  const activitiesResult = await pool.query(
-    'SELECT * FROM activities ORDER BY created_at DESC LIMIT 20'
-  );
-
-  // Get activity count since midnight UTC
-  const midnightUTC = new Date();
-  midnightUTC.setUTCHours(0, 0, 0, 0);
-  const activityCountResult = await pool.query(
-    'SELECT COUNT(*) as count FROM activities WHERE created_at >= $1',
-    [midnightUTC.toISOString()]
-  );
-  const activityCount = parseInt(activityCountResult.rows[0].count, 10);
-
-  // Get model usage since midnight UTC - grouped by model
-  const modelUsageResult = await pool.query(
+  const countsResult = await pool.query(
     `SELECT
-      model,
-      COALESCE(SUM(input_tokens), 0) as input_tokens,
-      COALESCE(SUM(output_tokens), 0) as output_tokens,
-      COALESCE(SUM(estimated_cost), 0) as estimated_cost
-    FROM model_usage
-    WHERE created_at >= $1
-    GROUP BY model
-    ORDER BY estimated_cost DESC`,
-    [midnightUTC.toISOString()]
+      (SELECT COUNT(*)::int FROM messages
+       WHERE created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Europe/Zurich') AT TIME ZONE 'Europe/Zurich')) AS chat_count,
+      (SELECT COUNT(*)::int FROM activities
+       WHERE created_at >= (date_trunc('day', NOW() AT TIME ZONE 'Europe/Zurich') AT TIME ZONE 'Europe/Zurich')) AS activity_count`
   );
+  const chatCount = countsResult.rows[0]?.chat_count || 0;
+  const activityCount = countsResult.rows[0]?.activity_count || 0;
 
-  // Calculate totals
-  const totalInputTokens = modelUsageResult.rows.reduce((sum, row) => sum + parseInt(row.input_tokens, 10), 0);
-  const totalOutputTokens = modelUsageResult.rows.reduce((sum, row) => sum + parseInt(row.output_tokens, 10), 0);
-  const totalCost = modelUsageResult.rows.reduce((sum, row) => sum + parseFloat(row.estimated_cost), 0);
-
-  // Get swissclaw status from database (or use defaults if not set)
   const statusResult = await pool.query(
-    'SELECT status, current_task, last_updated FROM status ORDER BY last_updated DESC LIMIT 1'
+    'SELECT state, current_task, last_active FROM status WHERE id = 1 LIMIT 1'
   );
 
-  const swissclawStatus = statusResult.rows.length > 0
-    ? {
-        state: statusResult.rows[0].status,
-        currentTask: statusResult.rows[0].current_task,
-        lastActive: statusResult.rows[0].last_updated
-      }
-    : {
-        state: 'idle',
-        currentTask: 'Ready to help',
-        lastActive: new Date().toISOString()
-      };
+  const statusSnapshot = statusResult.rows[0] || {
+    state: 'idle',
+    current_task: 'Ready to help',
+    last_active: new Date().toISOString(),
+  };
+
+  const modelUsageResult = await pool.query(
+    'SELECT usage_date, updated_at, models_json FROM model_usage ORDER BY usage_date DESC LIMIT 1'
+  );
+  const modelUsage = modelUsageResult.rows.length > 0
+    ? buildModelUsageSnapshot(modelUsageResult.rows[0])
+    : null;
 
   res.json({
-    status: 'online',
-    swissclaw: swissclawStatus,
+    state: statusSnapshot.state,
+    currentTask: statusSnapshot.current_task,
+    lastActive: new Date(statusSnapshot.last_active).toISOString(),
+    chatCount,
     activityCount,
-    modelUsage: {
-      total: {
-        inputTokens: totalInputTokens,
-        outputTokens: totalOutputTokens,
-        estimatedCost: totalCost,
-      },
-      byModel: modelUsageResult.rows.map(row => ({
-        model: row.model,
-        inputTokens: parseInt(row.input_tokens, 10),
-        outputTokens: parseInt(row.output_tokens, 10),
-        estimatedCost: parseFloat(row.estimated_cost),
-      })),
-      since: midnightUTC.toISOString()
-    },
-    recentMessages: messagesResult.rows,
-    recentActivities: activitiesResult.rows
+    modelUsage,
   });
 }));
 
@@ -997,12 +1181,25 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
  * /api/messages:
  *   get:
  *     tags: [Chat]
- *     summary: Get recent chat messages
+ *     summary: Get recent chat messages (paginated)
  *     security:
  *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 25
+ *         description: Number of messages to return (max 200)
+ *       - in: query
+ *         name: before
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Cursor for pagination (timestamp of oldest message from previous page)
  *     responses:
  *       200:
- *         description: Last 50 messages
+ *         description: Recent messages
  *         content:
  *           application/json:
  *             schema:
@@ -1011,10 +1208,134 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
  *                 $ref: '#/components/schemas/ChatMessage'
  */
 app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
-  const result = await pool.query(
-    'SELECT * FROM messages ORDER BY created_at DESC LIMIT 50'
-  );
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string, 10) || 25, 1), 200);
+  const before = req.query.before as string | undefined;
+
+  let query = 'SELECT * FROM messages ORDER BY created_at DESC LIMIT $1';
+  let params: (string | number)[] = [limit];
+
+  if (before !== undefined) {
+    const beforeTs = parseIsoDateTime(before);
+    if (!beforeTs) {
+      res.status(400).json({ error: 'Invalid before cursor. Must be ISO datetime.' });
+      return;
+    }
+    query = 'SELECT * FROM messages WHERE created_at < $1 ORDER BY created_at DESC LIMIT $2';
+    params = [beforeTs, limit];
+  }
+
+  const result = await pool.query(query, params);
   res.json(result.rows);
+}));
+
+/**
+ * @swagger
+ * /api/model-usage:
+ *   get:
+ *     tags: [Model Usage]
+ *     summary: Get historical daily model usage snapshots
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Get a single daily snapshot by YYYY-MM-DD
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Get snapshots starting from YYYY-MM-DD
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *         description: Number of daily snapshots to return (max 365)
+ *     responses:
+ *       200:
+ *         description: Model usage snapshot(s)
+ *       400:
+ *         description: Invalid query parameters
+ *       404:
+ *         description: Snapshot not found
+ */
+app.get('/api/model-usage', asyncHandler(async (req: Request, res: Response) => {
+  const date = req.query.date as string | undefined;
+  const startDate = req.query.startDate as string | undefined;
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string, 10) || 30, 1), 365);
+
+  if (date && startDate) {
+    res.status(400).json({ error: 'Use either date or startDate, not both.' });
+    return;
+  }
+
+  if (date) {
+    const normalizedDate = parseIsoDateOnly(date);
+    if (!normalizedDate) {
+      res.status(400).json({ error: 'Invalid date. Expected YYYY-MM-DD.' });
+      return;
+    }
+
+    const result = await pool.query(
+      'SELECT usage_date, updated_at, models_json FROM model_usage WHERE usage_date = $1',
+      [normalizedDate]
+    );
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: 'Model usage snapshot not found' });
+      return;
+    }
+
+    const snapshot = buildModelUsageSnapshot(result.rows[0]);
+    if (!snapshot) {
+      res.status(500).json({ error: 'Stored model usage snapshot is invalid' });
+      return;
+    }
+
+    res.json(snapshot);
+    return;
+  }
+
+  if (startDate) {
+    const normalizedStartDate = parseIsoDateOnly(startDate);
+    if (!normalizedStartDate) {
+      res.status(400).json({ error: 'Invalid startDate. Expected YYYY-MM-DD.' });
+      return;
+    }
+
+    const result = await pool.query(
+      `SELECT usage_date, updated_at, models_json
+       FROM model_usage
+       WHERE usage_date >= $1
+       ORDER BY usage_date ASC
+       LIMIT $2`,
+      [normalizedStartDate, limit]
+    );
+
+    const snapshots = result.rows
+      .map((row) => buildModelUsageSnapshot(row))
+      .filter((row): row is ModelUsageSnapshot => row !== null);
+
+    res.json({ snapshots, count: snapshots.length });
+    return;
+  }
+
+  const result = await pool.query(
+    `SELECT usage_date, updated_at, models_json
+     FROM model_usage
+     ORDER BY usage_date DESC
+     LIMIT $1`,
+    [limit]
+  );
+  const snapshots = result.rows
+    .map((row) => buildModelUsageSnapshot(row))
+    .filter((row): row is ModelUsageSnapshot => row !== null);
+
+  res.json({ snapshots, count: snapshots.length });
 }));
 
 /**
@@ -1882,7 +2203,7 @@ if (require.main === module) {
 // For integration tests: reset database state
 async function resetTestDb(): Promise<void> {
   // Truncate tables to reset state for tests (preserve users and sessions for auth)
-  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities, model_usage, sessions RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities, model_usage, status, sessions RESTART IDENTITY CASCADE');
   
   // Re-insert default kanban columns
   await pool.query(`
@@ -1901,9 +2222,10 @@ async function resetTestDb(): Promise<void> {
       position = EXCLUDED.position
   `);
 
-  // Seed test admin user for backward compatibility
-  // Create admin user with bcrypt hash of 'changeme123' (idempotent)
-  const passwordHash = await bcrypt.hash('changeme123', 10);
+  // Seed test admin user for backward compatibility using current auth env values.
+  const seedUsername = AUTH_USERNAME || 'admin';
+  const seedPassword = AUTH_PASSWORD || 'changeme123';
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
   await pool.query(
     `INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
@@ -1913,7 +2235,17 @@ async function resetTestDb(): Promise<void> {
        role = EXCLUDED.role,
        password_hash = EXCLUDED.password_hash,
        updated_at = NOW()`,
-    ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'admin@example.com', 'admin', passwordHash, 'admin']
+    ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'admin@example.com', seedUsername, passwordHash, 'admin']
+  );
+
+  await pool.query(
+    `INSERT INTO status (id, state, current_task, last_active, updated_at)
+     VALUES (1, 'idle', 'Ready to help', NOW(), NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       state = EXCLUDED.state,
+       current_task = EXCLUDED.current_task,
+       last_active = EXCLUDED.last_active,
+       updated_at = EXCLUDED.updated_at`
   );
 }
 

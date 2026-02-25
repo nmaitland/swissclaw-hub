@@ -74,41 +74,52 @@ const options: swaggerJsdoc.Options = {
             commit: { type: 'string', example: 'abc1234' },
           },
         },
-        ModelUsage: {
+        ModelUsageCostBucket: {
           type: 'object',
           properties: {
-            total: {
-              type: 'object',
-              properties: {
-                inputTokens: { type: 'integer', example: 45230 },
-                outputTokens: { type: 'integer', example: 12100 },
-                estimatedCost: { type: 'number', format: 'decimal', example: 0.42 },
-              },
-            },
-            byModel: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  model: { type: 'string', example: 'claude-3-5-sonnet' },
-                  inputTokens: { type: 'integer', example: 25000 },
-                  outputTokens: { type: 'integer', example: 8000 },
-                  estimatedCost: { type: 'number', format: 'decimal', example: 0.25 },
-                },
-              },
-            },
-            since: { type: 'string', format: 'date-time' },
+            type: { type: 'string', enum: ['paid', 'free_tier_potential'] },
+            amount: { type: 'number', format: 'decimal', example: 0.9465 },
           },
         },
-        ModelUsageReport: {
+        ModelUsageModel: {
           type: 'object',
           properties: {
-            id: { type: 'integer' },
-            input_tokens: { type: 'integer' },
-            output_tokens: { type: 'integer' },
             model: { type: 'string' },
-            estimated_cost: { type: 'number' },
-            created_at: { type: 'string', format: 'date-time' },
+            provider: { type: 'string', nullable: true },
+            source: { type: 'string', nullable: true },
+            inputTokens: { type: 'integer' },
+            outputTokens: { type: 'integer' },
+            totalTokens: { type: 'integer' },
+            requestCount: { type: 'integer' },
+            costs: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/ModelUsageCostBucket' },
+            },
+          },
+        },
+        ModelUsageTotals: {
+          type: 'object',
+          properties: {
+            inputTokens: { type: 'integer' },
+            outputTokens: { type: 'integer' },
+            totalTokens: { type: 'integer' },
+            requestCount: { type: 'integer' },
+            costs: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/ModelUsageCostBucket' },
+            },
+          },
+        },
+        ModelUsageSnapshot: {
+          type: 'object',
+          properties: {
+            usageDate: { type: 'string', format: 'date' },
+            updatedAt: { type: 'string', format: 'date-time' },
+            models: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/ModelUsageModel' },
+            },
+            totals: { $ref: '#/components/schemas/ModelUsageTotals' },
           },
         },
         Error: {

@@ -11,101 +11,51 @@ describe('Status API (real server)', () => {
   });
 
   describe('GET /api/status', () => {
-    it('returns status data with recent messages and activities arrays', async () => {
+    it('returns compact status snapshot shape', async () => {
       const response = await request(app)
         .get('/api/status')
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body).toHaveProperty('status');
-      expect(response.body).toHaveProperty('recentMessages');
-      expect(response.body).toHaveProperty('recentActivities');
-      expect(Array.isArray(response.body.recentMessages)).toBe(true);
-      expect(Array.isArray(response.body.recentActivities)).toBe(true);
-    });
-
-    it('returns messages ordered by created_at descending when data exists', async () => {
-      // Insert a couple of messages out of order, then rely on the query ordering
-      await pool.query(
-        "INSERT INTO messages (sender, content, created_at) VALUES ('test', 'older', NOW() - INTERVAL '2 minutes')"
-      );
-      await pool.query(
-        "INSERT INTO messages (sender, content, created_at) VALUES ('test', 'newer', NOW())"
-      );
-
-      const response = await request(app)
-        .get('/api/status')
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
-
-      const messages = response.body.recentMessages;
-      if (messages.length > 1) {
-        for (let i = 0; i < messages.length - 1; i++) {
-          const currentDate = new Date(messages[i].created_at);
-          const nextDate = new Date(messages[i + 1].created_at);
-          expect(currentDate >= nextDate).toBe(true);
-        }
-      }
-    });
-
-    it('returns valid shape when no messages or activities exist', async () => {
-      // Just ensure the endpoint returns the expected keys even with empty data
-      const response = await request(app)
-        .get('/api/status')
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
-      expect(response.body).toHaveProperty('status', 'online');
-      expect(response.body).toHaveProperty('swissclaw');
-      expect(response.body.recentMessages).toEqual(expect.any(Array));
-      expect(response.body.recentActivities).toEqual(expect.any(Array));
-    });
-
-    it('returns activityCount and modelUsage in status response', async () => {
-      const response = await request(app)
-        .get('/api/status')
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
-
-      // Check activityCount exists and is a number
+      expect(response.body).toHaveProperty('state');
+      expect(response.body).toHaveProperty('currentTask');
+      expect(response.body).toHaveProperty('lastActive');
+      expect(response.body).toHaveProperty('chatCount');
       expect(response.body).toHaveProperty('activityCount');
-      expect(typeof response.body.activityCount).toBe('number');
-
-      // Check modelUsage exists with correct structure
       expect(response.body).toHaveProperty('modelUsage');
-      expect(response.body.modelUsage).toHaveProperty('total');
-      expect(response.body.modelUsage).toHaveProperty('byModel');
-      expect(response.body.modelUsage).toHaveProperty('since');
+      expect(response.body).not.toHaveProperty('recentMessages');
+      expect(response.body).not.toHaveProperty('recentActivities');
+    });
 
-      // Check total structure
-      expect(response.body.modelUsage.total).toHaveProperty('inputTokens');
-      expect(response.body.modelUsage.total).toHaveProperty('outputTokens');
-      expect(response.body.modelUsage.total).toHaveProperty('estimatedCost');
-      expect(typeof response.body.modelUsage.total.inputTokens).toBe('number');
-      expect(typeof response.body.modelUsage.total.outputTokens).toBe('number');
-      expect(typeof response.body.modelUsage.total.estimatedCost).toBe('number');
-
-      // Check byModel is an array
-      expect(Array.isArray(response.body.modelUsage.byModel)).toBe(true);
+    it('returns counts as numbers', async () => {
+      const response = await request(app)
+        .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      expect(response.body).toHaveProperty('chatCount');
+      expect(typeof response.body.activityCount).toBe('number');
+      expect(typeof response.body.chatCount).toBe('number');
     });
   });
 
   describe('PUT /api/service/status', () => {
     it('updates the status with bearer session token', async () => {
+      const lastActive = new Date().toISOString();
       const response = await request(app)
         .put('/api/service/status')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ state: 'busy', currentTask: 'Testing status update' })
+        .send({ state: 'busy', currentTask: 'Testing status update', lastActive })
         .expect(200);
 
       expect(response.body).toHaveProperty('state', 'busy');
       expect(response.body).toHaveProperty('currentTask', 'Testing status update');
-      expect(response.body).toHaveProperty('lastActive');
+      expect(response.body).toHaveProperty('lastActive', lastActive);
     });
 
     it('rejects missing bearer token', async () => {
       await request(app)
         .put('/api/service/status')
-        .send({ state: 'active', currentTask: 'Test' })
+        .send({ state: 'active', currentTask: 'Test', lastActive: new Date().toISOString() })
         .expect(401);
     });
 
@@ -113,7 +63,7 @@ describe('Status API (real server)', () => {
       await request(app)
         .put('/api/service/status')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ state: 'invalid', currentTask: 'Test' })
+        .send({ state: 'invalid', currentTask: 'Test', lastActive: new Date().toISOString() })
         .expect(400);
     });
 
@@ -121,16 +71,25 @@ describe('Status API (real server)', () => {
       await request(app)
         .put('/api/service/status')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ state: 'active' })
+        .send({ state: 'active', lastActive: new Date().toISOString() })
+        .expect(400);
+    });
+
+    it('rejects missing lastActive', async () => {
+      await request(app)
+        .put('/api/service/status')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'active', currentTask: 'Testing' })
         .expect(400);
     });
 
     it('GET /api/status reflects the updated status', async () => {
+      const lastActive = new Date().toISOString();
       // First update the status
       await request(app)
         .put('/api/service/status')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ state: 'active', currentTask: 'Integration testing' })
+        .send({ state: 'active', currentTask: 'Integration testing', lastActive })
         .expect(200);
 
       // Then verify it's returned by GET /api/status
@@ -139,8 +98,56 @@ describe('Status API (real server)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
 
-      expect(response.body.swissclaw).toHaveProperty('state', 'active');
-      expect(response.body.swissclaw).toHaveProperty('currentTask', 'Integration testing');
+      expect(response.body).toHaveProperty('state', 'active');
+      expect(response.body).toHaveProperty('currentTask', 'Integration testing');
+      expect(response.body).toHaveProperty('lastActive', lastActive);
+    });
+  });
+
+  describe('PUT /api/service/model-usage + GET /api/status modelUsage', () => {
+    it('upserts daily snapshot and returns latest on status', async () => {
+      const usageDate = '2026-02-24';
+      const updatedAt = new Date().toISOString();
+
+      const payload = {
+        usageDate,
+        updatedAt,
+        models: [
+          {
+            model: 'gpt-5.3-codex',
+            provider: 'openai-codex',
+            source: 'openai',
+            inputTokens: 1000,
+            outputTokens: 100,
+            requestCount: 10,
+            costs: [
+              { type: 'paid', amount: 0.5 },
+              { type: 'free_tier_potential', amount: 0.25 },
+            ],
+          },
+        ],
+      };
+
+      const putRes = await request(app)
+        .put('/api/service/model-usage')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(payload)
+        .expect(200);
+
+      expect(putRes.body).toHaveProperty('usageDate', usageDate);
+      expect(putRes.body).toHaveProperty('models');
+      expect(putRes.body).toHaveProperty('totals');
+      expect(putRes.body.totals).toHaveProperty('totalTokens', 1100);
+      expect(putRes.body.totals).toHaveProperty('requestCount', 10);
+
+      const statusRes = await request(app)
+        .get('/api/status')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(statusRes.body.modelUsage).toBeTruthy();
+      expect(statusRes.body.modelUsage).toHaveProperty('usageDate', usageDate);
+      expect(statusRes.body.modelUsage.totals).toHaveProperty('inputTokens', 1000);
     });
   });
 });

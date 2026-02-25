@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import KanbanBoard from './components/KanbanBoard';
-import type { Activity, ChatMessage, BuildInfo, StatusResponse, MessageProcessingState, MessageStateUpdate } from './types';
+import type {
+  Activity,
+  ChatMessage,
+  BuildInfo,
+  StatusResponse,
+  MessageProcessingState,
+  MessageStateUpdate,
+  ModelUsageCostType
+} from './types';
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -78,11 +86,9 @@ function App() {
     newSocket.on('status-update', (update: { state: string; currentTask: string; lastActive: string }) => {
       setStatus((prev) => prev ? {
         ...prev,
-        swissclaw: {
-          state: update.state as 'active' | 'busy' | 'idle',
-          currentTask: update.currentTask,
-          lastActive: update.lastActive
-        }
+        state: update.state as 'active' | 'busy' | 'idle',
+        currentTask: update.currentTask,
+        lastActive: update.lastActive
       } : null);
     });
 
@@ -108,11 +114,13 @@ function App() {
       }
 
       const statusData: StatusResponse = await statusRes.json();
-
       setStatus(statusData);
-      if (statusData.recentMessages) {
+
+      const messagesRes = await fetch(`${API_URL}/api/messages?limit=50`, { headers });
+      if (messagesRes.ok) {
+        const messageData: ChatMessage[] = await messagesRes.json();
         setMessages((prev) => {
-          const next = statusData.recentMessages;
+          const next = messageData;
           if (
             prev.length === next.length &&
             prev.every((msg, idx) =>
@@ -127,7 +135,6 @@ function App() {
           return next;
         });
       }
-      setActivities(statusData.recentActivities || []);
     } catch (err) {
       console.error('Failed to fetch data:', err);
     }
@@ -196,6 +203,7 @@ function App() {
 
   useEffect(() => {
     fetchData();
+    fetchActivities();
     const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -253,6 +261,10 @@ function App() {
     }
   };
 
+  const getCostAmount = (costs: Array<{ type: ModelUsageCostType; amount: number }>, type: ModelUsageCostType): number => {
+    return costs.find((entry) => entry.type === type)?.amount || 0;
+  };
+
 
   return (
     <div className="app">
@@ -275,38 +287,55 @@ function App() {
             <div className="panel-content status-content">
               <div className="status-header">
                 <span className="status-icon">
-                  {status?.swissclaw?.state === 'active' && '\u{1F980}'}
-                  {status?.swissclaw?.state === 'busy' && '\u{1F980}'}
-                  {status?.swissclaw?.state === 'idle' && '\u{1F980}'}
-                  {!status?.swissclaw?.state && '\u{1F980}'}
+                  {status?.state === 'active' && '\u{1F980}'}
+                  {status?.state === 'busy' && '\u{1F980}'}
+                  {status?.state === 'idle' && '\u{1F980}'}
+                  {!status?.state && '\u{1F980}'}
                 </span>
-                <span className="status-state">{status?.swissclaw?.state || 'idle'}</span>
+                <span className="status-state">{status?.state || 'idle'}</span>
               </div>
               <div className="current-task">
-                {status?.swissclaw?.currentTask || 'Ready to help'}
+                {status?.currentTask || 'Ready to help'}
               </div>
               <div className="status-stats">
                 <div className="stat-row">
                   <span className="stat-label">Activities today:</span>
                   <span className="stat-value">{status?.activityCount ?? 0}</span>
                 </div>
+                <div className="stat-row">
+                  <span className="stat-label">Chats today:</span>
+                  <span className="stat-value">{status?.chatCount ?? 0}</span>
+                </div>
                 {status?.modelUsage && (
                   <>
                     <div className="stat-row">
                       <span className="stat-label">Model usage:</span>
                       <span className="stat-value">
-                        {status.modelUsage.total.inputTokens.toLocaleString()} in / {status.modelUsage.total.outputTokens.toLocaleString()} out
-                        (${status.modelUsage.total.estimatedCost.toFixed(2)})
+                        {status.modelUsage.totals.inputTokens.toLocaleString()} in / {status.modelUsage.totals.outputTokens.toLocaleString()} out
+                        {' '}({status.modelUsage.totals.totalTokens.toLocaleString()} total)
                       </span>
                     </div>
-                    {status.modelUsage.byModel.length > 0 && (
+                    <div className="stat-row">
+                      <span className="stat-label">Requests:</span>
+                      <span className="stat-value">{status.modelUsage.totals.requestCount.toLocaleString()}</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">Cost (paid):</span>
+                      <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'paid').toFixed(4)}</span>
+                    </div>
+                    <div className="stat-row">
+                      <span className="stat-label">Cost (free potential):</span>
+                      <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'free_tier_potential').toFixed(4)}</span>
+                    </div>
+                    {status.modelUsage.models.length > 0 && (
                       <div className="model-breakdown">
-                        {status.modelUsage.byModel.map((entry) => (
+                        {status.modelUsage.models.map((entry) => (
                           <div key={entry.model} className="model-entry">
                             <span className="model-name">{entry.model}:</span>
                             <span className="model-stats">
                               {entry.inputTokens.toLocaleString()} in / {entry.outputTokens.toLocaleString()} out
-                              (${entry.estimatedCost.toFixed(2)})
+                              {' '}({entry.requestCount.toLocaleString()} req)
+                              {' '}paid ${getCostAmount(entry.costs, 'paid').toFixed(4)}
                             </span>
                           </div>
                         ))}
@@ -317,8 +346,8 @@ function App() {
               </div>
               <div className="last-active">
                 Updated:{' '}
-                {status?.swissclaw?.lastActive
-                  ? new Date(status.swissclaw.lastActive).toLocaleTimeString()
+                {status?.lastActive
+                  ? new Date(status.lastActive).toLocaleTimeString()
                   : '\u2014'}
               </div>
             </div>
