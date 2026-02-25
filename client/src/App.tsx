@@ -83,7 +83,7 @@ function App() {
   useEffect(() => {
     const token = getAuthToken();
     if (!token && window.location.pathname !== '/login') {
-      window.location.href = '/login';
+      window.location.assign('/login');
       return;
     }
   }, []);
@@ -148,7 +148,7 @@ function App() {
 
       if (statusRes.status === 401) {
         localStorage.removeItem('authToken');
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
 

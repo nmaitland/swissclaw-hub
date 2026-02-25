@@ -288,10 +288,7 @@ describe('KanbanBoard Component', () => {
     });
   });
 
-  it('redirects on 401 response', async () => {
-    delete window.location;
-    window.location = { href: '' };
-
+  it('clears auth token on 401 response', async () => {
     fetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -300,7 +297,7 @@ describe('KanbanBoard Component', () => {
     render(<KanbanBoard />);
 
     await waitFor(() => {
-      expect(window.location.href).toBe('/login');
+      expect(Storage.prototype.removeItem).toHaveBeenCalledWith('authToken');
     });
   });
 
