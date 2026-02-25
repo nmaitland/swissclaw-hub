@@ -8,6 +8,8 @@ import helmet from 'helmet';
 import { execSync } from 'child_process';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcrypt';
+import fs from 'fs';
+import path from 'path';
 import 'dotenv/config';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
@@ -831,22 +833,28 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {
-  // Cache hashed assets (JS/CSS) aggressively - they have content hashes in filenames
-  app.use('/static', express.static('client/build/static', {
-    maxAge: '1y', // 1 year - hashed assets never change
-    immutable: true,
-    etag: true
-  }));
+  const clientBuildDirCandidates = ['client/dist', 'client/build'];
+  const clientBuildDir = clientBuildDirCandidates.find((dir) =>
+    fs.existsSync(path.join(process.cwd(), dir, 'index.html'))
+  ) || 'client/dist';
 
-  // Serve other build files (index.html, etc) with no cache
-  app.use(express.static('client/build', {
+  // Serve built frontend assets
+  app.use(express.static(clientBuildDir, {
     etag: true,
+    maxAge: '1y',
+    immutable: true,
     setHeaders: (res, filePath) => {
       // Never cache index.html - it references the hashed assets
       if (filePath.endsWith('index.html')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
+      } else {
+        // Fingerprinted bundles (Vite /assets, CRA /static) can be cached long-term
+        const normalized = filePath.replace(/\\/g, '/');
+        if (!normalized.includes('/assets/') && !normalized.includes('/static/')) {
+          res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        }
       }
     }
   }));
@@ -1843,9 +1851,15 @@ app.post('/api/seed', asyncHandler(async (req: Request, res: Response) => {
 
 // Serve React app for any non-API routes (must be last)
 if (process.env.NODE_ENV === 'production') {
+  const clientBuildDirCandidates = ['client/dist', 'client/build'];
+  const clientBuildDir = clientBuildDirCandidates.find((dir) =>
+    fs.existsSync(path.join(process.cwd(), dir, 'index.html'))
+  ) || 'client/dist';
+
+  const indexPath = path.join(process.cwd(), clientBuildDir, 'index.html');
   // Serve React app for any non-API routes
   app.get('*', (_req: Request, res: Response) => {
-    res.sendFile('client/build/index.html', { root: '.' });
+    res.sendFile(indexPath);
   });
 }
 
