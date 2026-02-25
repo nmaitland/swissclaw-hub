@@ -37,30 +37,54 @@ global.IntersectionObserver = jest.fn(() => ({
 }));
 
 const mockStatusData = {
-  swissclaw: {
-    state: 'active',
-    currentTask: 'Building Swissclaw Hub',
-    lastActive: '2024-01-01T12:00:00Z',
-  },
+  state: 'active',
+  currentTask: 'Building Swissclaw Hub',
+  lastActive: '2024-01-01T12:00:00Z',
+  chatCount: 7,
   activityCount: 5,
   modelUsage: {
-    total: {
+    usageDate: '2024-01-01',
+    updatedAt: '2024-01-01T12:00:00Z',
+    totals: {
       inputTokens: 45230,
       outputTokens: 12100,
-      estimatedCost: 0.42,
+      totalTokens: 57330,
+      requestCount: 42,
+      costs: [
+        { type: 'paid', amount: 0.42 },
+        { type: 'free_tier_potential', amount: 0.15 },
+      ],
     },
-    byModel: [
-      { model: 'claude-3-5-sonnet', inputTokens: 25000, outputTokens: 8000, estimatedCost: 0.25 },
-      { model: 'gpt-4', inputTokens: 20230, outputTokens: 4100, estimatedCost: 0.17 },
+    models: [
+      {
+        model: 'claude-3-5-sonnet',
+        inputTokens: 25000,
+        outputTokens: 8000,
+        totalTokens: 33000,
+        requestCount: 20,
+        costs: [{ type: 'paid', amount: 0.25 }],
+      },
+      {
+        model: 'gpt-4',
+        inputTokens: 20230,
+        outputTokens: 4100,
+        totalTokens: 24330,
+        requestCount: 22,
+        costs: [{ type: 'paid', amount: 0.17 }],
+      },
     ],
-    since: '2024-01-01T00:00:00Z',
   },
-  recentMessages: [
-    { id: '1', sender: 'Neil', content: 'Hello', created_at: '2024-01-01T00:00:00Z' },
+};
+
+const mockMessagesData = [
+  { id: '1', sender: 'Neil', content: 'Hello', created_at: '2024-01-01T00:00:00Z' },
+];
+
+const mockActivitiesData = {
+  activities: [
+    { id: '1', description: 'Deployed v2', created_at: '2024-01-01T00:00:00Z', type: 'deployment', metadata: {} },
   ],
-  recentActivities: [
-    { id: '1', description: 'Deployed v2', created_at: '2024-01-01T00:00:00Z' },
-  ],
+  hasMore: false,
 };
 
 const mockKanbanData = {
@@ -89,6 +113,12 @@ describe('App Component', () => {
     fetch.mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/status')) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockStatusData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/messages')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockMessagesData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/activities')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockActivitiesData) });
       }
       if (typeof url === 'string' && url.includes('/api/kanban')) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockKanbanData) });
@@ -182,9 +212,8 @@ describe('App Component', () => {
   });
 
   it('shows multiline activity descriptions in inline expanded details', async () => {
-    const multilineStatusData = {
-      ...mockStatusData,
-      recentActivities: [
+    const multilineActivitiesData = {
+      activities: [
         {
           id: '2',
           type: 'chat',
@@ -194,11 +223,18 @@ describe('App Component', () => {
           metadata: { source: 'test' },
         },
       ],
+      hasMore: false,
     };
 
     fetch.mockImplementation((url) => {
       if (typeof url === 'string' && url.includes('/api/status')) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(multilineStatusData) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockStatusData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/messages')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockMessagesData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/activities')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(multilineActivitiesData) });
       }
       if (typeof url === 'string' && url.includes('/api/kanban')) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockKanbanData) });
