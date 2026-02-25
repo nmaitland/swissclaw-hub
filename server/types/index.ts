@@ -177,6 +177,10 @@ export interface DatabaseConfig {
   password?: string;
   port?: number;
   connectionString?: string;
+  ssl?: boolean | {
+    rejectUnauthorized: boolean;
+    ca?: string;
+  };
 }
 
 // Extend Express Request with user info
