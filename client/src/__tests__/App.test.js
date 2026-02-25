@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import App from '../App';
 
 // Mock KanbanBoard so we don't deal with its own fetch calls
@@ -181,11 +181,78 @@ describe('App Component', () => {
     });
   });
 
+  it('shows multiline activity descriptions in inline expanded details', async () => {
+    const multilineStatusData = {
+      ...mockStatusData,
+      recentActivities: [
+        {
+          id: '2',
+          type: 'chat',
+          sender: 'Swissclaw',
+          description: 'First line\nSecond line\nThird line',
+          created_at: '2024-01-01T01:00:00Z',
+          metadata: { source: 'test' },
+        },
+      ],
+    };
+
+    fetch.mockImplementation((url) => {
+      if (typeof url === 'string' && url.includes('/api/status')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(multilineStatusData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/kanban')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockKanbanData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/build')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ buildDate: '2026-02-15T06:53:46.312Z', commit: 'abc123' }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /First line/ })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /First line/ }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /First line/ })).toHaveAttribute('aria-expanded', 'true');
+      const detailDescription = document.querySelector('.detail-description');
+      expect(detailDescription).toBeTruthy();
+      expect(detailDescription.textContent).toContain('First line');
+      expect(detailDescription.textContent).toContain('Second line');
+      expect(detailDescription.textContent).toContain('Third line');
+      expect(detailDescription.textContent).toContain('\n');
+      expect(screen.getByText('Sender:')).toBeInTheDocument();
+      expect(screen.getByText('Swissclaw')).toBeInTheDocument();
+    });
+  });
+
   it('displays chat messages', async () => {
     render(<App />);
 
     await waitFor(() => {
       expect(screen.getByText('Hello')).toBeInTheDocument();
+    });
+  });
+
+  it('supports multiline chat content and sends on Enter without Shift', async () => {
+    mockSocket.connected = true;
+    render(<App />);
+
+    const chatInput = await screen.findByRole('textbox');
+    fireEvent.change(chatInput, { target: { value: 'Line 1\nLine 2' } });
+    expect(chatInput.value).toBe('Line 1\nLine 2');
+
+    fireEvent.keyDown(chatInput, { key: 'Enter', code: 'Enter' });
+
+    await waitFor(() => {
+      expect(mockSocket.emit).toHaveBeenCalledWith('message', {
+        sender: 'Neil',
+        content: 'Line 1\nLine 2',
+      });
     });
   });
 

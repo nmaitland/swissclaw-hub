@@ -480,6 +480,7 @@ const hasValidServiceToken = (serviceToken: unknown): boolean => {
  *             properties:
  *               type: { type: string, maxLength: 50 }
  *               description: { type: string, maxLength: 500 }
+ *               sender: { type: string, maxLength: 50 }
  *               metadata: { type: object }
  *     responses:
  *       200:
@@ -498,16 +499,22 @@ app.post('/api/service/activities', asyncHandler(async (req: Request, res: Respo
     return;
   }
 
-  const { type, description, metadata } = req.body;
+  const { type, description, metadata, sender } = req.body;
 
   if (!type || !description) {
     res.status(400).json({ error: 'Type and description required' });
     return;
   }
+  if (sender !== undefined && (typeof sender !== 'string' || sender.length > 50)) {
+    res.status(400).json({ error: 'Invalid sender' });
+    return;
+  }
+
+  const safeSender = sender ? sanitizeString(sender) : null;
 
   const result = await pool.query(
-    'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
-    [sanitizeString(type), sanitizeString(description), JSON.stringify(metadata || {})]
+    'INSERT INTO activities (type, description, sender, metadata) VALUES ($1, $2, $3, $4) RETURNING *',
+    [sanitizeString(type), sanitizeString(description), safeSender, JSON.stringify(metadata || {})]
   );
 
   io.emit('activity', result.rows[0]);
@@ -562,9 +569,12 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
     return;
   }
 
+  const safeSender = sanitizeString(sender);
+  const safeContent = sanitizeString(content);
+
   const result = await pool.query(
     'INSERT INTO messages (sender, content) VALUES ($1, $2) RETURNING *',
-    [sanitizeString(sender), sanitizeString(content)]
+    [safeSender, safeContent]
   );
 
   // Broadcast to all connected Socket.io clients
@@ -572,8 +582,8 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
 
   // Also create an activity for the feed
   await pool.query(
-    'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3)',
-    ['chat', `${sender}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`, JSON.stringify({ sender, messageId: result.rows[0].id })]
+    'INSERT INTO activities (type, description, sender, metadata) VALUES ($1, $2, $3, $4)',
+    ['chat', safeContent, safeSender, JSON.stringify({ sender: safeSender, messageId: result.rows[0].id })]
   );
 
   res.json(result.rows[0]);
@@ -1475,6 +1485,7 @@ app.delete('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Respo
  *             properties:
  *               type: { type: string, maxLength: 50 }
  *               description: { type: string, maxLength: 500 }
+ *               sender: { type: string, maxLength: 50 }
  *               metadata: { type: object }
  *     responses:
  *       200:
@@ -1487,7 +1498,7 @@ app.delete('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Respo
  *         description: Invalid input
  */
 app.post('/api/activities', asyncHandler(async (req: Request, res: Response) => {
-  const { type, description, metadata } = req.body;
+  const { type, description, metadata, sender } = req.body;
 
   // Validation
   if (!type || typeof type !== 'string' || type.length > 50) {
@@ -1498,10 +1509,16 @@ app.post('/api/activities', asyncHandler(async (req: Request, res: Response) => 
     res.status(400).json({ error: 'Invalid description' });
     return;
   }
+  if (sender !== undefined && (typeof sender !== 'string' || sender.length > 50)) {
+    res.status(400).json({ error: 'Invalid sender' });
+    return;
+  }
+
+  const safeSender = sender ? sanitizeString(sender) : null;
 
   const result = await pool.query(
-    'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
-    [sanitizeString(type), sanitizeString(description), JSON.stringify(metadata || {})]
+    'INSERT INTO activities (type, description, sender, metadata) VALUES ($1, $2, $3, $4) RETURNING *',
+    [sanitizeString(type), sanitizeString(description), safeSender, JSON.stringify(metadata || {})]
   );
 
   io.emit('activity', result.rows[0]);
@@ -1636,17 +1653,19 @@ io.on('connection', (socket: Socket) => {
       }
 
       const { sender, content } = data;
+      const safeSender = sanitizeString(sender);
+      const safeContent = sanitizeString(content);
       const result = await pool.query(
         'INSERT INTO messages (sender, content) VALUES ($1, $2) RETURNING *',
-        [sanitizeString(sender), sanitizeString(content)]
+        [safeSender, safeContent]
       );
 
       io.emit('message', result.rows[0]);
 
       // Also emit as activity for the activity feed
       const activityResult = await pool.query(
-        'INSERT INTO activities (type, description, metadata) VALUES ($1, $2, $3) RETURNING *',
-        ['chat', `${sender}: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`, JSON.stringify({ sender, messageId: result.rows[0].id })]
+        'INSERT INTO activities (type, description, sender, metadata) VALUES ($1, $2, $3, $4) RETURNING *',
+        ['chat', safeContent, safeSender, JSON.stringify({ sender: safeSender, messageId: result.rows[0].id })]
       );
       io.emit('activity', activityResult.rows[0]);
     } catch (err) {
