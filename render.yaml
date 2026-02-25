@@ -3,7 +3,7 @@ services:
     name: swissclaw-hub
     runtime: node
     plan: pro
-    buildCommand: npm install && cd client && npm install && npm run build && cd .. && npm run build
+    buildCommand: npm install --include=dev && cd client && npm install --include=dev && npm run build && cd .. && npm run build
     startCommand: npm start
     envVars:
       - key: NODE_ENV
