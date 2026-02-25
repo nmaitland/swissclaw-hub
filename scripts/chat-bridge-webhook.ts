@@ -28,6 +28,15 @@ interface ChatMessage {
   created_at: string;
 }
 
+interface MessageStateResponse {
+  id: number;
+  state: string;
+  updatedAt: string;
+  claimed?: boolean;
+}
+
+type ForwardFn = (msg: ChatMessage, hooksToken: string, client: HubApiClient) => Promise<void>;
+
 function parseArgs(): { mode: 'daemon' | 'send'; message: string; sender: string; forceLogin: boolean } {
   const args = process.argv.slice(2);
   let mode: 'daemon' | 'send' = 'daemon';
@@ -136,6 +145,41 @@ This sends your response back to ${msg.sender} in the Hub chat.`,
   }
 }
 
+const isClaimedMessageState = (result: unknown): boolean => {
+  if (!result || typeof result !== 'object') {
+    return true;
+  }
+  const claimValue = (result as MessageStateResponse).claimed;
+  return claimValue !== false;
+};
+
+export async function handleInboundMessage(
+  msg: ChatMessage,
+  hooksToken: string,
+  client: HubApiClient,
+  forwardFn: ForwardFn = forwardToOpenClaw
+): Promise<'skipped-self' | 'skipped-duplicate' | 'forwarded'> {
+  if (msg.sender === 'Swissclaw' || msg.sender === 'Agent') {
+    return 'skipped-self';
+  }
+
+  const claimResult = await client.request(`/api/service/messages/${msg.id}/state`, {
+    method: 'PUT',
+    body: { state: 'received' },
+  });
+
+  if (!isClaimedMessageState(claimResult)) {
+    console.error(
+      `[${new Date().toISOString()}] Skipped duplicate claim for message ${msg.id} from ${msg.sender}`
+    );
+    return 'skipped-duplicate';
+  }
+
+  await forwardFn(msg, hooksToken, client);
+  console.error(`[${new Date().toISOString()}] Forwarded message ${msg.id} from ${msg.sender}`);
+  return 'forwarded';
+}
+
 async function daemonMode(hubToken: string, hooksToken: string, client: HubApiClient): Promise<void> {
   const socket: Socket = io(HUB_URL, {
     auth: { token: hubToken },
@@ -158,17 +202,8 @@ async function daemonMode(hubToken: string, hooksToken: string, client: HubApiCl
   });
 
   socket.on('message', async (msg: ChatMessage) => {
-    if (msg.sender === 'Swissclaw' || msg.sender === 'Agent') {
-      return;
-    }
-
     try {
-      await client.request(`/api/service/messages/${msg.id}/state`, {
-        method: 'PUT',
-        body: { state: 'received' },
-      });
-      await forwardToOpenClaw(msg, hooksToken, client);
-      console.error(`[${new Date().toISOString()}] Forwarded message ${msg.id} from ${msg.sender}`);
+      await handleInboundMessage(msg, hooksToken, client);
     } catch (error) {
       console.error(
         `[${new Date().toISOString()}] Failed handling inbound message ${msg.id}:`,
@@ -225,4 +260,6 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}
