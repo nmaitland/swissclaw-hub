@@ -39,6 +39,7 @@ export interface ActivityRow {
   id: number;
   type: string;
   description: string;
+  sender: string | null;
   metadata: Record<string, unknown>;
   created_at: Date;
 }

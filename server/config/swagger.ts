@@ -59,6 +59,7 @@ const options: swaggerJsdoc.Options = {
             id: { type: 'integer' },
             type: { type: 'string', maxLength: 50 },
             description: { type: 'string', maxLength: 500 },
+            sender: { type: 'string', maxLength: 50, nullable: true },
             metadata: { type: 'object' },
             created_at: { type: 'string', format: 'date-time' },
           },
