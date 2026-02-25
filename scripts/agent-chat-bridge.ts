@@ -168,11 +168,6 @@ async function login(): Promise<string> {
   const username = process.env.SWISSCLAW_USERNAME;
   const password = process.env.SWISSCLAW_PASSWORD;
 
-  // Debug: show what env vars are set (mask password)
-  console.error('Debug: SWISSCLAW_USERNAME =', username || '(not set)');
-  console.error('Debug: SWISSCLAW_PASSWORD =', password ? '(set, length: ' + password.length + ')' : '(not set)');
-  console.error('Debug: SWISSCLAW_HUB_URL =', process.env.SWISSCLAW_HUB_URL || '(using default)');
-
   if (!username || !password) {
     throw new Error(
       'SWISSCLAW_USERNAME and SWISSCLAW_PASSWORD environment variables must be set for login.\n' +
