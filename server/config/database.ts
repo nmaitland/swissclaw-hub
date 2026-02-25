@@ -1,6 +1,29 @@
 import { Pool, PoolClient } from 'pg';
+import fs from 'fs';
 import logger from '../lib/logger';
 import type { DatabaseConfig, DatabaseHealthResult } from '../types';
+
+const parseBoolean = (value: string | undefined, defaultValue = false): boolean => {
+  if (value === undefined) return defaultValue;
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+};
+
+const getSslConfig = (): DatabaseConfig['ssl'] => {
+  const shouldUseSsl = parseBoolean(process.env.DB_SSL, Boolean(process.env.DATABASE_URL));
+  if (!shouldUseSsl) return false;
+
+  let ca: string | undefined;
+  if (process.env.DB_SSL_CA) {
+    ca = process.env.DB_SSL_CA.replace(/\\n/g, '\n');
+  } else if (process.env.DB_SSL_CA_FILE) {
+    ca = fs.readFileSync(process.env.DB_SSL_CA_FILE, 'utf8');
+  }
+
+  return {
+    rejectUnauthorized: true,
+    ...(ca ? { ca } : {}),
+  };
+};
 
 // Database configuration with environment-specific settings
 const getDatabaseConfig = (): DatabaseConfig => {
@@ -32,6 +55,7 @@ const getDatabaseConfig = (): DatabaseConfig => {
     port: parseInt(process.env.DB_PORT || '5432', 10),
     // If DATABASE_URL is provided, parse it
     ...(process.env.DATABASE_URL && { connectionString: process.env.DATABASE_URL }),
+    ssl: getSslConfig(),
   };
 };
 
