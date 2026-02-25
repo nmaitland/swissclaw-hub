@@ -194,7 +194,7 @@ An MCP (Model Context Protocol) server is included for AI agent access to the Hu
 | `delete_task` | Delete a kanban task |
 | `add_activity` | Add an activity event |
 | `get_activities` | Get paginated activity history |
-| `report_model_usage` | Report AI model token usage and cost |
+| `report_model_usage` | Upsert daily model usage snapshot |
 | `get_build_info` | Get build date and commit hash |
 
 **Running the MCP server:**
@@ -206,34 +206,30 @@ npm run mcp
 
 See [docs/mcp-server.md](docs/mcp-server.md) for full documentation.
 
-## Agent Chat Bridge
+## Automation Scripts
 
-A standalone script for connecting local AI agents to the Hub's chat via Socket.io (event-driven, works behind firewalls).
+The repository includes two script entrypoints:
 
-**Quick start:**
+1. `scripts/chat-bridge-webhook.ts`
+  - listens to Hub chat via Socket.io
+  - forwards inbound messages to OpenClaw webhook
+  - supports `--send` for backwards compatibility
+2. `scripts/hub-api.ts`
+  - generic authenticated CLI for chat/status/model usage/activities/kanban operations
+
+Examples:
+
 ```bash
-# Set credentials
-set SWISSCLAW_USERNAME=admin
-set SWISSCLAW_PASSWORD=yourpassword
+# Generic Hub API CLI
+npx ts-node scripts/hub-api.ts chat send --message "Hello" --sender "MyBot"
+npx ts-node scripts/hub-api.ts status set --state active --task "Running checks" --last-active "$(date -Iseconds)"
+npx ts-node scripts/hub-api.ts activities list --limit 20 --json
 
-# Interactive chat mode
-npx ts-node scripts/agent-chat-bridge.ts
-
-# Daemon mode (output messages as JSON lines)
-npx ts-node scripts/agent-chat-bridge.ts --daemon
-
-# Send a message
-npx ts-node scripts/agent-chat-bridge.ts --send "Hello" --sender "MyBot"
+# Bridge daemon
+npx ts-node scripts/chat-bridge-webhook.ts
 ```
 
-**Environment variables:**
-| Variable | Description |
-|----------|-------------|
-| `SWISSCLAW_USERNAME` | Hub login username |
-| `SWISSCLAW_PASSWORD` | Hub login password |
-| `SWISSCLAW_HUB_URL` | Hub URL (default: https://swissclaw.hydeabbey.net) |
-
-The script saves the auth token to `~/.swissclaw-token` for reuse.
+Token persistence remains at `~/.swissclaw-token`.
 
 ## Environment Variables
 
