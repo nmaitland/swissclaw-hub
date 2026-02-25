@@ -223,7 +223,7 @@ function KanbanBoard() {
 
       if (res.status === 401) {
         localStorage.removeItem('authToken');
-        window.location.href = '/login';
+        window.location.assign('/login');
         return;
       }
       if (!res.ok) throw new Error('Failed to fetch kanban data');
