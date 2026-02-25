@@ -65,7 +65,7 @@ Get recent chat messages (up to 50).
 
 ### `GET /api/status`
 
-Get dashboard status snapshot including `recentMessages`.
+Get compact status snapshot (`state`, `currentTask`, `lastActive`, daily chat/activity counts, latest model usage snapshot).
 
 ## Socket.IO Events
 
