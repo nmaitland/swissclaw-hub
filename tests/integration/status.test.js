@@ -90,7 +90,7 @@ describe('Status API (real server)', () => {
   });
 
   describe('PUT /api/service/status', () => {
-    const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+    const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'test-service-token';
 
     it('updates the status with valid service token', async () => {
       const response = await request(app)

@@ -17,7 +17,7 @@ describe('Message State API (real server)', () => {
     messageId = result.rows[0].id;
   });
 
-  const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+  const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'test-service-token';
 
   describe('PUT /api/service/messages/:id/state', () => {
     it('updates message state with valid service token', async () => {
