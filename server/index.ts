@@ -131,7 +131,7 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction): Pro
     return;
   }
 
-  const token = req.headers.authorization?.replace('Bearer ', '') || (req.query.token as string | undefined);
+  const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) {
     res.status(401).json({ error: 'Authentication required', loginUrl: '/login' });
     return;
@@ -245,7 +245,7 @@ app.get('/login', (_req: Request, res: Response) => {
           const data = await res.json();
           if (data.token) {
             localStorage.setItem('authToken', data.token);
-            window.location.href = '/?token=' + data.token;
+            window.location.href = '/';
           } else {
             document.getElementById('error').textContent = 'Invalid credentials';
           }
@@ -1532,7 +1532,7 @@ app.get('/api/activities', asyncHandler(async (req: Request, res: Response) => {
 io.use(async (socket: Socket, next: (err?: Error) => void) => {
   try {
     // Verify auth token from handshake
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token as string | undefined;
+    const token = socket.handshake.auth?.token as string | undefined;
     if (!token) {
       return next(new Error('Authentication required'));
     }
