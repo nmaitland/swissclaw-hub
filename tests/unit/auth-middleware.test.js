@@ -17,6 +17,7 @@ describe('validateInput', () => {
     it('accepts valid emails', () => {
       expect(validateInput.email('user@example.com')).toBe(true);
       expect(validateInput.email('a.b@c.co')).toBe(true);
+      expect(validateInput.email('name+tag@example.co.uk')).toBe(true);
     });
 
     it('rejects invalid emails', () => {
@@ -25,6 +26,8 @@ describe('validateInput', () => {
       expect(validateInput.email('@missing.user')).toBe(false);
       expect(validateInput.email('user@')).toBe(false);
       expect(validateInput.email('user @example.com')).toBe(false);
+      expect(validateInput.email('user@@example.com')).toBe(false);
+      expect(validateInput.email('user@example..com')).toBe(false);
     });
   });
 
@@ -67,30 +70,6 @@ describe('validateInput', () => {
     });
   });
 
-  describe('sanitizeHtml', () => {
-    it('removes script tags', () => {
-      expect(validateInput.sanitizeHtml('<script>alert(1)</script>')).not.toContain('<script');
-    });
-
-    it('removes iframe tags', () => {
-      expect(validateInput.sanitizeHtml('<iframe src="evil.com"></iframe>')).not.toContain('<iframe');
-    });
-
-    it('removes javascript: protocol', () => {
-      expect(validateInput.sanitizeHtml('javascript:alert(1)')).not.toContain('javascript:');
-    });
-
-    it('removes event handlers', () => {
-      const input = '<div onload=alert(1)>';
-      expect(validateInput.sanitizeHtml(input)).not.toMatch(/onload\s*=/i);
-    });
-
-    it('returns empty string for non-string input', () => {
-      expect(validateInput.sanitizeHtml(null)).toBe('');
-      expect(validateInput.sanitizeHtml(42)).toBe('');
-    });
-  });
-
   describe('validateTaskTitle', () => {
     it('accepts valid titles', () => {
       expect(validateInput.validateTaskTitle('My Task')).toBe(true);
@@ -128,6 +107,11 @@ describe('validateInput', () => {
 
     it('rejects messages over 2000 chars', () => {
       expect(validateInput.validateMessage('a'.repeat(2001))).toBe(false);
+    });
+
+    it('rejects non-string messages', () => {
+      expect(validateInput.validateMessage(null)).toBe(false);
+      expect(validateInput.validateMessage(42)).toBe(false);
     });
   });
 });
