@@ -212,7 +212,7 @@ The repository includes two script entrypoints:
 
 1. `scripts/chat-bridge-webhook.ts`
   - listens to Hub chat via Socket.io
-  - forwards inbound messages to OpenClaw webhook
+  - atomically claims inbound messages via `/api/service/messages/:id/state` and forwards only when `claimed=true`
   - supports `--send` for backwards compatibility
 2. `scripts/hub-api.ts`
   - generic authenticated CLI for chat/status/model usage/activities/kanban operations

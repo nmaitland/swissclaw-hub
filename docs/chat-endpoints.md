@@ -47,8 +47,9 @@ Request body:
 ```
 
 Behavior:
-- Updates `messages.processing_state`
-- Broadcasts Socket.IO `message-state` event
+- For `state=received`, performs an atomic claim (`NULL -> received`) so only one worker gets `claimed=true`
+- Returns `claimed=false` if another worker already claimed the same message
+- Broadcasts Socket.IO `message-state` only when a real state transition occurs
 
 Acknowledgment example:
 
@@ -57,6 +58,17 @@ curl -X PUT "https://swissclaw-hub.onrender.com/api/service/messages/123/state" 
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"state":"received"}'
+```
+
+Example response:
+
+```json
+{
+  "id": 123,
+  "state": "received",
+  "updatedAt": "2026-02-25T20:15:00.123Z",
+  "claimed": true
+}
 ```
 
 ### `GET /api/messages`

@@ -950,7 +950,7 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
  * /api/service/messages/{id}/state:
  *   put:
  *     summary: Update message processing state
- *     description: Update the processing state of a chat message (received, processing, thinking, responded). Bearer token required.
+ *     description: Update the processing state of a chat message (received, processing, thinking, responded). For state=received, claim is atomic and only the first caller gets claimed=true.
  *     tags: [Service]
  *     security:
  *       - bearerAuth: []
@@ -989,6 +989,9 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
  *                 updatedAt:
  *                   type: string
  *                   format: date-time
+ *                 claimed:
+ *                   type: boolean
+ *                   description: For state=received, true means this caller claimed first delivery. false means already claimed by another worker.
  *       400:
  *         description: Invalid state value
  *       401:
@@ -1019,35 +1022,82 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
     return;
   }
 
-  // Check if message exists
-  const messageResult = await pool.query(
-    'SELECT id, sender FROM messages WHERE id = $1',
-    [messageId]
+  if (state === 'received') {
+    // Atomic claim: only the first worker can transition NULL -> received.
+    const claimResult = await pool.query(
+      `UPDATE messages
+       SET processing_state = 'received', updated_at = NOW()
+       WHERE id = $1 AND processing_state IS NULL
+       RETURNING id, sender, updated_at`,
+      [messageId]
+    );
+
+    if (claimResult.rows.length > 0) {
+      const claimedMessage = claimResult.rows[0];
+      const updatedAt = new Date(claimedMessage.updated_at).toISOString();
+      io.emit('message-state', {
+        messageId,
+        state: 'received',
+        sender: claimedMessage.sender,
+        updatedAt,
+      });
+      res.json({
+        id: messageId,
+        state: 'received',
+        updatedAt,
+        claimed: true,
+      });
+      return;
+    }
+
+    const existingResult = await pool.query(
+      'SELECT id, updated_at FROM messages WHERE id = $1',
+      [messageId]
+    );
+    if (existingResult.rows.length === 0) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+
+    const existingUpdatedAt = existingResult.rows[0].updated_at
+      ? new Date(existingResult.rows[0].updated_at).toISOString()
+      : new Date().toISOString();
+    res.json({
+      id: messageId,
+      state: 'received',
+      updatedAt: existingUpdatedAt,
+      claimed: false,
+    });
+    return;
+  }
+
+  const updateResult = await pool.query(
+    `UPDATE messages
+     SET processing_state = $1, updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, sender, updated_at`,
+    [state, messageId]
   );
 
-  if (messageResult.rows.length === 0) {
+  if (updateResult.rows.length === 0) {
     res.status(404).json({ error: 'Message not found' });
     return;
   }
 
-  // Update message state
-  await pool.query(
-    'UPDATE messages SET processing_state = $1, updated_at = NOW() WHERE id = $2',
-    [state, messageId]
-  );
-
-  // Broadcast state update to all connected clients
+  const updatedMessage = updateResult.rows[0];
+  const updatedAt = new Date(updatedMessage.updated_at).toISOString();
   io.emit('message-state', {
     messageId,
     state,
-    sender: messageResult.rows[0].sender,
-    updatedAt: new Date().toISOString()
+    sender: updatedMessage.sender,
+    updatedAt,
   });
 
   res.json({
     id: messageId,
     state,
-    updatedAt: new Date().toISOString()
+    updatedAt,
+    claimed: true,
   });
 }));
 
