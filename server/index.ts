@@ -109,9 +109,6 @@ if (process.env.NODE_ENV === 'production') {
   if (!AUTH_PASSWORD) {
     throw new Error('AUTH_PASSWORD must be set in production');
   }
-  if (!process.env.SWISSCLAW_TOKEN) {
-    throw new Error('SWISSCLAW_TOKEN must be set in production');
-  }
 }
 
 // Simple session store (in-memory, cleared on restart) - kept for backward compatibility during transition
@@ -451,7 +448,13 @@ app.post('/api/login', apiLoginRateLimit, asyncHandler(async (req: Request, res:
 
 // Service token auth middleware
 const SWISSCLAW_TOKEN =
-  process.env.SWISSCLAW_TOKEN || (process.env.NODE_ENV === 'test' ? 'test-service-token' : undefined);
+  process.env.SWISSCLAW_TOKEN ||
+  process.env.SWISSCLAW_AUTH_TOKEN ||
+  (process.env.NODE_ENV === 'test' ? 'test-service-token' : undefined);
+
+if (process.env.NODE_ENV === 'production' && !SWISSCLAW_TOKEN) {
+  logger.warn('SWISSCLAW_TOKEN is not set; service-token endpoints will reject all requests');
+}
 
 const hasValidServiceToken = (serviceToken: unknown): boolean => {
   return (
