@@ -13,6 +13,7 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import logger from './lib/logger';
 import { asyncHandler, errorHandler } from './lib/errors';
+import { authRateLimit, logSecurityEvent } from './middleware/security';
 import { SessionStore } from './middleware/auth';
 import { pool } from './config/database';
 import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo } from './types';
@@ -298,6 +299,11 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(limiter);
 
+const apiLoginRateLimit =
+  process.env.NODE_ENV === 'test'
+    ? (_req: Request, _res: Response, next: NextFunction): void => next()
+    : authRateLimit;
+
 // API Documentation Ã¢â‚¬â€ Swagger UI (no auth required in dev/test, disabled in production)
 if (process.env.NODE_ENV !== 'production') {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -341,10 +347,18 @@ if (process.env.NODE_ENV !== 'production') {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
+app.post('/api/login', apiLoginRateLimit, asyncHandler(async (req: Request, res: Response) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
+    await logSecurityEvent(pool, {
+      type: 'auth_failure',
+      method: 'POST',
+      path: '/api/login',
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      metadata: { reason: 'missing_credentials' },
+    });
     res.status(400).json({ error: 'Username and password are required' });
     return;
   }
@@ -361,9 +375,25 @@ app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
     if (AUTH_PASSWORD && username === AUTH_USERNAME && password === AUTH_PASSWORD) {
       const token = randomBytes(32).toString('hex');
       sessions.add(token);
+      await logSecurityEvent(pool, {
+        type: 'auth_success',
+        method: 'POST',
+        path: '/api/login',
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        metadata: { provider: 'env_fallback' },
+      });
       res.json({ token, success: true });
       return;
     }
+    await logSecurityEvent(pool, {
+      type: 'auth_failure',
+      method: 'POST',
+      path: '/api/login',
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      metadata: { reason: 'user_not_found' },
+    });
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
@@ -380,6 +410,15 @@ app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
   }
 
   if (!isValidPassword) {
+    await logSecurityEvent(pool, {
+      type: 'auth_failure',
+      method: 'POST',
+      path: '/api/login',
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      userId: user.id,
+      metadata: { reason: 'invalid_password' },
+    });
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
@@ -396,6 +435,16 @@ app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
     'UPDATE users SET last_login = NOW() WHERE id = $1',
     [user.id]
   );
+
+  await logSecurityEvent(pool, {
+    type: 'auth_success',
+    method: 'POST',
+    path: '/api/login',
+    ip: req.ip,
+    userAgent: req.get('User-Agent'),
+    userId: user.id,
+    metadata: { provider: 'database_session' },
+  });
 
   res.json({ token, success: true });
 }));
