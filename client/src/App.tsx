@@ -52,13 +52,6 @@ function ActivityDetailModal({ activity, onClose }: ActivityDetailModalProps) {
 const API_URL = process.env.REACT_APP_API_URL || '';
 
 const getAuthToken = (): string | null => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlToken = urlParams.get('token');
-  if (urlToken) {
-    localStorage.setItem('authToken', urlToken);
-    window.history.replaceState({}, '', window.location.pathname);
-    return urlToken;
-  }
   return localStorage.getItem('authToken');
 };
 

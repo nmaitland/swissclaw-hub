@@ -152,5 +152,13 @@ describe('Auth enforcement', () => {
 
       expect(response.body).toHaveProperty('status', 'online');
     });
+
+    it('GET /api/status rejects query-string tokens', async () => {
+      const response = await request(app)
+        .get(`/api/status?token=${authToken}`)
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error', 'Authentication required');
+    });
   });
 });
