@@ -102,7 +102,16 @@ const httpServer = createServer(app);
 
 // Security: Session-based authentication
 const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme123';
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD;
+
+if (process.env.NODE_ENV === 'production') {
+  if (!AUTH_PASSWORD) {
+    throw new Error('AUTH_PASSWORD must be set in production');
+  }
+  if (!process.env.SWISSCLAW_TOKEN) {
+    throw new Error('SWISSCLAW_TOKEN must be set in production');
+  }
+}
 
 // Simple session store (in-memory, cleared on restart) - kept for backward compatibility during transition
 const sessions = new Set<string>();
@@ -349,7 +358,7 @@ app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
 
   if (userResult.rows.length === 0) {
     // Fall back to env-based auth for backward compatibility
-    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+    if (AUTH_PASSWORD && username === AUTH_USERNAME && password === AUTH_PASSWORD) {
       const token = randomBytes(32).toString('hex');
       sessions.add(token);
       res.json({ token, success: true });
@@ -365,7 +374,7 @@ app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
   let isValidPassword = false;
   if (user.password_hash) {
     isValidPassword = await bcrypt.compare(password, user.password_hash);
-  } else if (password === AUTH_PASSWORD) {
+  } else if (AUTH_PASSWORD && password === AUTH_PASSWORD) {
     // Allow fallback to env password if no hash set
     isValidPassword = true;
   }
@@ -392,7 +401,17 @@ app.post('/api/login', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // Service token auth middleware
-const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-production';
+const SWISSCLAW_TOKEN =
+  process.env.SWISSCLAW_TOKEN || (process.env.NODE_ENV === 'test' ? 'test-service-token' : undefined);
+
+const hasValidServiceToken = (serviceToken: unknown): boolean => {
+  return (
+    typeof SWISSCLAW_TOKEN === 'string' &&
+    SWISSCLAW_TOKEN.length > 0 &&
+    typeof serviceToken === 'string' &&
+    serviceToken === SWISSCLAW_TOKEN
+  );
+};
 
 /**
  * @swagger
@@ -425,7 +444,7 @@ const SWISSCLAW_TOKEN = process.env.SWISSCLAW_TOKEN || 'dev-token-change-in-prod
  */
 app.post('/api/service/activities', asyncHandler(async (req: Request, res: Response) => {
   const serviceToken = req.headers['x-service-token'];
-  if (serviceToken !== SWISSCLAW_TOKEN) {
+  if (!hasValidServiceToken(serviceToken)) {
     res.status(401).json({ error: 'Invalid service token' });
     return;
   }
@@ -478,7 +497,7 @@ app.post('/api/service/activities', asyncHandler(async (req: Request, res: Respo
  */
 app.post('/api/service/messages', asyncHandler(async (req: Request, res: Response) => {
   const serviceToken = req.headers['x-service-token'];
-  if (serviceToken !== SWISSCLAW_TOKEN) {
+  if (!hasValidServiceToken(serviceToken)) {
     res.status(401).json({ error: 'Invalid service token' });
     return;
   }
@@ -543,7 +562,7 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
  */
 app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Response) => {
   const serviceToken = req.headers['x-service-token'];
-  if (serviceToken !== SWISSCLAW_TOKEN) {
+  if (!hasValidServiceToken(serviceToken)) {
     res.status(401).json({ error: 'Invalid service token' });
     return;
   }
@@ -604,7 +623,7 @@ app.post('/api/service/model-usage', asyncHandler(async (req: Request, res: Resp
  */
 app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) => {
   const serviceToken = req.headers['x-service-token'];
-  if (serviceToken !== SWISSCLAW_TOKEN) {
+  if (!hasValidServiceToken(serviceToken)) {
     res.status(401).json({ error: 'Invalid service token' });
     return;
   }
@@ -695,7 +714,7 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
  */
 app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res: Response) => {
   const serviceToken = req.headers['x-service-token'];
-  if (serviceToken !== SWISSCLAW_TOKEN) {
+  if (!hasValidServiceToken(serviceToken)) {
     res.status(401).json({ error: 'Invalid service token' });
     return;
   }
@@ -1812,6 +1831,9 @@ async function resetTestDb(): Promise<void> {
     `INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
      ON CONFLICT (id) DO UPDATE SET
+       email = EXCLUDED.email,
+       name = EXCLUDED.name,
+       role = EXCLUDED.role,
        password_hash = EXCLUDED.password_hash,
        updated_at = NOW()`,
     ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'admin@example.com', 'admin', passwordHash, 'admin']
