@@ -468,6 +468,9 @@ function App() {
   const activeChatRatio = isMobileLayout
     ? MOBILE_PRESET_RATIOS[mobilePreset]
     : chatRatioDesktop;
+  const workspacePanelsStyle = {
+    ['--chat-panel-ratio' as const]: activeChatRatio,
+  } as React.CSSProperties;
 
 
   return (
@@ -634,7 +637,12 @@ function App() {
           </section>
         </section>
 
-        <section className="workspace-panels" ref={workspacePanelsRef} data-testid="workspace-panels">
+        <section
+          className="workspace-panels"
+          ref={workspacePanelsRef}
+          data-testid="workspace-panels"
+          style={workspacePanelsStyle}
+        >
           <div className="kanban-panel-wrap">
             {/* Unified Kanban Board */}
             <KanbanBoard />
@@ -683,11 +691,7 @@ function App() {
           </div>
 
           {/* Chat Panel (resizable) */}
-          <section
-            className="panel chat-panel"
-            style={{ height: `${(activeChatRatio * 100).toFixed(2)}%` }}
-            data-testid="chat-panel"
-          >
+          <section className="panel chat-panel" data-testid="chat-panel">
             <h2>
               {'\u{1F4AC}'} Chat
               {!socketConnected && (

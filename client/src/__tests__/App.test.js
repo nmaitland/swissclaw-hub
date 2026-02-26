@@ -235,7 +235,7 @@ describe('App Component', () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('chat-panel')).toHaveStyle({ height: '42.00%' });
+      expect(screen.getByTestId('workspace-panels').style.getPropertyValue('--chat-panel-ratio')).toBe('0.42');
     });
   });
 
@@ -278,7 +278,7 @@ describe('App Component', () => {
 
     await waitFor(() => {
       expect(Storage.prototype.setItem).toHaveBeenCalledWith('hub.mobilePanelPreset.v1', 'chat');
-      expect(screen.getByTestId('chat-panel')).toHaveStyle({ height: '45.00%' });
+      expect(screen.getByTestId('workspace-panels').style.getPropertyValue('--chat-panel-ratio')).toBe('0.45');
     });
   });
 
