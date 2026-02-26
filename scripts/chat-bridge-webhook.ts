@@ -116,16 +116,22 @@ async function forwardToOpenClaw(
   const payload = {
     message: `[Hub Chat] ${msg.sender}: ${msg.content}
 
---- RECENT CHAT HISTORY (for context) ---
-${chatHistory}
---- END HISTORY ---
+This message has been received from the Swissclaw Hub.
 
-📤 TO REPLY TO HUB CHAT: You MUST run this exact command:
+YOU MUST REPLY TO IT ALSO ON THE HUB.
+DO NOT RESPOND TO THIS MESSAGE IN OTHER CHANNELS unless explicitly requested to.
+
+You MUST  send your response using this exact command:
 export PATH="$HOME/.bun/bin:$HOME/.npm-global/bin:$PATH" && \
 cd ~/.openclaw/workspace && \
 bash scripts/chat-reply.sh "Your response here"
 
-This sends your response back to ${msg.sender} in the Hub chat.`,
+If you need to send multiline responses use real line break, DO NOT ESCAPE THEM WITH \\
+
+--- RECENT CHAT HISTORY (for context) ---
+${chatHistory}
+--- END HISTORY ---
+    `,
     name: 'HubChat',
     deliver: false,
   };
