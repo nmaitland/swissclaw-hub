@@ -37,6 +37,11 @@ interface MessageStateResponse {
 
 type ForwardFn = (msg: ChatMessage, hooksToken: string, client: HubApiClient) => Promise<void>;
 
+const SOCKET_RECONNECT_DELAY_MS = 1_000;
+const SOCKET_RECONNECT_DELAY_MAX_MS = 30_000;
+const SOCKET_CONNECT_TIMEOUT_MS = 20_000;
+const AUTH_REFRESH_COOLDOWN_MS = 30_000;
+
 function parseArgs(): { mode: 'daemon' | 'send'; message: string; sender: string; forceLogin: boolean } {
   const args = process.argv.slice(2);
   let mode: 'daemon' | 'send' = 'daemon';
@@ -159,6 +164,29 @@ const isClaimedMessageState = (result: unknown): boolean => {
   return claimValue !== false;
 };
 
+const errorToText = (error: unknown): string => {
+  if (!error) return '';
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
+const isAuthFailureError = (error: unknown): boolean => {
+  const text = errorToText(error).toLowerCase();
+  return (
+    text.includes('401') ||
+    text.includes('403') ||
+    text.includes('unauthor') ||
+    text.includes('forbidden') ||
+    text.includes('invalid token') ||
+    text.includes('jwt') ||
+    text.includes('auth')
+  );
+};
+
 export async function handleInboundMessage(
   msg: ChatMessage,
   hooksToken: string,
@@ -187,12 +215,53 @@ export async function handleInboundMessage(
 }
 
 async function daemonMode(hubToken: string, hooksToken: string, client: HubApiClient): Promise<void> {
+  let currentClient = client;
+  const usesExplicitAuthToken = Boolean(process.env.SWISSCLAW_AUTH_TOKEN && process.env.SWISSCLAW_AUTH_TOKEN.trim());
+  let isRefreshingAuth = false;
+  let lastAuthRefreshAt = 0;
+
   const socket: Socket = io(HUB_URL, {
     auth: { token: hubToken },
     transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionDelay: 1000,
+    reconnectionDelay: SOCKET_RECONNECT_DELAY_MS,
+    reconnectionDelayMax: SOCKET_RECONNECT_DELAY_MAX_MS,
+    timeout: SOCKET_CONNECT_TIMEOUT_MS,
   });
+
+  const refreshAuthAndReconnect = async (reason: string, triggerError?: unknown): Promise<void> => {
+    const now = Date.now();
+    if (isRefreshingAuth) return;
+    if (now - lastAuthRefreshAt < AUTH_REFRESH_COOLDOWN_MS) return;
+
+    if (usesExplicitAuthToken) {
+      console.error(
+        `[${new Date().toISOString()}] ${reason}: auth failed but SWISSCLAW_AUTH_TOKEN is explicitly set; ` +
+        'cannot auto-refresh env token. Update token and restart bridge.'
+      );
+      return;
+    }
+
+    isRefreshingAuth = true;
+    lastAuthRefreshAt = now;
+    try {
+      const freshToken = await ensureHubAuth(true);
+      currentClient = await HubApiClient.create(false);
+      socket.auth = { token: freshToken };
+      socket.connect();
+      console.error(`[${new Date().toISOString()}] Refreshed Hub auth and triggered reconnect (${reason}).`);
+    } catch (refreshError) {
+      console.error(
+        `[${new Date().toISOString()}] Failed to refresh Hub auth after ${reason}:`,
+        errorToText(refreshError)
+      );
+      if (triggerError) {
+        console.error(`[${new Date().toISOString()}] Original auth error trigger:`, errorToText(triggerError));
+      }
+    } finally {
+      isRefreshingAuth = false;
+    }
+  };
 
   console.error('Starting chat bridge daemon...');
   console.error(`Hub: ${HUB_URL}`);
@@ -203,14 +272,30 @@ async function daemonMode(hubToken: string, hooksToken: string, client: HubApiCl
     console.error(`[${new Date().toISOString()}] Connected to Hub`);
   });
 
-  socket.on('disconnect', () => {
-    console.error(`[${new Date().toISOString()}] Disconnected from Hub, reconnecting...`);
+  socket.on('disconnect', (reason) => {
+    console.error(`[${new Date().toISOString()}] Disconnected from Hub (${reason}), reconnecting...`);
+  });
+
+  socket.io.on('reconnect_attempt', (attempt) => {
+    console.error(`[${new Date().toISOString()}] Reconnect attempt #${attempt}...`);
+  });
+
+  socket.io.on('reconnect', (attempt) => {
+    console.error(`[${new Date().toISOString()}] Reconnected to Hub after ${attempt} attempt(s).`);
+  });
+
+  socket.io.on('reconnect_error', (error) => {
+    console.error(`[${new Date().toISOString()}] Reconnect error:`, errorToText(error));
   });
 
   socket.on('message', async (msg: ChatMessage) => {
     try {
-      await handleInboundMessage(msg, hooksToken, client);
+      await handleInboundMessage(msg, hooksToken, currentClient);
     } catch (error) {
+      if (isAuthFailureError(error)) {
+        await refreshAuthAndReconnect('message handler auth failure', error);
+        return;
+      }
       console.error(
         `[${new Date().toISOString()}] Failed handling inbound message ${msg.id}:`,
         error instanceof Error ? error.message : String(error)
@@ -218,8 +303,15 @@ async function daemonMode(hubToken: string, hooksToken: string, client: HubApiCl
     }
   });
 
-  socket.on('error', (err: Error) => {
-    console.error(`[${new Date().toISOString()}] Socket error:`, err.message);
+  socket.on('error', (error: Error) => {
+    console.error(`[${new Date().toISOString()}] Socket error:`, error.message);
+  });
+
+  socket.on('connect_error', (error: Error & { data?: unknown }) => {
+    console.error(`[${new Date().toISOString()}] Socket connect error:`, errorToText(error));
+    if (isAuthFailureError(error)) {
+      void refreshAuthAndReconnect('connect_error auth failure', error);
+    }
   });
 
   await new Promise<void>((resolve) => {
