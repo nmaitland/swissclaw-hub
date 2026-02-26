@@ -103,6 +103,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: 0;
 }
 
 .top-panels {
@@ -111,6 +112,89 @@
   gap: 1rem;
   min-height: 0;
   align-items: stretch;
+}
+
+.workspace-panels {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-panel-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kanban-panel-wrap > * {
+  min-height: 0;
+}
+
+.panel-splitter {
+  flex: 0 0 10px;
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  user-select: none;
+  background: rgba(255, 69, 0, 0.04);
+  border-top: 1px solid rgba(255, 69, 0, 0.15);
+  border-bottom: 1px solid rgba(255, 69, 0, 0.15);
+}
+
+.panel-splitter:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+.panel-splitter.dragging {
+  background: rgba(255, 69, 0, 0.12);
+}
+
+.panel-splitter-grip {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 69, 0, 0.5);
+}
+
+.workspace-panels .panel.chat-panel {
+  flex: 0 0 auto;
+  min-height: 140px;
+}
+
+.workspace-panels .chat-panel .panel-content {
+  min-height: 0;
+}
+
+.mobile-panel-presets {
+  display: none;
+  gap: 0.35rem;
+}
+
+.mobile-panel-preset-btn {
+  border: 1px solid rgba(255, 69, 0, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  color: #d1d5db;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.mobile-panel-preset-btn.active {
+  border-color: #ff4500;
+  color: #ff4500;
+  background: rgba(255, 69, 0, 0.15);
+}
+
+body.panel-resizing {
+  cursor: row-resize;
+  user-select: none;
 }
 
 .panel {
@@ -241,7 +325,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 200px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .chat-message {
@@ -331,6 +416,29 @@
 .chat-input button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .top-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-splitter {
+    flex-basis: auto;
+    height: auto;
+    min-height: 44px;
+    cursor: default;
+    padding: 0.35rem 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .panel-splitter-grip {
+    display: none;
+  }
+
+  .mobile-panel-presets {
+    display: flex;
+  }
 }
 
 .status-content {

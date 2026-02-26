@@ -36,6 +36,17 @@ global.IntersectionObserver = jest.fn(() => ({
   unobserve: jest.fn(),
 }));
 
+const createMatchMediaResult = (matches = false) => ({
+  matches,
+  media: '(max-width: 768px)',
+  onchange: null,
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+  addListener: jest.fn(),
+  removeListener: jest.fn(),
+  dispatchEvent: jest.fn(),
+});
+
 const mockStatusData = {
   state: 'active',
   currentTask: 'Building Swissclaw Hub',
@@ -101,6 +112,7 @@ describe('App Component', () => {
     jest.clearAllMocks();
     // Mock console.error to suppress warnings
     jest.spyOn(console, 'error').mockImplementation(() => {});
+    window.matchMedia = jest.fn().mockImplementation(() => createMatchMediaResult(false));
     // Mock localStorage
     Storage.prototype.getItem = jest.fn((key) => {
       if (key === 'authToken') return 'test-token';
@@ -200,6 +212,73 @@ describe('App Component', () => {
     render(<App />);
     await waitFor(() => {
       expect(screen.getByTestId('kanban-board')).toBeInTheDocument();
+    });
+  });
+
+  it('renders a desktop splitter between kanban and chat panels', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('kanban-chat-splitter')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId('mobile-size-presets')).not.toBeInTheDocument();
+  });
+
+  it('loads persisted desktop chat ratio from localStorage', async () => {
+    Storage.prototype.getItem = jest.fn((key) => {
+      if (key === 'authToken') return 'test-token';
+      if (key === 'hub.chatPanelRatio.v1') return '0.42';
+      return null;
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('chat-panel')).toHaveStyle({ height: '42.00%' });
+    });
+  });
+
+  it('updates and persists desktop chat ratio when dragging the splitter', async () => {
+    render(<App />);
+
+    const splitter = await screen.findByTestId('kanban-chat-splitter');
+    const workspacePanels = screen.getByTestId('workspace-panels');
+    workspacePanels.getBoundingClientRect = jest.fn(() => ({
+      x: 0,
+      y: 100,
+      top: 100,
+      left: 0,
+      right: 1000,
+      bottom: 700,
+      width: 1000,
+      height: 600,
+      toJSON: () => {},
+    }));
+
+    fireEvent.pointerDown(splitter, { clientY: 500 });
+    fireEvent.pointerMove(window, { clientY: 400 });
+    fireEvent.pointerUp(window);
+
+    await waitFor(() => {
+      const ratioWrites = Storage.prototype.setItem.mock.calls.filter((call) => call[0] === 'hub.chatPanelRatio.v1');
+      expect(ratioWrites.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('shows mobile presets and persists selection in mobile layout', async () => {
+    window.matchMedia = jest.fn().mockImplementation(() => createMatchMediaResult(true));
+
+    render(<App />);
+
+    const presets = await screen.findByTestId('mobile-size-presets');
+    expect(presets).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+
+    await waitFor(() => {
+      expect(Storage.prototype.setItem).toHaveBeenCalledWith('hub.mobilePanelPreset.v1', 'chat');
+      expect(screen.getByTestId('chat-panel')).toHaveStyle({ height: '45.00%' });
     });
   });
 
