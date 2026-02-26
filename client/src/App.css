@@ -1,10 +1,12 @@
 /* App.css - Swissclaw Hub Styles */
 
 .app {
+  height: 100vh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+  overflow: hidden;
 }
 
 .header {
@@ -103,6 +105,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-height: 0;
 }
 
 .top-panels {
@@ -111,6 +114,119 @@
   gap: 1rem;
   min-height: 0;
   align-items: stretch;
+}
+
+.workspace-panels {
+  flex: 1;
+  height: 100%;
+  max-height: 100%;
+  min-height: 420px;
+  display: grid;
+  grid-template-rows:
+    calc((1 - var(--chat-panel-ratio, 0.35)) * (100% - 10px))
+    10px
+    calc(var(--chat-panel-ratio, 0.35) * (100% - 10px));
+}
+
+.kanban-panel-wrap {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kanban-panel-wrap > * {
+  min-height: 0;
+}
+
+.kanban-panel-wrap .kanban-board {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-panel-wrap .kanban-columns {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.kanban-panel-wrap .kanban-column {
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+}
+
+.panel-splitter {
+  flex: 0 0 10px;
+  height: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: row-resize;
+  user-select: none;
+  background: rgba(255, 69, 0, 0.04);
+  border-top: 1px solid rgba(255, 69, 0, 0.15);
+  border-bottom: 1px solid rgba(255, 69, 0, 0.15);
+}
+
+.panel-splitter:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+.panel-splitter.dragging {
+  background: rgba(255, 69, 0, 0.12);
+}
+
+.panel-splitter-grip {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 69, 0, 0.5);
+}
+
+.workspace-panels .panel.chat-panel {
+  min-height: 0;
+  height: 100%;
+}
+
+.workspace-panels .chat-panel .panel-content {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.workspace-panels .chat-panel .chat-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.mobile-panel-presets {
+  display: none;
+  gap: 0.35rem;
+}
+
+.mobile-panel-preset-btn {
+  border: 1px solid rgba(255, 69, 0, 0.25);
+  background: rgba(0, 0, 0, 0.3);
+  color: #d1d5db;
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.mobile-panel-preset-btn.active {
+  border-color: #ff4500;
+  color: #ff4500;
+  background: rgba(255, 69, 0, 0.15);
+}
+
+body.panel-resizing {
+  cursor: row-resize;
+  user-select: none;
 }
 
 .panel {
@@ -241,7 +357,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 200px;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .chat-message {
@@ -331,6 +448,38 @@
 .chat-input button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .top-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-panels {
+    height: 100%;
+    max-height: 100%;
+    min-height: 340px;
+    grid-template-rows:
+      calc((1 - var(--chat-panel-ratio, 0.35)) * (100% - 52px))
+      52px
+      calc(var(--chat-panel-ratio, 0.35) * (100% - 52px));
+  }
+
+  .panel-splitter {
+    height: 100%;
+    min-height: 0;
+    cursor: default;
+    padding: 0.35rem 0.5rem;
+    justify-content: flex-end;
+  }
+
+  .panel-splitter-grip {
+    display: none;
+  }
+
+  .mobile-panel-presets {
+    display: flex;
+  }
 }
 
 .status-content {

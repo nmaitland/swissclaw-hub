@@ -13,6 +13,71 @@ import type {
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
+const DESKTOP_CHAT_RATIO_KEY = 'hub.chatPanelRatio.v1';
+const MOBILE_PANEL_PRESET_KEY = 'hub.mobilePanelPreset.v1';
+const DEFAULT_DESKTOP_CHAT_RATIO = 0.35;
+const KANBAN_MIN_PX = 280;
+const CHAT_MIN_PX = 220;
+const SPLITTER_HEIGHT_PX = 10;
+const SPLITTER_KEYBOARD_STEP = 0.02;
+
+type MobilePanelPreset = 'kanban' | 'balanced' | 'chat';
+
+const MOBILE_PRESET_RATIOS: Record<MobilePanelPreset, number> = {
+  kanban: 0.25,
+  balanced: 0.35,
+  chat: 0.45,
+};
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max);
+};
+
+const getRatioBounds = (containerHeight: number): { min: number; max: number } => {
+  const usableHeight = Math.max(containerHeight - SPLITTER_HEIGHT_PX, 1);
+  const min = CHAT_MIN_PX / usableHeight;
+  const max = 1 - KANBAN_MIN_PX / usableHeight;
+
+  if (min <= max) {
+    return { min, max };
+  }
+
+  // Extremely short viewports cannot satisfy both panel minimums at once.
+  return { min: 0.2, max: 0.8 };
+};
+
+const readPersistedDesktopChatRatio = (): number => {
+  try {
+    const raw = localStorage.getItem(DESKTOP_CHAT_RATIO_KEY);
+    const parsed = raw ? Number.parseFloat(raw) : Number.NaN;
+    if (Number.isFinite(parsed)) {
+      return clamp(parsed, 0.2, 0.8);
+    }
+  } catch {
+    // Ignore storage read failures and use defaults.
+  }
+
+  return DEFAULT_DESKTOP_CHAT_RATIO;
+};
+
+const readPersistedMobilePreset = (): MobilePanelPreset => {
+  try {
+    const raw = localStorage.getItem(MOBILE_PANEL_PRESET_KEY);
+    if (raw === 'kanban' || raw === 'balanced' || raw === 'chat') {
+      return raw;
+    }
+  } catch {
+    // Ignore storage read failures and use defaults.
+  }
+
+  return 'balanced';
+};
+
+const getMobileLayoutMatches = (): boolean => {
+  return typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 768px)').matches;
+};
 
 const getAuthToken = (): string | null => {
   return localStorage.getItem('authToken');
@@ -41,6 +106,11 @@ function App() {
 
   // Message processing states
   const [messageStates, setMessageStates] = useState<Record<string, MessageProcessingState>>({});
+  const workspacePanelsRef = useRef<HTMLDivElement>(null);
+  const [chatRatioDesktop, setChatRatioDesktop] = useState<number>(readPersistedDesktopChatRatio);
+  const [mobilePreset, setMobilePreset] = useState<MobilePanelPreset>(readPersistedMobilePreset);
+  const [isMobileLayout, setIsMobileLayout] = useState<boolean>(getMobileLayoutMatches);
+  const [isResizingPanels, setIsResizingPanels] = useState(false);
 
   // Check auth on mount
   useEffect(() => {
@@ -234,6 +304,54 @@ function App() {
     fetchBuildInfo();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    setIsMobileLayout(mediaQuery.matches);
+
+    const handleMediaQueryChange = (event: MediaQueryListEvent) => {
+      setIsMobileLayout(event.matches);
+    };
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleMediaQueryChange);
+      return () => mediaQuery.removeEventListener('change', handleMediaQueryChange);
+    }
+
+    mediaQuery.addListener(handleMediaQueryChange);
+    return () => mediaQuery.removeListener(handleMediaQueryChange);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DESKTOP_CHAT_RATIO_KEY, chatRatioDesktop.toString());
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [chatRatioDesktop]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MOBILE_PANEL_PRESET_KEY, mobilePreset);
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [mobilePreset]);
+
+  useEffect(() => {
+    const body = document.body;
+    if (isResizingPanels) {
+      body.classList.add('panel-resizing');
+      return () => body.classList.remove('panel-resizing');
+    }
+
+    body.classList.remove('panel-resizing');
+    return undefined;
+  }, [isResizingPanels]);
+
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     sendCurrentMessage();
@@ -264,6 +382,95 @@ function App() {
   const getCostAmount = (costs: Array<{ type: ModelUsageCostType; amount: number }>, type: ModelUsageCostType): number => {
     return costs.find((entry) => entry.type === type)?.amount || 0;
   };
+
+  const getWorkspacePanelsHeight = useCallback((): number => {
+    return workspacePanelsRef.current?.getBoundingClientRect().height || Math.max(window.innerHeight * 0.6, 1);
+  }, []);
+
+  const clampDesktopRatioToBounds = useCallback((ratio: number, containerHeight: number): number => {
+    const bounds = getRatioBounds(containerHeight);
+    return clamp(ratio, bounds.min, bounds.max);
+  }, []);
+
+  const setDesktopRatioFromPointer = useCallback((clientY: number) => {
+    const wrapper = workspacePanelsRef.current;
+    if (!wrapper) return;
+
+    const rect = wrapper.getBoundingClientRect();
+    const usableHeight = Math.max(rect.height - SPLITTER_HEIGHT_PX, 1);
+    const desiredChatHeight = rect.bottom - clientY;
+    const desiredRatio = desiredChatHeight / usableHeight;
+
+    setChatRatioDesktop(clampDesktopRatioToBounds(desiredRatio, rect.height));
+  }, [clampDesktopRatioToBounds]);
+
+  const handleSplitterPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isMobileLayout) return;
+
+    event.preventDefault();
+    setIsResizingPanels(true);
+    setDesktopRatioFromPointer(event.clientY);
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      setDesktopRatioFromPointer(moveEvent.clientY);
+    };
+
+    const stopResize = () => {
+      setIsResizingPanels(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResize);
+      window.removeEventListener('pointercancel', stopResize);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize);
+    window.addEventListener('pointercancel', stopResize);
+  };
+
+  const handleSplitterKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isMobileLayout) return;
+
+    const containerHeight = getWorkspacePanelsHeight();
+    const bounds = getRatioBounds(containerHeight);
+    let nextRatio: number | null = null;
+
+    if (event.key === 'ArrowUp') {
+      nextRatio = chatRatioDesktop - SPLITTER_KEYBOARD_STEP;
+    } else if (event.key === 'ArrowDown') {
+      nextRatio = chatRatioDesktop + SPLITTER_KEYBOARD_STEP;
+    } else if (event.key === 'Home') {
+      nextRatio = bounds.min;
+    } else if (event.key === 'End') {
+      nextRatio = bounds.max;
+    }
+
+    if (nextRatio !== null) {
+      event.preventDefault();
+      setChatRatioDesktop(clamp(nextRatio, bounds.min, bounds.max));
+    }
+  };
+
+  useEffect(() => {
+    const clampToCurrentLayout = () => {
+      const containerHeight = getWorkspacePanelsHeight();
+      setChatRatioDesktop((prev) => clampDesktopRatioToBounds(prev, containerHeight));
+    };
+
+    clampToCurrentLayout();
+    window.addEventListener('resize', clampToCurrentLayout);
+    return () => window.removeEventListener('resize', clampToCurrentLayout);
+  }, [clampDesktopRatioToBounds, getWorkspacePanelsHeight]);
+
+  const handleSelectMobilePreset = (preset: MobilePanelPreset) => {
+    setMobilePreset(preset);
+  };
+
+  const activeChatRatio = isMobileLayout
+    ? MOBILE_PRESET_RATIOS[mobilePreset]
+    : chatRatioDesktop;
+  const workspacePanelsStyle = {
+    ['--chat-panel-ratio' as const]: activeChatRatio,
+  } as React.CSSProperties;
 
 
   return (
@@ -430,59 +637,110 @@ function App() {
           </section>
         </section>
 
-        {/* Unified Kanban Board */}
-        <KanbanBoard />
-
-        {/* Chat Panel (moved to bottom) */}
-        <section className="panel chat-panel">
-          <h2>
-            {'\u{1F4AC}'} Chat
-            {!socketConnected && (
-              <span className="chat-connecting"> connecting...</span>
-            )}
-          </h2>
-          <div className="panel-content chat-messages">
-            {messages.length === 0 ? (
-              <div className="empty-state">No messages yet</div>
-            ) : (
-              [...messages].reverse().map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
-                >
-                  <div className="chat-message-header">
-                    <span className="chat-sender">
-                      {msg.sender}
-                      {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
-                        <span className={`message-state message-state-${messageStates[msg.id]}`}>
-                          {messageStates[msg.id] === 'received' && ' ✓'}
-                          {messageStates[msg.id] === 'processing' && ' ⚙️'}
-                          {messageStates[msg.id] === 'thinking' && ' ...'}
-                        </span>
-                      )}
-                    </span>
-                    <span className="chat-time">
-                      {new Date(msg.created_at).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <span className="chat-text">{msg.content}</span>
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
+        <section
+          className="workspace-panels"
+          ref={workspacePanelsRef}
+          data-testid="workspace-panels"
+          style={workspacePanelsStyle}
+        >
+          <div className="kanban-panel-wrap">
+            {/* Unified Kanban Board */}
+            <KanbanBoard />
           </div>
-          <form className="chat-input" onSubmit={sendMessage}>
-            <textarea
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleChatInputKeyDown}
-              placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
-              rows={1}
-            />
-            <button type="submit" disabled={!inputMessage.trim()}>
-              Send
-            </button>
-          </form>
+
+          <div
+            className={`panel-splitter ${isResizingPanels ? 'dragging' : ''}`}
+            role="separator"
+            aria-label="Resize Kanban and Chat panels"
+            aria-orientation="horizontal"
+            aria-valuemin={20}
+            aria-valuemax={80}
+            aria-valuenow={Math.round(activeChatRatio * 100)}
+            tabIndex={isMobileLayout ? -1 : 0}
+            onPointerDown={handleSplitterPointerDown}
+            onKeyDown={handleSplitterKeyDown}
+            data-testid="kanban-chat-splitter"
+          >
+            {isMobileLayout ? (
+              <div className="mobile-panel-presets" data-testid="mobile-size-presets">
+                <button
+                  type="button"
+                  className={`mobile-panel-preset-btn ${mobilePreset === 'kanban' ? 'active' : ''}`}
+                  onClick={() => handleSelectMobilePreset('kanban')}
+                >
+                  Kanban
+                </button>
+                <button
+                  type="button"
+                  className={`mobile-panel-preset-btn ${mobilePreset === 'balanced' ? 'active' : ''}`}
+                  onClick={() => handleSelectMobilePreset('balanced')}
+                >
+                  Balanced
+                </button>
+                <button
+                  type="button"
+                  className={`mobile-panel-preset-btn ${mobilePreset === 'chat' ? 'active' : ''}`}
+                  onClick={() => handleSelectMobilePreset('chat')}
+                >
+                  Chat
+                </button>
+              </div>
+            ) : (
+              <span className="panel-splitter-grip" aria-hidden="true" />
+            )}
+          </div>
+
+          {/* Chat Panel (resizable) */}
+          <section className="panel chat-panel" data-testid="chat-panel">
+            <h2>
+              {'\u{1F4AC}'} Chat
+              {!socketConnected && (
+                <span className="chat-connecting"> connecting...</span>
+              )}
+            </h2>
+            <div className="panel-content chat-messages">
+              {messages.length === 0 ? (
+                <div className="empty-state">No messages yet</div>
+              ) : (
+                [...messages].reverse().map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
+                  >
+                    <div className="chat-message-header">
+                      <span className="chat-sender">
+                        {msg.sender}
+                        {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
+                          <span className={`message-state message-state-${messageStates[msg.id]}`}>
+                            {messageStates[msg.id] === 'received' && ' ✓'}
+                            {messageStates[msg.id] === 'processing' && ' ⚙️'}
+                            {messageStates[msg.id] === 'thinking' && ' ...'}
+                          </span>
+                        )}
+                      </span>
+                      <span className="chat-time">
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <span className="chat-text">{msg.content}</span>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+            <form className="chat-input" onSubmit={sendMessage}>
+              <textarea
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyDown={handleChatInputKeyDown}
+                placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
+                rows={1}
+              />
+              <button type="submit" disabled={!inputMessage.trim()}>
+                Send
+              </button>
+            </form>
+          </section>
         </section>
       </main>
 
