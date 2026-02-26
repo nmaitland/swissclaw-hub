@@ -118,7 +118,8 @@
 
 .workspace-panels {
   flex: 1;
-  max-height: min(72vh, 760px);
+  height: 100%;
+  max-height: 100%;
   min-height: 420px;
   display: grid;
   grid-template-rows:
@@ -455,7 +456,8 @@ body.panel-resizing {
   }
 
   .workspace-panels {
-    max-height: 68vh;
+    height: 100%;
+    max-height: 100%;
     min-height: 340px;
     grid-template-rows:
       calc((1 - var(--chat-panel-ratio, 0.35)) * (100% - 52px))
