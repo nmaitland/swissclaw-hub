@@ -117,13 +117,16 @@
 .workspace-panels {
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows:
+    calc((1 - var(--chat-panel-ratio, 0.35)) * (100% - 10px))
+    10px
+    calc(var(--chat-panel-ratio, 0.35) * (100% - 10px));
 }
 
 .kanban-panel-wrap {
-  flex: 1 1 auto;
   min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -163,11 +166,17 @@
 }
 
 .workspace-panels .panel.chat-panel {
-  flex: 0 0 auto;
-  min-height: 140px;
+  min-height: 0;
+  height: 100%;
 }
 
 .workspace-panels .chat-panel .panel-content {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.workspace-panels .chat-panel .chat-messages {
+  flex: 1 1 auto;
   min-height: 0;
 }
 
@@ -423,10 +432,16 @@ body.panel-resizing {
     grid-template-columns: 1fr;
   }
 
+  .workspace-panels {
+    grid-template-rows:
+      calc((1 - var(--chat-panel-ratio, 0.35)) * (100% - 52px))
+      52px
+      calc(var(--chat-panel-ratio, 0.35) * (100% - 52px));
+  }
+
   .panel-splitter {
-    flex-basis: auto;
-    height: auto;
-    min-height: 44px;
+    height: 100%;
+    min-height: 0;
     cursor: default;
     padding: 0.35rem 0.5rem;
     justify-content: flex-end;
