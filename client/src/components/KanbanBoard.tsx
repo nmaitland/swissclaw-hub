@@ -26,6 +26,7 @@ import type {
 import './KanbanBoard.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
+const MOBILE_LAYOUT_QUERY = '(max-width: 768px)';
 
 const COLUMNS: (KanbanColumnDef & { special?: boolean })[] = [
   { name: 'backlog', displayName: 'Backlog', emoji: '\u{1F4DD}', position: 0 },
@@ -37,6 +38,11 @@ const COLUMNS: (KanbanColumnDef & { special?: boolean })[] = [
 ];
 
 const getAuthToken = (): string | null => localStorage.getItem('authToken');
+const getMobileLayoutMatches = (): boolean => {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(MOBILE_LAYOUT_QUERY).matches;
+};
 
 const getPriorityColor = (priority: string): string => {
   switch (priority) {
@@ -202,6 +208,9 @@ function KanbanBoard() {
   // Search & filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('all');
+  const [isMobileLayout, setIsMobileLayout] = useState<boolean>(getMobileLayoutMatches);
+  const [mobileColumnName, setMobileColumnName] = useState<ColumnName>('todo');
+  const [hasUserSelectedMobileColumn, setHasUserSelectedMobileColumn] = useState(false);
 
   // Drag state
   const [activeTask, setActiveTask] = useState<KanbanCardTask | null>(null);
@@ -241,6 +250,27 @@ function KanbanBoard() {
   useEffect(() => {
     fetchKanbanData();
   }, [fetchKanbanData]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(MOBILE_LAYOUT_QUERY);
+    setIsMobileLayout(mediaQuery.matches);
+
+    const handleMediaQueryChange = (event: MediaQueryListEvent) => {
+      setIsMobileLayout(event.matches);
+    };
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleMediaQueryChange);
+      return () => mediaQuery.removeEventListener('change', handleMediaQueryChange);
+    }
+
+    mediaQuery.addListener(handleMediaQueryChange);
+    return () => mediaQuery.removeListener(handleMediaQueryChange);
+  }, []);
 
   // ─── Keyboard shortcut: Ctrl+K to focus search ─────────────────────
 
@@ -294,6 +324,42 @@ function KanbanBoard() {
     () => Object.values(filteredTasks).reduce((acc, col) => acc + (col?.length || 0), 0),
     [filteredTasks]
   );
+
+  useEffect(() => {
+    if (!isMobileLayout || hasUserSelectedMobileColumn) {
+      return;
+    }
+
+    if ((filteredTasks[mobileColumnName] || []).length > 0) {
+      return;
+    }
+
+    const firstColumnWithTasks = COLUMNS.find((col) => (filteredTasks[col.name] || []).length > 0);
+    if (firstColumnWithTasks) {
+      setMobileColumnName(firstColumnWithTasks.name);
+    }
+  }, [filteredTasks, isMobileLayout, mobileColumnName, hasUserSelectedMobileColumn]);
+
+  const mobileColumnIndex = COLUMNS.findIndex((col) => col.name === mobileColumnName);
+
+  const handleSelectMobileColumn = (columnName: ColumnName) => {
+    setHasUserSelectedMobileColumn(true);
+    setMobileColumnName(columnName);
+  };
+
+  const handleMoveMobileColumn = (direction: 'prev' | 'next') => {
+    const fallbackIndex = mobileColumnIndex >= 0 ? mobileColumnIndex : 0;
+    const offset = direction === 'prev' ? -1 : 1;
+    const nextIndex = (fallbackIndex + offset + COLUMNS.length) % COLUMNS.length;
+    const nextColumn = COLUMNS[nextIndex];
+    if (nextColumn) {
+      handleSelectMobileColumn(nextColumn.name);
+    }
+  };
+
+  const columnsToRender = isMobileLayout
+    ? COLUMNS.filter((col) => col.name === mobileColumnName)
+    : COLUMNS;
 
   // ─── Drag and Drop ─────────────────────────────────────────────────
 
@@ -583,6 +649,61 @@ function KanbanBoard() {
         </div>
       </div>
 
+      {isMobileLayout && (
+        <div className="kanban-mobile-nav" data-testid="kanban-mobile-nav">
+          <div className="kanban-mobile-nav-row">
+            <button
+              type="button"
+              className="kanban-mobile-nav-btn"
+              onClick={() => handleMoveMobileColumn('prev')}
+              aria-label="Previous status column"
+            >
+              {'\u2039'} Prev
+            </button>
+            <div className="kanban-mobile-current-column">
+              {(() => {
+                const currentColumn = COLUMNS.find((col) => col.name === mobileColumnName);
+                const currentCount = (filteredTasks[mobileColumnName] || []).length;
+                return (
+                  <>
+                    <span>{currentColumn?.emoji || '\u{1F4CB}'}</span>
+                    <span>{currentColumn?.displayName || 'Column'}</span>
+                    <span className="kanban-mobile-current-count">{currentCount}</span>
+                  </>
+                );
+              })()}
+            </div>
+            <button
+              type="button"
+              className="kanban-mobile-nav-btn"
+              onClick={() => handleMoveMobileColumn('next')}
+              aria-label="Next status column"
+            >
+              Next {'\u203A'}
+            </button>
+          </div>
+          <div className="kanban-mobile-pills" role="tablist" aria-label="Kanban status columns">
+            {COLUMNS.map((col) => {
+              const isActive = col.name === mobileColumnName;
+              const columnTaskCount = (filteredTasks[col.name] || []).length;
+              return (
+                <button
+                  key={col.name}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`kanban-mobile-pill ${isActive ? 'active' : ''}`}
+                  onClick={() => handleSelectMobileColumn(col.name)}
+                >
+                  <span>{col.displayName}</span>
+                  <span className="kanban-mobile-pill-count">{columnTaskCount}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Kanban Board with DnD */}
       <DndContext
         sensors={sensors}
@@ -590,8 +711,8 @@ function KanbanBoard() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="kanban-columns">
-          {COLUMNS.map((col) => (
+        <div className={`kanban-columns ${isMobileLayout ? 'mobile-single-column' : ''}`}>
+          {columnsToRender.map((col) => (
             <KanbanColumn
               key={col.name}
               col={col}

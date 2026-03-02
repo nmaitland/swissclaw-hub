@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import KanbanBoard from './components/KanbanBoard';
 import type {
@@ -14,20 +14,20 @@ import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 const DESKTOP_CHAT_RATIO_KEY = 'hub.chatPanelRatio.v1';
-const MOBILE_PANEL_PRESET_KEY = 'hub.mobilePanelPreset.v1';
+const MOBILE_VIEW_MODE_KEY = 'hub.mobileViewMode.v1';
 const DEFAULT_DESKTOP_CHAT_RATIO = 0.35;
 const KANBAN_MIN_PX = 280;
 const CHAT_MIN_PX = 220;
 const SPLITTER_HEIGHT_PX = 10;
 const SPLITTER_KEYBOARD_STEP = 0.02;
 
-type MobilePanelPreset = 'kanban' | 'balanced' | 'chat';
-
-const MOBILE_PRESET_RATIOS: Record<MobilePanelPreset, number> = {
-  kanban: 0.25,
-  balanced: 0.35,
-  chat: 0.45,
-};
+type MobileViewMode = 'status' | 'activities' | 'kanban' | 'chat';
+const MOBILE_VIEW_MODES: Array<{ key: MobileViewMode; label: string }> = [
+  { key: 'status', label: 'Status' },
+  { key: 'activities', label: 'Activities' },
+  { key: 'kanban', label: 'Kanban' },
+  { key: 'chat', label: 'Chat' },
+];
 
 const clamp = (value: number, min: number, max: number): number => {
   return Math.min(Math.max(value, min), max);
@@ -60,17 +60,17 @@ const readPersistedDesktopChatRatio = (): number => {
   return DEFAULT_DESKTOP_CHAT_RATIO;
 };
 
-const readPersistedMobilePreset = (): MobilePanelPreset => {
+const readPersistedMobileViewMode = (): MobileViewMode => {
   try {
-    const raw = localStorage.getItem(MOBILE_PANEL_PRESET_KEY);
-    if (raw === 'kanban' || raw === 'balanced' || raw === 'chat') {
+    const raw = localStorage.getItem(MOBILE_VIEW_MODE_KEY);
+    if (raw === 'status' || raw === 'activities' || raw === 'kanban' || raw === 'chat') {
       return raw;
     }
   } catch {
     // Ignore storage read failures and use defaults.
   }
 
-  return 'balanced';
+  return 'status';
 };
 
 const getMobileLayoutMatches = (): boolean => {
@@ -108,7 +108,7 @@ function App() {
   const [messageStates, setMessageStates] = useState<Record<string, MessageProcessingState>>({});
   const workspacePanelsRef = useRef<HTMLDivElement>(null);
   const [chatRatioDesktop, setChatRatioDesktop] = useState<number>(readPersistedDesktopChatRatio);
-  const [mobilePreset, setMobilePreset] = useState<MobilePanelPreset>(readPersistedMobilePreset);
+  const [mobileViewMode, setMobileViewMode] = useState<MobileViewMode>(readPersistedMobileViewMode);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(getMobileLayoutMatches);
   const [isResizingPanels, setIsResizingPanels] = useState(false);
 
@@ -335,11 +335,11 @@ function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(MOBILE_PANEL_PRESET_KEY, mobilePreset);
+      localStorage.setItem(MOBILE_VIEW_MODE_KEY, mobileViewMode);
     } catch {
       // Ignore storage write failures.
     }
-  }, [mobilePreset]);
+  }, [mobileViewMode]);
 
   useEffect(() => {
     const body = document.body;
@@ -461,16 +461,232 @@ function App() {
     return () => window.removeEventListener('resize', clampToCurrentLayout);
   }, [clampDesktopRatioToBounds, getWorkspacePanelsHeight]);
 
-  const handleSelectMobilePreset = (preset: MobilePanelPreset) => {
-    setMobilePreset(preset);
+  const handleSelectMobileViewMode = (mode: MobileViewMode) => {
+    setMobileViewMode(mode);
   };
 
-  const activeChatRatio = isMobileLayout
-    ? MOBILE_PRESET_RATIOS[mobilePreset]
-    : chatRatioDesktop;
+  const activeChatRatio = chatRatioDesktop;
   const workspacePanelsStyle = {
     ['--chat-panel-ratio' as const]: activeChatRatio,
   } as React.CSSProperties;
+
+  const renderChatPanel = (extraClass = '', composerAtTop = false) => (
+    <section className={`panel chat-panel ${extraClass}`.trim()} data-testid="chat-panel">
+      <h2>
+        {'\u{1F4AC}'} Chat
+        {!socketConnected && (
+          <span className="chat-connecting"> connecting...</span>
+        )}
+      </h2>
+      {composerAtTop && (
+        <form className="chat-input chat-input-top" onSubmit={sendMessage}>
+          <textarea
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={handleChatInputKeyDown}
+            placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
+            rows={1}
+          />
+          <button type="submit" disabled={!inputMessage.trim()}>
+            Send
+          </button>
+        </form>
+      )}
+      <div className="panel-content chat-messages">
+        {messages.length === 0 ? (
+          <div className="empty-state">No messages yet</div>
+        ) : (
+          [...messages].reverse().map((msg) => (
+            <div
+              key={msg.id}
+              className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
+            >
+              <div className="chat-message-header">
+                <span className="chat-sender">
+                  {msg.sender}
+                  {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
+                    <span className={`message-state message-state-${messageStates[msg.id]}`}>
+                      {messageStates[msg.id] === 'received' && ' Ã¢Å“â€œ'}
+                      {messageStates[msg.id] === 'processing' && ' Ã¢Å¡â„¢Ã¯Â¸Â'}
+                      {messageStates[msg.id] === 'thinking' && ' ...'}
+                    </span>
+                  )}
+                </span>
+                <span className="chat-time">
+                  {new Date(msg.created_at).toLocaleTimeString()}
+                </span>
+              </div>
+              <span className="chat-text">{msg.content}</span>
+            </div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+      {!composerAtTop && (
+        <form className="chat-input" onSubmit={sendMessage}>
+          <textarea
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={handleChatInputKeyDown}
+            placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
+            rows={1}
+          />
+          <button type="submit" disabled={!inputMessage.trim()}>
+            Send
+          </button>
+        </form>
+      )}
+    </section>
+  );
+
+  const renderStatusPanel = () => (
+    <section className="panel status-panel">
+      <h2>{'\u{1F4E1}'} Status</h2>
+      <div className="panel-content status-content">
+        <div className="status-header">
+          <span className="status-icon">
+            {status?.state === 'active' && '\u{1F980}'}
+            {status?.state === 'busy' && '\u{1F980}'}
+            {status?.state === 'idle' && '\u{1F980}'}
+            {!status?.state && '\u{1F980}'}
+          </span>
+          <span className="status-state">{status?.state || 'idle'}</span>
+        </div>
+        <div className="current-task">
+          {status?.currentTask || 'Ready to help'}
+        </div>
+        <div className="status-stats">
+          <div className="stat-row">
+            <span className="stat-label">Activities today:</span>
+            <span className="stat-value">{status?.activityCount ?? 0}</span>
+          </div>
+          <div className="stat-row">
+            <span className="stat-label">Chats today:</span>
+            <span className="stat-value">{status?.chatCount ?? 0}</span>
+          </div>
+          {status?.modelUsage && (
+            <>
+              <div className="stat-row">
+                <span className="stat-label">Model usage:</span>
+                <span className="stat-value">
+                  {status.modelUsage.totals.inputTokens.toLocaleString()} in / {status.modelUsage.totals.outputTokens.toLocaleString()} out
+                  {' '}({status.modelUsage.totals.totalTokens.toLocaleString()} total)
+                </span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">Requests:</span>
+                <span className="stat-value">{status.modelUsage.totals.requestCount.toLocaleString()}</span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">Cost (paid):</span>
+                <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'paid').toFixed(4)}</span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">Cost (free potential):</span>
+                <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'free_tier_potential').toFixed(4)}</span>
+              </div>
+              {status.modelUsage.models.length > 0 && (
+                <div className="model-breakdown">
+                  {status.modelUsage.models.map((entry) => (
+                    <div key={entry.model} className="model-entry">
+                      <span className="model-name">{entry.model}:</span>
+                      <span className="model-stats">
+                        {entry.inputTokens.toLocaleString()} in / {entry.outputTokens.toLocaleString()} out
+                        {' '}({entry.requestCount.toLocaleString()} req)
+                        {' '}paid ${getCostAmount(entry.costs, 'paid').toFixed(4)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <div className="last-active">
+          Updated:{' '}
+          {status?.lastActive
+            ? new Date(status.lastActive).toLocaleTimeString()
+            : '\u2014'}
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderActivitiesPanel = () => (
+    <section className="panel activity-panel">
+      <h2>{'\u26A1'} Activities</h2>
+      <div className="panel-content activity-feed" ref={activityFeedRef}>
+        {activities.length === 0 ? (
+          <div className="empty-state">No recent activity</div>
+        ) : (
+          <>
+            {activities.map((activity, i) => {
+              const activityId = String(activity.id || `${activity.created_at}-${i}`);
+              const isExpanded = expandedActivityId === activityId;
+              const activitySender = activity.sender || (
+                typeof activity.metadata?.sender === 'string' ? activity.metadata.sender : null
+              );
+              const activityDetails = (
+                activitySender && activity.description.startsWith(`${activitySender}: `)
+                  ? activity.description.slice(activitySender.length + 2)
+                  : activity.description
+              );
+
+              return (
+                <div
+                  key={activityId}
+                  className={`activity-item ${isExpanded ? 'expanded' : ''}`}
+                  onClick={() => setExpandedActivityId(isExpanded ? null : activityId)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setExpandedActivityId(isExpanded ? null : activityId);
+                    }
+                  }}
+                >
+                  <span className="activity-time">
+                    {new Date(activity.created_at || (activity as any).timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className="activity-text">{activityDetails}</span>
+
+                  {isExpanded && (
+                    <div className="activity-inline-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Type:</span>
+                        <span className="detail-value">{activity.type || 'N/A'}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Sender:</span>
+                        <span className="detail-value">{activitySender || 'N/A'}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Time:</span>
+                        <span className="detail-value">
+                          {new Date(activity.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Details:</span>
+                        <p className="detail-description">{activityDetails}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <div ref={activityLoadMoreRef} className="activity-load-more">
+              {isLoadingActivities && (
+                <div className="loading-indicator">Loading more...</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  );
 
 
   return (
@@ -486,262 +702,69 @@ function App() {
         </div>
       </header>
 
-      <main className="main unified">
-        {/* Top Section: Status + Activities side by side */}
-        <section className="top-panels">
-          <section className="panel status-panel">
-            <h2>{'\u{1F4E1}'} Status</h2>
-            <div className="panel-content status-content">
-              <div className="status-header">
-                <span className="status-icon">
-                  {status?.state === 'active' && '\u{1F980}'}
-                  {status?.state === 'busy' && '\u{1F980}'}
-                  {status?.state === 'idle' && '\u{1F980}'}
-                  {!status?.state && '\u{1F980}'}
-                </span>
-                <span className="status-state">{status?.state || 'idle'}</span>
-              </div>
-              <div className="current-task">
-                {status?.currentTask || 'Ready to help'}
-              </div>
-              <div className="status-stats">
-                <div className="stat-row">
-                  <span className="stat-label">Activities today:</span>
-                  <span className="stat-value">{status?.activityCount ?? 0}</span>
-                </div>
-                <div className="stat-row">
-                  <span className="stat-label">Chats today:</span>
-                  <span className="stat-value">{status?.chatCount ?? 0}</span>
-                </div>
-                {status?.modelUsage && (
-                  <>
-                    <div className="stat-row">
-                      <span className="stat-label">Model usage:</span>
-                      <span className="stat-value">
-                        {status.modelUsage.totals.inputTokens.toLocaleString()} in / {status.modelUsage.totals.outputTokens.toLocaleString()} out
-                        {' '}({status.modelUsage.totals.totalTokens.toLocaleString()} total)
-                      </span>
-                    </div>
-                    <div className="stat-row">
-                      <span className="stat-label">Requests:</span>
-                      <span className="stat-value">{status.modelUsage.totals.requestCount.toLocaleString()}</span>
-                    </div>
-                    <div className="stat-row">
-                      <span className="stat-label">Cost (paid):</span>
-                      <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'paid').toFixed(4)}</span>
-                    </div>
-                    <div className="stat-row">
-                      <span className="stat-label">Cost (free potential):</span>
-                      <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'free_tier_potential').toFixed(4)}</span>
-                    </div>
-                    {status.modelUsage.models.length > 0 && (
-                      <div className="model-breakdown">
-                        {status.modelUsage.models.map((entry) => (
-                          <div key={entry.model} className="model-entry">
-                            <span className="model-name">{entry.model}:</span>
-                            <span className="model-stats">
-                              {entry.inputTokens.toLocaleString()} in / {entry.outputTokens.toLocaleString()} out
-                              {' '}({entry.requestCount.toLocaleString()} req)
-                              {' '}paid ${getCostAmount(entry.costs, 'paid').toFixed(4)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="last-active">
-                Updated:{' '}
-                {status?.lastActive
-                  ? new Date(status.lastActive).toLocaleTimeString()
-                  : '\u2014'}
-              </div>
-            </div>
-          </section>
-
-          {/* Activities Panel (moved to top) */}
-          <section className="panel activity-panel">
-            <h2>{'\u26A1'} Activities</h2>
-            <div className="panel-content activity-feed" ref={activityFeedRef}>
-              {activities.length === 0 ? (
-                <div className="empty-state">No recent activity</div>
-              ) : (
-                <>
-                  {activities.map((activity, i) => {
-                    const activityId = String(activity.id || `${activity.created_at}-${i}`);
-                    const isExpanded = expandedActivityId === activityId;
-                    const activitySender = activity.sender || (
-                      typeof activity.metadata?.sender === 'string' ? activity.metadata.sender : null
-                    );
-                    const activityDetails = (
-                      activitySender && activity.description.startsWith(`${activitySender}: `)
-                        ? activity.description.slice(activitySender.length + 2)
-                        : activity.description
-                    );
-
-                    return (
-                      <div
-                        key={activityId}
-                        className={`activity-item ${isExpanded ? 'expanded' : ''}`}
-                        onClick={() => setExpandedActivityId(isExpanded ? null : activityId)}
-                        role="button"
-                        tabIndex={0}
-                        aria-expanded={isExpanded}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setExpandedActivityId(isExpanded ? null : activityId);
-                          }
-                        }}
-                      >
-                        <span className="activity-time">
-                          {new Date(activity.created_at || (activity as any).timestamp).toLocaleTimeString()}
-                        </span>
-                        <span className="activity-text">{activityDetails}</span>
-
-                        {isExpanded && (
-                          <div className="activity-inline-details">
-                            <div className="detail-row">
-                              <span className="detail-label">Type:</span>
-                              <span className="detail-value">{activity.type || 'N/A'}</span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Sender:</span>
-                              <span className="detail-value">{activitySender || 'N/A'}</span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Time:</span>
-                              <span className="detail-value">
-                                {new Date(activity.created_at).toLocaleString()}
-                              </span>
-                            </div>
-                            <div className="detail-row">
-                              <span className="detail-label">Details:</span>
-                              <p className="detail-description">{activityDetails}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {/* Infinite scroll sentinel */}
-                  <div ref={activityLoadMoreRef} className="activity-load-more">
-                    {isLoadingActivities && (
-                      <div className="loading-indicator">Loading more...</div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
-        </section>
-
-        <section
-          className="workspace-panels"
-          ref={workspacePanelsRef}
-          data-testid="workspace-panels"
-          style={workspacePanelsStyle}
-        >
-          <div className="kanban-panel-wrap">
-            {/* Unified Kanban Board */}
-            <KanbanBoard />
-          </div>
-
-          <div
-            className={`panel-splitter ${isResizingPanels ? 'dragging' : ''}`}
-            role="separator"
-            aria-label="Resize Kanban and Chat panels"
-            aria-orientation="horizontal"
-            aria-valuemin={20}
-            aria-valuemax={80}
-            aria-valuenow={Math.round(activeChatRatio * 100)}
-            tabIndex={isMobileLayout ? -1 : 0}
-            onPointerDown={handleSplitterPointerDown}
-            onKeyDown={handleSplitterKeyDown}
-            data-testid="kanban-chat-splitter"
-          >
-            {isMobileLayout ? (
-              <div className="mobile-panel-presets" data-testid="mobile-size-presets">
-                <button
-                  type="button"
-                  className={`mobile-panel-preset-btn ${mobilePreset === 'kanban' ? 'active' : ''}`}
-                  onClick={() => handleSelectMobilePreset('kanban')}
-                >
-                  Kanban
-                </button>
-                <button
-                  type="button"
-                  className={`mobile-panel-preset-btn ${mobilePreset === 'balanced' ? 'active' : ''}`}
-                  onClick={() => handleSelectMobilePreset('balanced')}
-                >
-                  Balanced
-                </button>
-                <button
-                  type="button"
-                  className={`mobile-panel-preset-btn ${mobilePreset === 'chat' ? 'active' : ''}`}
-                  onClick={() => handleSelectMobilePreset('chat')}
-                >
-                  Chat
-                </button>
-              </div>
-            ) : (
-              <span className="panel-splitter-grip" aria-hidden="true" />
-            )}
-          </div>
-
-          {/* Chat Panel (resizable) */}
-          <section className="panel chat-panel" data-testid="chat-panel">
-            <h2>
-              {'\u{1F4AC}'} Chat
-              {!socketConnected && (
-                <span className="chat-connecting"> connecting...</span>
-              )}
-            </h2>
-            <div className="panel-content chat-messages">
-              {messages.length === 0 ? (
-                <div className="empty-state">No messages yet</div>
-              ) : (
-                [...messages].reverse().map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
-                  >
-                    <div className="chat-message-header">
-                      <span className="chat-sender">
-                        {msg.sender}
-                        {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
-                          <span className={`message-state message-state-${messageStates[msg.id]}`}>
-                            {messageStates[msg.id] === 'received' && ' ✓'}
-                            {messageStates[msg.id] === 'processing' && ' ⚙️'}
-                            {messageStates[msg.id] === 'thinking' && ' ...'}
-                          </span>
-                        )}
-                      </span>
-                      <span className="chat-time">
-                        {new Date(msg.created_at).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <span className="chat-text">{msg.content}</span>
-                  </div>
-                ))
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-            <form className="chat-input" onSubmit={sendMessage}>
-              <textarea
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyDown={handleChatInputKeyDown}
-                placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
-                rows={1}
-              />
-              <button type="submit" disabled={!inputMessage.trim()}>
-                Send
+            <main className="main unified">
+        {isMobileLayout && (
+          <div className="mobile-mode-tabs" data-testid="mobile-mode-tabs">
+            {MOBILE_VIEW_MODES.map((mode) => (
+              <button
+                key={mode.key}
+                type="button"
+                className={`mobile-mode-tab-btn ${mobileViewMode === mode.key ? 'active' : ''}`}
+                onClick={() => handleSelectMobileViewMode(mode.key)}
+              >
+                {mode.label}
               </button>
-            </form>
+            ))}
+          </div>
+        )}
+
+        {(!isMobileLayout || mobileViewMode === 'status' || mobileViewMode === 'activities') && (
+          <section className={`top-panels ${isMobileLayout ? 'mobile-active-panel' : ''}`}>
+            {(!isMobileLayout || mobileViewMode === 'status') && renderStatusPanel()}
+            {(!isMobileLayout || mobileViewMode === 'activities') && renderActivitiesPanel()}
           </section>
-        </section>
+        )}
+
+        {!isMobileLayout && (
+          <section
+            className="workspace-panels"
+            ref={workspacePanelsRef}
+            data-testid="workspace-panels"
+            style={workspacePanelsStyle}
+          >
+            <div className="kanban-panel-wrap">
+              <KanbanBoard />
+            </div>
+
+            <div
+              className={`panel-splitter ${isResizingPanels ? 'dragging' : ''}`}
+              role="separator"
+              aria-label="Resize Kanban and Chat panels"
+              aria-orientation="horizontal"
+              aria-valuemin={20}
+              aria-valuemax={80}
+              aria-valuenow={Math.round(activeChatRatio * 100)}
+              tabIndex={0}
+              onPointerDown={handleSplitterPointerDown}
+              onKeyDown={handleSplitterKeyDown}
+              data-testid="kanban-chat-splitter"
+            >
+              <span className="panel-splitter-grip" aria-hidden="true" />
+            </div>
+
+            {renderChatPanel()}
+          </section>
+        )}
+
+        {isMobileLayout && mobileViewMode === 'kanban' && (
+          <section className="mobile-workspace-panel" data-testid="mobile-kanban-panel">
+            <div className="kanban-panel-wrap">
+              <KanbanBoard />
+            </div>
+          </section>
+        )}
+
+        {isMobileLayout && mobileViewMode === 'chat' && renderChatPanel('mobile-chat-standalone', true)}
       </main>
 
       <footer className="footer">
@@ -761,4 +784,5 @@ function App() {
 }
 
 export default App;
+
 

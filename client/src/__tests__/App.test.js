@@ -222,7 +222,7 @@ describe('App Component', () => {
       expect(screen.getByTestId('kanban-chat-splitter')).toBeInTheDocument();
     });
 
-    expect(screen.queryByTestId('mobile-size-presets')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-mode-tabs')).not.toBeInTheDocument();
   });
 
   it('loads persisted desktop chat ratio from localStorage', async () => {
@@ -266,19 +266,25 @@ describe('App Component', () => {
     });
   });
 
-  it('shows mobile presets and persists selection in mobile layout', async () => {
+  it('shows mobile mode tabs and switches active panel in mobile layout', async () => {
     window.matchMedia = jest.fn().mockImplementation(() => createMatchMediaResult(true));
 
     render(<App />);
 
-    const presets = await screen.findByTestId('mobile-size-presets');
-    expect(presets).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Chat' }));
+    const modeTabs = await screen.findByTestId('mobile-mode-tabs');
+    expect(modeTabs).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(Storage.prototype.setItem).toHaveBeenCalledWith('hub.mobilePanelPreset.v1', 'chat');
-      expect(screen.getByTestId('workspace-panels').style.getPropertyValue('--chat-panel-ratio')).toBe('0.45');
+      expect(screen.getByRole('heading', { name: /Status/ })).toBeInTheDocument();
+      expect(screen.queryByTestId('mobile-kanban-panel')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kanban' }));
+
+    await waitFor(() => {
+      expect(Storage.prototype.setItem).toHaveBeenCalledWith('hub.mobileViewMode.v1', 'kanban');
+      expect(screen.getByTestId('mobile-kanban-panel')).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /Status/ })).not.toBeInTheDocument();
     });
   });
 

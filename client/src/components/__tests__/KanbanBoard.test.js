@@ -41,6 +41,17 @@ jest.mock('@dnd-kit/utilities', () => ({
 // Mock fetch
 global.fetch = jest.fn();
 
+const createMatchMediaResult = (matches = false) => ({
+  matches,
+  media: '(max-width: 768px)',
+  onchange: null,
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+  addListener: jest.fn(),
+  removeListener: jest.fn(),
+  dispatchEvent: jest.fn(),
+});
+
 const mockKanbanResponse = {
   columns: [
     { name: 'backlog', displayName: 'Backlog', emoji: '', position: 0 },
@@ -97,6 +108,7 @@ const mockKanbanResponse = {
 describe('KanbanBoard Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    window.matchMedia = jest.fn().mockImplementation(() => createMatchMediaResult(false));
     Storage.prototype.getItem = jest.fn(() => 'test-token');
     Storage.prototype.setItem = jest.fn();
     Storage.prototype.removeItem = jest.fn();
@@ -482,6 +494,29 @@ describe('KanbanBoard Component', () => {
     await waitFor(() => {
       expect(screen.getByText(/3\s*tasks/)).toBeInTheDocument();
     });
+  });
+
+  it('uses single-column mode with mobile status controls', async () => {
+    window.matchMedia = jest.fn().mockImplementation(() => createMatchMediaResult(true));
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('kanban-mobile-nav')).toBeInTheDocument();
+    });
+
+    expect(document.querySelectorAll('.kanban-column').length).toBe(1);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Done/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Update README')).toBeInTheDocument();
+    });
+    expect(document.querySelectorAll('.kanban-column').length).toBe(1);
   });
 
   it('shows clear button when search has text', async () => {
