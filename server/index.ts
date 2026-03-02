@@ -159,95 +159,239 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction): Pro
 app.get('/login', (_req: Request, res: Response) => {
   res.send(`
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
       <title>Swissclaw Hub - Login</title>
       <style>
+        :root {
+          color-scheme: dark;
+        }
+
         body {
-          font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-          background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
           margin: 0;
+          min-height: 100svh;
+          padding: clamp(1rem, 3.5vw, 2rem);
+          box-sizing: border-box;
+          display: grid;
+          place-items: center;
+          font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+          background:
+            radial-gradient(1100px 520px at 8% 8%, rgba(255, 69, 0, 0.2), transparent 60%),
+            radial-gradient(900px 500px at 95% 95%, rgba(56, 189, 248, 0.14), transparent 60%),
+            linear-gradient(140deg, #080910 0%, #14182a 55%, #0b0d15 100%);
+          color: #e5e7eb;
         }
-        .login-box {
-          background: rgba(255, 255, 255, 0.05);
-          padding: 2rem;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 69, 0, 0.3);
-          width: 100%;
-          max-width: 400px;
-          text-align: center;
+
+        .login-shell {
+          width: min(28rem, 100%);
         }
+
+        .login-card {
+          border-radius: 18px;
+          border: 1px solid rgba(255, 69, 0, 0.35);
+          background: linear-gradient(160deg, rgba(12, 16, 31, 0.95), rgba(24, 20, 36, 0.92));
+          box-shadow: 0 22px 52px rgba(0, 0, 0, 0.42);
+          overflow: hidden;
+        }
+
+        .login-head {
+          padding: 1.15rem 1.15rem 1rem 1.15rem;
+          border-bottom: 1px solid rgba(255, 69, 0, 0.22);
+          background: linear-gradient(180deg, rgba(255, 69, 0, 0.16), rgba(255, 69, 0, 0.06));
+        }
+
+        .login-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          font-size: 0.72rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #ffba98;
+          background: rgba(0, 0, 0, 0.24);
+          border: 1px solid rgba(255, 69, 0, 0.25);
+          border-radius: 999px;
+          padding: 0.25rem 0.55rem;
+        }
+
         h1 {
+          margin: 0.75rem 0 0.2rem 0;
           color: #ff4500;
-          margin: 0 0 1.5rem 0;
+          font-size: clamp(1.3rem, 5.2vw, 1.65rem);
+          line-height: 1.2;
         }
+
+        .login-subtitle {
+          margin: 0;
+          color: #b0b9cb;
+          font-size: 0.93rem;
+        }
+
+        .login-form {
+          padding: 1rem 1.15rem 1.15rem 1.15rem;
+        }
+
+        .field-group {
+          margin-bottom: 0.9rem;
+        }
+
+        label {
+          display: block;
+          margin-bottom: 0.38rem;
+          font-size: 0.82rem;
+          color: #c3cada;
+          letter-spacing: 0.01em;
+        }
+
         input {
           width: 100%;
-          padding: 0.75rem;
-          margin: 0.5rem 0;
-          border: 1px solid rgba(255, 69, 0, 0.3);
-          border-radius: 8px;
-          background: rgba(0, 0, 0, 0.3);
+          padding: 0.72rem 0.78rem;
+          border: 1px solid rgba(255, 69, 0, 0.28);
+          border-radius: 10px;
+          background: rgba(4, 8, 20, 0.72);
           color: #e5e7eb;
           font-size: 1rem;
           box-sizing: border-box;
         }
+
+        input::placeholder {
+          color: #79849c;
+        }
+
         input:focus {
           outline: none;
-          border-color: #ff4500;
+          border-color: #ff6b35;
+          box-shadow: 0 0 0 2px rgba(255, 69, 0, 0.15);
         }
+
         button {
           width: 100%;
-          padding: 0.75rem;
-          margin-top: 1rem;
-          background: #ff4500;
-          color: white;
+          margin-top: 0.25rem;
+          padding: 0.78rem;
           border: none;
-          border-radius: 8px;
-          font-size: 1rem;
+          border-radius: 10px;
+          background: linear-gradient(135deg, #ff4500, #ff6b35);
+          color: white;
+          font-size: 0.98rem;
+          font-weight: 700;
+          letter-spacing: 0.01em;
           cursor: pointer;
+          transition: transform 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
         }
+
         button:hover {
-          background: #ff6b35;
+          transform: translateY(-1px);
+          filter: brightness(1.06);
         }
+
+        button:disabled {
+          opacity: 0.72;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .login-helper {
+          margin-top: 0.75rem;
+          font-size: 0.78rem;
+          color: #96a0b6;
+          line-height: 1.35;
+        }
+
         .error {
-          color: #ef4444;
-          margin-top: 1rem;
+          margin-top: 0.72rem;
+          min-height: 1.15rem;
+          font-size: 0.84rem;
+          color: #ff8585;
+        }
+
+        .login-footer {
+          margin: 0.7rem 0 0 0;
+          text-align: center;
+          color: #78839a;
+          font-size: 0.76rem;
+        }
+
+        @media (max-width: 460px) {
+          .login-head {
+            padding: 1rem 0.95rem 0.88rem 0.95rem;
+          }
+
+          .login-form {
+            padding: 0.92rem 0.95rem 1rem 0.95rem;
+          }
         }
       </style>
     </head>
     <body>
-      <div class="login-box">
-        <h1>\u{1F980} Swissclaw Hub</h1>
-        <form id="loginForm">
-          <input type="text" id="username" placeholder="Username" required />
-          <input type="password" id="password" placeholder="Password" required />
-          <button type="submit">Login</button>
-        </form>
-        <div id="error" class="error"></div>
+      <div class="login-shell">
+        <section class="login-card">
+          <div class="login-head">
+            <div class="login-badge"><span>\u{1F980}</span><span>Swissclaw Hub</span></div>
+            <h1>Welcome back</h1>
+            <p class="login-subtitle">Sign in to continue to your shared workspace.</p>
+          </div>
+
+          <form id="loginForm" class="login-form" novalidate>
+            <div class="field-group">
+              <label for="username">Username</label>
+              <input type="text" id="username" placeholder="testuser" autocomplete="username" required />
+            </div>
+
+            <div class="field-group">
+              <label for="password">Password</label>
+              <input type="password" id="password" placeholder="Enter your password" autocomplete="current-password" required />
+            </div>
+
+            <button type="submit" id="submitBtn">Log In</button>
+            <div id="error" class="error" role="status" aria-live="polite"></div>
+            <p class="login-helper">Use your existing Swissclaw Hub credentials. Session starts immediately after successful login.</p>
+          </form>
+        </section>
+        <p class="login-footer">Secure session auth \u2022 Swissclaw Hub</p>
       </div>
       <script>
-        document.getElementById('loginForm').onsubmit = async (e) => {
+        const form = document.getElementById('loginForm');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const errorEl = document.getElementById('error');
+        const submitBtn = document.getElementById('submitBtn');
+
+        form.onsubmit = async (e) => {
           e.preventDefault();
-          const username = document.getElementById('username').value;
-          const password = document.getElementById('password').value;
+          const username = usernameInput.value.trim();
+          const password = passwordInput.value;
 
-          const res = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-          });
+          if (!username || !password) {
+            errorEl.textContent = 'Please enter both username and password.';
+            return;
+          }
 
-          const data = await res.json();
-          if (data.token) {
-            localStorage.setItem('authToken', data.token);
-            window.location.href = '/';
-          } else {
-            document.getElementById('error').textContent = 'Invalid credentials';
+          errorEl.textContent = '';
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Signing in...';
+
+          try {
+            const res = await fetch('/api/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username, password })
+            });
+
+            const data = await res.json();
+            if (res.ok && data.token) {
+              localStorage.setItem('authToken', data.token);
+              window.location.href = '/';
+              return;
+            }
+
+            errorEl.textContent = data && data.error ? data.error : 'Invalid credentials';
+          } catch (err) {
+            errorEl.textContent = 'Unable to reach the server. Please try again.';
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Log In';
           }
         };
       </script>
