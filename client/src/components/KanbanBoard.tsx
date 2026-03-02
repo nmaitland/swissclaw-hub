@@ -189,6 +189,20 @@ interface NewTaskForm {
   tags: string;
 }
 
+const normalizeTasksByColumn = (rawTasks: Record<string, KanbanCardTask[]> | undefined): TasksByColumn => {
+  const normalized = {} as TasksByColumn;
+
+  for (const column of COLUMNS) {
+    const columnTasks = Array.isArray(rawTasks?.[column.name]) ? rawTasks[column.name] : [];
+    normalized[column.name] = columnTasks.map((task) => ({
+      ...task,
+      columnName: column.name,
+    }));
+  }
+
+  return normalized;
+};
+
 function KanbanBoard() {
   const [tasks, setTasks] = useState<TasksByColumn>({} as TasksByColumn);
   const [loading, setLoading] = useState(true);
@@ -238,7 +252,7 @@ function KanbanBoard() {
       if (!res.ok) throw new Error('Failed to fetch kanban data');
 
       const data = await res.json();
-      setTasks(data.tasks || {});
+      setTasks(normalizeTasksByColumn(data.tasks));
       setLoading(false);
     } catch (err) {
       console.error('Kanban fetch error:', err);
@@ -806,6 +820,21 @@ function KanbanBoard() {
                   placeholder="Enter task description..."
                   rows={3}
                 />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="task-state">State</label>
+                <select
+                  id="task-state"
+                  value={addColumnName}
+                  onChange={(e) => setAddColumnName(e.target.value as ColumnName)}
+                >
+                  {COLUMNS.map((column) => (
+                    <option key={column.name} value={column.name}>
+                      {column.displayName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-row">

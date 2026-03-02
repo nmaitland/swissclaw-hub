@@ -283,6 +283,13 @@ body.panel-resizing {
   height: auto;
 }
 
+@media (min-width: 769px) {
+  .top-panels .panel.status-panel .panel-content {
+    max-height: min(40vh, 320px);
+    overflow-y: auto;
+  }
+}
+
 .panel h2 {
   margin: 0;
   padding: 0.75rem 1rem;
@@ -569,14 +576,16 @@ body.panel-resizing {
   letter-spacing: 0.05em;
 }
 
+.status-updated-inline {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
 .current-task {
   color: #e5e7eb;
   font-size: 0.875rem;
-}
-
-.last-active {
-  color: #6b7280;
-  font-size: 0.75rem;
 }
 
 .footer {
@@ -790,6 +799,46 @@ body.panel-resizing {
   margin-top: 0.5rem;
   padding-left: 0.5rem;
   border-left: 2px solid rgba(255, 69, 0, 0.3);
+}
+
+.status-model-details-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  border: 1px solid rgba(255, 69, 0, 0.35);
+  background: rgba(255, 69, 0, 0.12);
+  color: #ffb08a;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.status-model-details-btn:hover {
+  border-color: rgba(255, 69, 0, 0.55);
+  background: rgba(255, 69, 0, 0.18);
+}
+
+.status-usage-modal {
+  max-width: 680px;
+  width: min(96vw, 680px);
+}
+
+.status-usage-modal .modal-body {
+  max-height: 62vh;
+  overflow-y: auto;
+}
+
+.status-usage-modal-summary {
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 69, 0, 0.2);
+}
+
+.status-usage-modal .model-entry {
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 
 .model-entry {

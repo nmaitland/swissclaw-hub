@@ -93,6 +93,7 @@ function App() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [buildInfo, setBuildInfo] = useState<BuildInfo>({ buildDate: new Date().toISOString(), commit: 'unknown' });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
   const hasInitiallyScrolled = useRef(false);
   const pendingMessagesRef = useRef<Array<{ sender: string; content: string }>>([]);
 
@@ -111,6 +112,7 @@ function App() {
   const [mobileViewMode, setMobileViewMode] = useState<MobileViewMode>(readPersistedMobileViewMode);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(getMobileLayoutMatches);
   const [isResizingPanels, setIsResizingPanels] = useState(false);
+  const [isModelUsageModalOpen, setIsModelUsageModalOpen] = useState(false);
 
   // Check auth on mount
   useEffect(() => {
@@ -278,15 +280,25 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Always scroll to bottom when messages change
+  // Keep latest messages in view; mobile chat is newest-first, desktop is oldest-first.
   useEffect(() => {
     if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: hasInitiallyScrolled.current ? 'smooth' : 'auto'
-      });
+      const behavior = hasInitiallyScrolled.current ? 'smooth' : 'auto';
+      if (isMobileLayout && mobileViewMode === 'chat') {
+        const chatFeed = chatMessagesRef.current;
+        if (chatFeed) {
+          if (typeof chatFeed.scrollTo === 'function') {
+            chatFeed.scrollTo({ top: 0, behavior });
+          } else {
+            chatFeed.scrollTop = 0;
+          }
+        }
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+      }
       hasInitiallyScrolled.current = true;
     }
-  }, [messages]);
+  }, [messages, isMobileLayout, mobileViewMode]);
 
   // Fetch build info
   useEffect(() => {
@@ -470,74 +482,78 @@ function App() {
     ['--chat-panel-ratio' as const]: activeChatRatio,
   } as React.CSSProperties;
 
-  const renderChatPanel = (extraClass = '', composerAtTop = false) => (
-    <section className={`panel chat-panel ${extraClass}`.trim()} data-testid="chat-panel">
-      <h2>
-        {'\u{1F4AC}'} Chat
-        {!socketConnected && (
-          <span className="chat-connecting"> connecting...</span>
+  const renderChatPanel = (extraClass = '', composerAtTop = false) => {
+    const orderedMessages = composerAtTop ? messages : [...messages].reverse();
+
+    return (
+      <section className={`panel chat-panel ${extraClass}`.trim()} data-testid="chat-panel">
+        <h2>
+          {'\u{1F4AC}'} Chat
+          {!socketConnected && (
+            <span className="chat-connecting"> connecting...</span>
+          )}
+        </h2>
+        {composerAtTop && (
+          <form className="chat-input chat-input-top" onSubmit={sendMessage}>
+            <textarea
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleChatInputKeyDown}
+              placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
+              rows={1}
+            />
+            <button type="submit" disabled={!inputMessage.trim()}>
+              Send
+            </button>
+          </form>
         )}
-      </h2>
-      {composerAtTop && (
-        <form className="chat-input chat-input-top" onSubmit={sendMessage}>
-          <textarea
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={handleChatInputKeyDown}
-            placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
-            rows={1}
-          />
-          <button type="submit" disabled={!inputMessage.trim()}>
-            Send
-          </button>
-        </form>
-      )}
-      <div className="panel-content chat-messages">
-        {messages.length === 0 ? (
-          <div className="empty-state">No messages yet</div>
-        ) : (
-          [...messages].reverse().map((msg) => (
-            <div
-              key={msg.id}
-              className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
-            >
-              <div className="chat-message-header">
-                <span className="chat-sender">
-                  {msg.sender}
-                  {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
-                    <span className={`message-state message-state-${messageStates[msg.id]}`}>
-                      {messageStates[msg.id] === 'received' && ' Ã¢Å“â€œ'}
-                      {messageStates[msg.id] === 'processing' && ' Ã¢Å¡â„¢Ã¯Â¸Â'}
-                      {messageStates[msg.id] === 'thinking' && ' ...'}
-                    </span>
-                  )}
-                </span>
-                <span className="chat-time">
-                  {new Date(msg.created_at).toLocaleTimeString()}
-                </span>
+        <div className="panel-content chat-messages" ref={chatMessagesRef}>
+          {orderedMessages.length === 0 ? (
+            <div className="empty-state">No messages yet</div>
+          ) : (
+            orderedMessages.map((msg) => (
+              <div
+                key={msg.id}
+                className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
+              >
+                <div className="chat-message-header">
+                  <span className="chat-sender">
+                    {msg.sender}
+                    {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
+                      <span className={`message-state message-state-${messageStates[msg.id]}`}>
+                        {messageStates[msg.id] === 'received' && ' \u2713'}
+                        {messageStates[msg.id] === 'processing' && ' \u2699\uFE0F'}
+                        {messageStates[msg.id] === 'thinking' && ' ...'}
+                      </span>
+                    )}
+                  </span>
+                  <span className="chat-time">
+                    {new Date(msg.created_at).toLocaleTimeString()}
+                  </span>
+                </div>
+                <span className="chat-text">{msg.content}</span>
               </div>
-              <span className="chat-text">{msg.content}</span>
-            </div>
-          ))
+            ))
+          )}
+          {!composerAtTop && <div ref={messagesEndRef} />}
+        </div>
+        {!composerAtTop && (
+          <form className="chat-input" onSubmit={sendMessage}>
+            <textarea
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleChatInputKeyDown}
+              placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
+              rows={1}
+            />
+            <button type="submit" disabled={!inputMessage.trim()}>
+              Send
+            </button>
+          </form>
         )}
-        <div ref={messagesEndRef} />
-      </div>
-      {!composerAtTop && (
-        <form className="chat-input" onSubmit={sendMessage}>
-          <textarea
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            onKeyDown={handleChatInputKeyDown}
-            placeholder={socketConnected ? 'Type a message...' : 'Connecting...'}
-            rows={1}
-          />
-          <button type="submit" disabled={!inputMessage.trim()}>
-            Send
-          </button>
-        </form>
-      )}
-    </section>
-  );
+      </section>
+    );
+  };
 
   const renderStatusPanel = () => (
     <section className="panel status-panel">
@@ -551,6 +567,12 @@ function App() {
             {!status?.state && '\u{1F980}'}
           </span>
           <span className="status-state">{status?.state || 'idle'}</span>
+          <span className="status-updated-inline">
+            Updated:{' '}
+            {status?.lastActive
+              ? new Date(status.lastActive).toLocaleTimeString()
+              : '\u2014'}
+          </span>
         </div>
         <div className="current-task">
           {status?.currentTask || 'Ready to help'}
@@ -567,13 +589,6 @@ function App() {
           {status?.modelUsage && (
             <>
               <div className="stat-row">
-                <span className="stat-label">Model usage:</span>
-                <span className="stat-value">
-                  {status.modelUsage.totals.inputTokens.toLocaleString()} in / {status.modelUsage.totals.outputTokens.toLocaleString()} out
-                  {' '}({status.modelUsage.totals.totalTokens.toLocaleString()} total)
-                </span>
-              </div>
-              <div className="stat-row">
                 <span className="stat-label">Requests:</span>
                 <span className="stat-value">{status.modelUsage.totals.requestCount.toLocaleString()}</span>
               </div>
@@ -586,27 +601,16 @@ function App() {
                 <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'free_tier_potential').toFixed(4)}</span>
               </div>
               {status.modelUsage.models.length > 0 && (
-                <div className="model-breakdown">
-                  {status.modelUsage.models.map((entry) => (
-                    <div key={entry.model} className="model-entry">
-                      <span className="model-name">{entry.model}:</span>
-                      <span className="model-stats">
-                        {entry.inputTokens.toLocaleString()} in / {entry.outputTokens.toLocaleString()} out
-                        {' '}({entry.requestCount.toLocaleString()} req)
-                        {' '}paid ${getCostAmount(entry.costs, 'paid').toFixed(4)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <button
+                  type="button"
+                  className="status-model-details-btn"
+                  onClick={() => setIsModelUsageModalOpen(true)}
+                >
+                  View model breakdown ({status.modelUsage.models.length})
+                </button>
               )}
             </>
           )}
-        </div>
-        <div className="last-active">
-          Updated:{' '}
-          {status?.lastActive
-            ? new Date(status.lastActive).toLocaleTimeString()
-            : '\u2014'}
         </div>
       </div>
     </section>
@@ -688,6 +692,65 @@ function App() {
     </section>
   );
 
+  const renderModelUsageModal = () => {
+    if (!isModelUsageModalOpen || !status?.modelUsage) {
+      return null;
+    }
+
+    return (
+      <div
+        className="modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="model-usage-modal-title"
+        onClick={() => setIsModelUsageModalOpen(false)}
+      >
+        <div className="modal-content status-usage-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3 id="model-usage-modal-title">Model Usage Breakdown</h3>
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => setIsModelUsageModalOpen(false)}
+              aria-label="Close model usage dialog"
+            >
+              {'\u00D7'}
+            </button>
+          </div>
+          <div className="modal-body">
+            <div className="status-usage-modal-summary">
+              <div className="stat-row">
+                <span className="stat-label">Total tokens:</span>
+                <span className="stat-value">{status.modelUsage.totals.totalTokens.toLocaleString()}</span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">Requests:</span>
+                <span className="stat-value">{status.modelUsage.totals.requestCount.toLocaleString()}</span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">Paid cost:</span>
+                <span className="stat-value">${getCostAmount(status.modelUsage.totals.costs, 'paid').toFixed(4)}</span>
+              </div>
+            </div>
+
+            <div className="model-breakdown">
+              {status.modelUsage.models.map((entry) => (
+                <div key={entry.model} className="model-entry">
+                  <span className="model-name">{entry.model}</span>
+                  <span className="model-stats">
+                    {entry.inputTokens.toLocaleString()} in / {entry.outputTokens.toLocaleString()} out
+                    {' '}({entry.requestCount.toLocaleString()} req)
+                    {' '}paid ${getCostAmount(entry.costs, 'paid').toFixed(4)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="app">
@@ -766,6 +829,8 @@ function App() {
 
         {isMobileLayout && mobileViewMode === 'chat' && renderChatPanel('mobile-chat-standalone', true)}
       </main>
+
+      {renderModelUsageModal()}
 
       <footer className="footer">
         <p>
