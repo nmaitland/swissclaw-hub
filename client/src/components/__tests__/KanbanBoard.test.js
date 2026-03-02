@@ -355,6 +355,105 @@ describe('KanbanBoard Component', () => {
     });
   });
 
+  it('initializes state dropdown from task column when API task objects omit columnName', async () => {
+    const responseWithoutColumnName = {
+      ...mockKanbanResponse,
+      tasks: {
+        backlog: (mockKanbanResponse.tasks.backlog || []).map(({ columnName, ...task }) => task),
+        todo: (mockKanbanResponse.tasks.todo || []).map(({ columnName, ...task }) => task),
+        inProgress: (mockKanbanResponse.tasks.inProgress || []).map(({ columnName, ...task }) => task),
+        review: (mockKanbanResponse.tasks.review || []).map(({ columnName, ...task }) => task),
+        done: (mockKanbanResponse.tasks.done || []).map(({ columnName, ...task }) => task),
+      },
+    };
+
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => responseWithoutColumnName,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Add dark mode')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Add dark mode'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Edit Task')).toBeInTheDocument();
+    });
+
+    expect(screen.getByLabelText('State').value).toBe('inProgress');
+  });
+
+  it('updates task state from edit modal and sends selected columnName', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Fix login bug')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('Fix login bug'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Edit Task')).toBeInTheDocument();
+    });
+
+    const stateSelect = screen.getByLabelText('State');
+    expect(stateSelect.value).toBe('todo');
+
+    fireEvent.change(stateSelect, { target: { value: 'inProgress' } });
+
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        id: 1,
+        taskId: 'TASK-001',
+        title: 'Fix login bug',
+        description: 'Users cannot login with special chars',
+        priority: 'high',
+        assignedTo: 'neil',
+        tags: ['bug', 'auth'],
+        position: 1000,
+        createdAt: '2024-06-15T10:00:00Z',
+        updatedAt: '2024-06-15T10:05:00Z',
+      }),
+    });
+
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ...mockKanbanResponse,
+        tasks: {
+          ...mockKanbanResponse.tasks,
+          todo: [],
+          inProgress: [
+            ...mockKanbanResponse.tasks.inProgress,
+            { ...mockKanbanResponse.tasks.todo[0], columnName: 'inProgress' },
+          ],
+        },
+      }),
+    });
+
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/kanban/tasks/1'),
+        expect.objectContaining({
+          method: 'PUT',
+          body: expect.stringContaining('"columnName":"inProgress"'),
+        })
+      );
+    });
+  });
+
   it('opens add task modal when clicking + button', async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
