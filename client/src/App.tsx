@@ -113,6 +113,8 @@ function App() {
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(getMobileLayoutMatches);
   const [isResizingPanels, setIsResizingPanels] = useState(false);
   const [isModelUsageModalOpen, setIsModelUsageModalOpen] = useState(false);
+  const [isKanbanCollapsedDesktop, setIsKanbanCollapsedDesktop] = useState(false);
+  const [isChatCollapsedDesktop, setIsChatCollapsedDesktop] = useState(false);
 
   // Check auth on mount
   useEffect(() => {
@@ -282,6 +284,10 @@ function App() {
 
   // Keep latest messages in view; mobile chat is newest-first, desktop is oldest-first.
   useEffect(() => {
+    if (!isMobileLayout && isChatCollapsedDesktop) {
+      return;
+    }
+
     if (messages.length > 0) {
       const behavior = hasInitiallyScrolled.current ? 'smooth' : 'auto';
       if (isMobileLayout && mobileViewMode === 'chat') {
@@ -298,7 +304,7 @@ function App() {
       }
       hasInitiallyScrolled.current = true;
     }
-  }, [messages, isMobileLayout, mobileViewMode]);
+  }, [messages, isMobileLayout, mobileViewMode, isChatCollapsedDesktop]);
 
   // Fetch build info
   useEffect(() => {
@@ -417,7 +423,7 @@ function App() {
   }, [clampDesktopRatioToBounds]);
 
   const handleSplitterPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isMobileLayout) return;
+    if (isMobileLayout || isKanbanCollapsedDesktop || isChatCollapsedDesktop) return;
 
     event.preventDefault();
     setIsResizingPanels(true);
@@ -440,7 +446,7 @@ function App() {
   };
 
   const handleSplitterKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (isMobileLayout) return;
+    if (isMobileLayout || isKanbanCollapsedDesktop || isChatCollapsedDesktop) return;
 
     const containerHeight = getWorkspacePanelsHeight();
     const bounds = getRatioBounds(containerHeight);
@@ -477,23 +483,64 @@ function App() {
     setMobileViewMode(mode);
   };
 
+  const toggleKanbanPanelCollapse = () => {
+    setIsKanbanCollapsedDesktop((prev) => {
+      const next = !prev;
+      if (next && isChatCollapsedDesktop) {
+        setIsChatCollapsedDesktop(false);
+      }
+      return next;
+    });
+  };
+
+  const toggleChatPanelCollapse = () => {
+    setIsChatCollapsedDesktop((prev) => {
+      const next = !prev;
+      if (next && isKanbanCollapsedDesktop) {
+        setIsKanbanCollapsedDesktop(false);
+      }
+      return next;
+    });
+  };
+
   const activeChatRatio = chatRatioDesktop;
   const workspacePanelsStyle = {
     ['--chat-panel-ratio' as const]: activeChatRatio,
   } as React.CSSProperties;
 
-  const renderChatPanel = (extraClass = '', composerAtTop = false) => {
+  const workspacePanelsClassName = `workspace-panels${isKanbanCollapsedDesktop ? ' kanban-collapsed' : ''}${isChatCollapsedDesktop ? ' chat-collapsed' : ''}`;
+
+  const renderChatPanel = (
+    extraClass = '',
+    composerAtTop = false,
+    options: { collapsed?: boolean; onToggleCollapse?: () => void } = {}
+  ) => {
+    const isCollapsed = options.collapsed || false;
+    const onToggleCollapse = options.onToggleCollapse;
     const orderedMessages = composerAtTop ? messages : [...messages].reverse();
 
     return (
-      <section className={`panel chat-panel ${extraClass}`.trim()} data-testid="chat-panel">
-        <h2>
-          {'\u{1F4AC}'} Chat
-          {!socketConnected && (
-            <span className="chat-connecting"> connecting...</span>
+      <section className={`panel chat-panel ${extraClass} ${isCollapsed ? 'collapsed' : ''}`.trim()} data-testid="chat-panel">
+        <h2 className={`panel-heading ${onToggleCollapse ? 'panel-heading-with-action' : ''}`}>
+          <span>
+            {'\u{1F4AC}'} Chat
+            {!socketConnected && (
+              <span className="chat-connecting"> connecting...</span>
+            )}
+          </span>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              className="panel-collapse-btn"
+              onClick={onToggleCollapse}
+              aria-expanded={!isCollapsed}
+              aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} chat panel`}
+            >
+              {isCollapsed ? 'Expand' : 'Collapse'}
+            </button>
           )}
         </h2>
-        {composerAtTop && (
+        {!isCollapsed && composerAtTop && (
           <form className="chat-input chat-input-top" onSubmit={sendMessage}>
             <textarea
               value={inputMessage}
@@ -507,37 +554,39 @@ function App() {
             </button>
           </form>
         )}
-        <div className="panel-content chat-messages" ref={chatMessagesRef}>
-          {orderedMessages.length === 0 ? (
-            <div className="empty-state">No messages yet</div>
-          ) : (
-            orderedMessages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
-              >
-                <div className="chat-message-header">
-                  <span className="chat-sender">
-                    {msg.sender}
-                    {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
-                      <span className={`message-state message-state-${messageStates[msg.id]}`}>
-                        {messageStates[msg.id] === 'received' && ' \u2713'}
-                        {messageStates[msg.id] === 'processing' && ' \u2699\uFE0F'}
-                        {messageStates[msg.id] === 'thinking' && ' ...'}
-                      </span>
-                    )}
-                  </span>
-                  <span className="chat-time">
-                    {new Date(msg.created_at).toLocaleTimeString()}
-                  </span>
+        {!isCollapsed && (
+          <div className="panel-content chat-messages" ref={chatMessagesRef}>
+            {orderedMessages.length === 0 ? (
+              <div className="empty-state">No messages yet</div>
+            ) : (
+              orderedMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`chat-message ${msg.sender === 'Neil' ? 'chat-neil' : 'chat-swissclaw'}`}
+                >
+                  <div className="chat-message-header">
+                    <span className="chat-sender">
+                      {msg.sender}
+                      {msg.sender === 'Neil' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
+                        <span className={`message-state message-state-${messageStates[msg.id]}`}>
+                          {messageStates[msg.id] === 'received' && ' \u2713'}
+                          {messageStates[msg.id] === 'processing' && ' \u2699\uFE0F'}
+                          {messageStates[msg.id] === 'thinking' && ' ...'}
+                        </span>
+                      )}
+                    </span>
+                    <span className="chat-time">
+                      {new Date(msg.created_at).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <span className="chat-text">{msg.content}</span>
                 </div>
-                <span className="chat-text">{msg.content}</span>
-              </div>
-            ))
-          )}
-          {!composerAtTop && <div ref={messagesEndRef} />}
-        </div>
-        {!composerAtTop && (
+              ))
+            )}
+            {!composerAtTop && <div ref={messagesEndRef} />}
+          </div>
+        )}
+        {!isCollapsed && !composerAtTop && (
           <form className="chat-input" onSubmit={sendMessage}>
             <textarea
               value={inputMessage}
@@ -790,32 +839,41 @@ function App() {
 
         {!isMobileLayout && (
           <section
-            className="workspace-panels"
+            className={workspacePanelsClassName}
             ref={workspacePanelsRef}
             data-testid="workspace-panels"
             style={workspacePanelsStyle}
           >
-            <div className="kanban-panel-wrap">
-              <KanbanBoard />
+            <div className={`kanban-panel-wrap ${isKanbanCollapsedDesktop ? 'collapsed' : ''}`.trim()}>
+              <KanbanBoard
+                collapsed={isKanbanCollapsedDesktop}
+                showCollapseControl
+                onToggleCollapse={toggleKanbanPanelCollapse}
+              />
             </div>
 
-            <div
-              className={`panel-splitter ${isResizingPanels ? 'dragging' : ''}`}
-              role="separator"
-              aria-label="Resize Kanban and Chat panels"
-              aria-orientation="horizontal"
-              aria-valuemin={20}
-              aria-valuemax={80}
-              aria-valuenow={Math.round(activeChatRatio * 100)}
-              tabIndex={0}
-              onPointerDown={handleSplitterPointerDown}
-              onKeyDown={handleSplitterKeyDown}
-              data-testid="kanban-chat-splitter"
-            >
-              <span className="panel-splitter-grip" aria-hidden="true" />
-            </div>
+            {!isKanbanCollapsedDesktop && !isChatCollapsedDesktop && (
+              <div
+                className={`panel-splitter ${isResizingPanels ? 'dragging' : ''}`}
+                role="separator"
+                aria-label="Resize Kanban and Chat panels"
+                aria-orientation="horizontal"
+                aria-valuemin={20}
+                aria-valuemax={80}
+                aria-valuenow={Math.round(activeChatRatio * 100)}
+                tabIndex={0}
+                onPointerDown={handleSplitterPointerDown}
+                onKeyDown={handleSplitterKeyDown}
+                data-testid="kanban-chat-splitter"
+              >
+                <span className="panel-splitter-grip" aria-hidden="true" />
+              </div>
+            )}
 
-            {renderChatPanel()}
+            {renderChatPanel('', false, {
+              collapsed: isChatCollapsedDesktop,
+              onToggleCollapse: toggleChatPanelCollapse,
+            })}
           </section>
         )}
 

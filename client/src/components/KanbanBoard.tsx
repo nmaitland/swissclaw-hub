@@ -189,6 +189,12 @@ interface NewTaskForm {
   tags: string;
 }
 
+interface KanbanBoardProps {
+  collapsed?: boolean;
+  showCollapseControl?: boolean;
+  onToggleCollapse?: () => void;
+}
+
 const normalizeTasksByColumn = (rawTasks: Record<string, KanbanCardTask[]> | undefined): TasksByColumn => {
   const normalized = {} as TasksByColumn;
 
@@ -203,7 +209,11 @@ const normalizeTasksByColumn = (rawTasks: Record<string, KanbanCardTask[]> | und
   return normalized;
 };
 
-function KanbanBoard() {
+function KanbanBoard({
+  collapsed = false,
+  showCollapseControl = false,
+  onToggleCollapse,
+}: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TasksByColumn>({} as TasksByColumn);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -616,8 +626,24 @@ function KanbanBoard() {
   if (error) return <div className="kanban-error">{error}</div>;
 
   return (
-    <div className="kanban-board">
-      <h2 className="kanban-title">{'\u{1F4CB}'} Kanban</h2>
+    <div className={`kanban-board ${collapsed ? 'collapsed' : ''}`.trim()}>
+      <div className="kanban-title-row">
+        <h2 className="kanban-title">{'\u{1F4CB}'} Kanban</h2>
+        {showCollapseControl && onToggleCollapse && (
+          <button
+            type="button"
+            className="kanban-collapse-btn"
+            onClick={onToggleCollapse}
+            aria-expanded={!collapsed}
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} kanban panel`}
+          >
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+        )}
+      </div>
+
+      {!collapsed && (
+        <>
 
       {/* Search/Filter Toolbar */}
       <div className="kanban-toolbar">
@@ -906,6 +932,8 @@ function KanbanBoard() {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

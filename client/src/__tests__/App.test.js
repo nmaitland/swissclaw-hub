@@ -225,6 +225,18 @@ describe('App Component', () => {
     expect(screen.queryByTestId('mobile-mode-tabs')).not.toBeInTheDocument();
   });
 
+  it('collapses chat panel in desktop mode and hides the splitter', async () => {
+    render(<App />);
+
+    const collapseChatButton = await screen.findByRole('button', { name: 'Collapse chat panel' });
+    fireEvent.click(collapseChatButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('kanban-chat-splitter')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Expand chat panel' })).toBeInTheDocument();
+    });
+  });
+
   it('loads persisted desktop chat ratio from localStorage', async () => {
     Storage.prototype.getItem = jest.fn((key) => {
       if (key === 'authToken') return 'test-token';
