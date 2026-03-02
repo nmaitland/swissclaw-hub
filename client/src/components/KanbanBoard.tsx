@@ -189,7 +189,31 @@ interface NewTaskForm {
   tags: string;
 }
 
-function KanbanBoard() {
+interface KanbanBoardProps {
+  collapsed?: boolean;
+  showCollapseControl?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+const normalizeTasksByColumn = (rawTasks: Record<string, KanbanCardTask[]> | undefined): TasksByColumn => {
+  const normalized = {} as TasksByColumn;
+
+  for (const column of COLUMNS) {
+    const columnTasks = Array.isArray(rawTasks?.[column.name]) ? rawTasks[column.name] : [];
+    normalized[column.name] = columnTasks.map((task) => ({
+      ...task,
+      columnName: column.name,
+    }));
+  }
+
+  return normalized;
+};
+
+function KanbanBoard({
+  collapsed = false,
+  showCollapseControl = false,
+  onToggleCollapse,
+}: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TasksByColumn>({} as TasksByColumn);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -238,7 +262,7 @@ function KanbanBoard() {
       if (!res.ok) throw new Error('Failed to fetch kanban data');
 
       const data = await res.json();
-      setTasks(data.tasks || {});
+      setTasks(normalizeTasksByColumn(data.tasks));
       setLoading(false);
     } catch (err) {
       console.error('Kanban fetch error:', err);
@@ -602,8 +626,24 @@ function KanbanBoard() {
   if (error) return <div className="kanban-error">{error}</div>;
 
   return (
-    <div className="kanban-board">
-      <h2 className="kanban-title">{'\u{1F4CB}'} Kanban</h2>
+    <div className={`kanban-board ${collapsed ? 'collapsed' : ''}`.trim()}>
+      <div className="kanban-title-row">
+        <h2 className="kanban-title">{'\u{1F4CB}'} Kanban</h2>
+        {showCollapseControl && onToggleCollapse && (
+          <button
+            type="button"
+            className="kanban-collapse-btn"
+            onClick={onToggleCollapse}
+            aria-expanded={!collapsed}
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} kanban panel`}
+          >
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+        )}
+      </div>
+
+      {!collapsed && (
+        <>
 
       {/* Search/Filter Toolbar */}
       <div className="kanban-toolbar">
@@ -808,6 +848,21 @@ function KanbanBoard() {
                 />
               </div>
 
+              <div className="form-group">
+                <label htmlFor="task-state">State</label>
+                <select
+                  id="task-state"
+                  value={addColumnName}
+                  onChange={(e) => setAddColumnName(e.target.value as ColumnName)}
+                >
+                  {COLUMNS.map((column) => (
+                    <option key={column.name} value={column.name}>
+                      {column.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="task-priority">Priority</label>
@@ -877,6 +932,8 @@ function KanbanBoard() {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
