@@ -4,8 +4,21 @@ import App from '../App';
 
 // Mock KanbanBoard so we don't deal with its own fetch calls
 jest.mock('../components/KanbanBoard', () => {
-  return function MockKanbanBoard() {
-    return <div data-testid="kanban-board">Mock KanbanBoard</div>;
+  return function MockKanbanBoard({ collapsed = false, showCollapseControl = false, onToggleCollapse }) {
+    return (
+      <div data-testid="kanban-board">
+        {showCollapseControl && typeof onToggleCollapse === 'function' && (
+          <button
+            type="button"
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} kanban panel`}
+            onClick={onToggleCollapse}
+          >
+            {collapsed ? 'Expand' : 'Collapse'}
+          </button>
+        )}
+        <span>Mock KanbanBoard</span>
+      </div>
+    );
   };
 });
 
@@ -223,6 +236,31 @@ describe('App Component', () => {
     });
 
     expect(screen.queryByTestId('mobile-mode-tabs')).not.toBeInTheDocument();
+  });
+
+  it('collapses chat panel in desktop mode and hides the splitter', async () => {
+    render(<App />);
+
+    const collapseChatButton = await screen.findByRole('button', { name: 'Collapse chat panel' });
+    fireEvent.click(collapseChatButton);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('kanban-chat-splitter')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Expand chat panel' })).toBeInTheDocument();
+    });
+  });
+
+  it('collapsing kanban keeps chat panel expanded', async () => {
+    render(<App />);
+
+    const collapseKanbanButton = await screen.findByRole('button', { name: 'Collapse kanban panel' });
+    fireEvent.click(collapseKanbanButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Expand kanban panel' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Collapse chat panel' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Expand chat panel' })).not.toBeInTheDocument();
+    });
   });
 
   it('loads persisted desktop chat ratio from localStorage', async () => {
