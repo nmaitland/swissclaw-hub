@@ -117,10 +117,6 @@ function CardContent({ task }: { task: KanbanCardTask }) {
       )}
       <div className="kanban-card-meta">
         <div className="kanban-card-meta-row">
-          <span className="kanban-card-meta-label">Created</span>
-          <span className="kanban-card-meta-value">{formatTaskDate(task.createdAt)}</span>
-        </div>
-        <div className="kanban-card-meta-row">
           <span className="kanban-card-meta-label">Updated</span>
           <span className="kanban-card-meta-value">{formatTaskDate(task.updatedAt || task.createdAt)}</span>
         </div>

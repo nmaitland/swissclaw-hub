@@ -221,7 +221,7 @@ describe('KanbanBoard Component', () => {
     });
   });
 
-  it('renders read-only Created and Updated metadata on cards', async () => {
+  it('renders read-only Updated metadata on cards', async () => {
     fetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockKanbanResponse,
@@ -230,7 +230,6 @@ describe('KanbanBoard Component', () => {
     render(<KanbanBoard />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Created').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Updated').length).toBeGreaterThan(0);
     });
   });
