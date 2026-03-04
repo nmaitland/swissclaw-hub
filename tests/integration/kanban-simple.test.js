@@ -44,6 +44,11 @@ describe('Kanban API (real server)', () => {
         expect(col).toHaveProperty('name');
         expect(tasks).toHaveProperty(col.name);
         expect(Array.isArray(tasks[col.name])).toBe(true);
+        const firstTask = tasks[col.name][0];
+        if (firstTask) {
+          expect(firstTask).toHaveProperty('createdAt');
+          expect(firstTask).toHaveProperty('updatedAt');
+        }
       });
     });
   });
@@ -72,6 +77,8 @@ describe('Kanban API (real server)', () => {
       expect(response.body.priority).toBe(newTask.priority);
       expect(response.body.assignedTo).toBe(newTask.assignedTo);
       expect(Array.isArray(response.body.tags)).toBe(true);
+      expect(response.body).toHaveProperty('createdAt');
+      expect(response.body).toHaveProperty('updatedAt');
     });
 
     it('returns 400 when required fields are missing', async () => {
@@ -122,6 +129,8 @@ describe('Kanban API (real server)', () => {
       expect(updateResponse.body.id).toBe(taskId);
       expect(updateResponse.body.title).toBe(updateData.title);
       expect(updateResponse.body.priority).toBe(updateData.priority);
+      expect(updateResponse.body).toHaveProperty('createdAt');
+      expect(updateResponse.body).toHaveProperty('updatedAt');
     });
 
     it('returns 404 when updating non-existent task', async () => {
@@ -152,10 +161,16 @@ describe('Kanban API (real server)', () => {
 
       const taskId = createResponse.body.id;
 
-      await request(app)
+      const deleteResponse = await request(app)
         .delete(`/api/kanban/tasks/${taskId}`)
         .set('Authorization', `Bearer ${authToken}`)
         .expect(200);
+
+      expect(deleteResponse.body.success).toBe(true);
+      expect(deleteResponse.body.deleted).toHaveProperty('createdAt');
+      expect(deleteResponse.body.deleted).toHaveProperty('updatedAt');
+      expect(deleteResponse.body.deleted).not.toHaveProperty('created_at');
+      expect(deleteResponse.body.deleted).not.toHaveProperty('updated_at');
     });
 
     it('returns 404 when deleting non-existent task', async () => {

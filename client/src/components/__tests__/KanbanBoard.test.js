@@ -72,6 +72,7 @@ const mockKanbanResponse = {
         assignedTo: 'neil',
         tags: ['bug', 'auth'],
         createdAt: '2024-06-15T10:00:00Z',
+        updatedAt: '2024-06-15T13:30:00Z',
         columnName: 'todo',
       },
     ],
@@ -85,6 +86,7 @@ const mockKanbanResponse = {
         assignedTo: 'swissclaw',
         tags: ['feature'],
         createdAt: '2024-06-14T08:00:00Z',
+        updatedAt: '2024-06-14T11:15:00Z',
         columnName: 'inProgress',
       },
     ],
@@ -99,6 +101,7 @@ const mockKanbanResponse = {
         assignedTo: '',
         tags: [],
         createdAt: '2024-06-10T12:00:00Z',
+        updatedAt: '2024-06-10T12:00:00Z',
         columnName: 'done',
       },
     ],
@@ -215,6 +218,19 @@ describe('KanbanBoard Component', () => {
     await waitFor(() => {
       expect(screen.getByText('Users cannot login with special chars')).toBeInTheDocument();
       expect(screen.getByText('Theme toggle in settings')).toBeInTheDocument();
+    });
+  });
+
+  it('renders read-only Updated metadata on cards', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Updated').length).toBeGreaterThan(0);
     });
   });
 
@@ -352,6 +368,9 @@ describe('KanbanBoard Component', () => {
       expect(screen.getByText('Priority')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Fix login bug')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Users cannot login with special chars')).toBeInTheDocument();
+      expect(screen.getByTestId('task-readonly-metadata')).toBeInTheDocument();
+      expect(screen.getAllByText('Created').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Updated').length).toBeGreaterThan(0);
     });
   });
 
