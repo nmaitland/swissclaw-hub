@@ -39,6 +39,8 @@ describe('Kanban API (behavioural)', () => {
     const found = allTasks.find((t) => t.id === createdId);
     expect(found).toBeDefined();
     expect(found.title).toBe('List-after-create Task');
+    expect(found).toHaveProperty('createdAt');
+    expect(found).toHaveProperty('updatedAt');
   });
 
   it('reflects column changes when moving a task', async () => {

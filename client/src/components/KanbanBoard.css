@@ -572,6 +572,36 @@
   overflow: hidden;
 }
 
+.kanban-card-meta {
+  margin-bottom: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.kanban-card-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kanban-card-meta-label {
+  color: #9ca3af;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.kanban-card-meta-value {
+  color: #d1d5db;
+  font-size: 0.72rem;
+}
+
 .kanban-card-footer {
   display: flex;
   flex-direction: column;
@@ -976,6 +1006,34 @@
 .form-group textarea {
   resize: vertical;
   min-height: 80px;
+}
+
+.task-readonly-meta {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.task-readonly-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.task-readonly-meta-label {
+  color: #9ca3af;
+  font-size: 0.82rem;
+}
+
+.task-readonly-meta-value {
+  color: #e5e7eb;
+  font-size: 0.82rem;
+  text-align: right;
 }
 
 .form-row {

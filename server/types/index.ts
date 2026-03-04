@@ -170,15 +170,15 @@ export interface KanbanTaskResponse {
   id: number;
   taskId: string;
   title: string;
-  description: string;
+  description: string | null;
   priority: string;
   assignedTo: string | null;
   tags: string[];
   attachmentCount?: number;
   commentCount?: number;
   position?: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Database config

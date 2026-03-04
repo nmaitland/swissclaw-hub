@@ -40,6 +40,7 @@ export interface KanbanCardTask {
   assignedTo: string;
   tags: string[];
   createdAt: string;
+  updatedAt: string;
   columnName: ColumnName;
   position?: number; // Added for sparse ordering
 }

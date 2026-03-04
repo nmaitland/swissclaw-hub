@@ -18,7 +18,7 @@ import { asyncHandler, errorHandler } from './lib/errors';
 import { authRateLimit, logSecurityEvent } from './middleware/security';
 import { SessionStore } from './middleware/auth';
 import { pool } from './config/database';
-import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo } from './types';
+import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo, KanbanTaskRow } from './types';
 import authRouter from './routes/auth';
 
 // Sparse ordering constants
@@ -1304,6 +1304,58 @@ const generateTaskId = (): string => {
   return `TASK-${timestamp.slice(-3)}${Math.floor(Math.random() * 900 + 100)}`;
 };
 
+const READ_ONLY_TASK_TIMESTAMP_FIELDS = [
+  'createdAt',
+  'updatedAt',
+  'created_at',
+  'updated_at',
+  'created',
+  'updated',
+] as const;
+
+const getReadOnlyTaskTimestampField = (payload: unknown): string | null => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const body = payload as Record<string, unknown>;
+  for (const field of READ_ONLY_TASK_TIMESTAMP_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      return field;
+    }
+  }
+
+  return null;
+};
+
+const serializeKanbanTask = (
+  task: KanbanTaskRow | Record<string, unknown>,
+  options: { descriptionFallback?: string | null } = {}
+): Record<string, unknown> => {
+  const row = task as Record<string, unknown>;
+  const descriptionFallback = options.descriptionFallback ?? null;
+  const description = row.description === null || row.description === undefined
+    ? descriptionFallback
+    : row.description;
+  const createdAt = row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at;
+  const updatedAt = row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at;
+
+  return {
+    id: row.id,
+    taskId: row.task_id || `TASK-${String(row.id).padStart(3, '0')}`,
+    title: row.title,
+    description,
+    priority: row.priority,
+    assignedTo: row.assigned_to ?? null,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    attachmentCount: row.attachment_count || 0,
+    commentCount: row.comment_count || 0,
+    position: row.position,
+    createdAt,
+    updatedAt,
+  };
+};
+
 // API Routes
 
 /**
@@ -1576,20 +1628,9 @@ app.get('/api/kanban', asyncHandler(async (req: Request, res: Response) => {
       [column.id]
     );
 
-    kanban[column.name] = tasksResult.rows.map((task: Record<string, unknown>) => ({
-      id: task.id,
-      taskId: task.task_id || `TASK-${String(task.id).padStart(3, '0')}`,
-      title: task.title,
-      description: task.description || '',
-      priority: task.priority,
-      assignedTo: task.assigned_to,
-      tags: task.tags || [],
-      attachmentCount: task.attachment_count || 0,
-      commentCount: task.comment_count || 0,
-      position: task.position,
-      createdAt: task.created_at,
-      updatedAt: task.updated_at
-    }));
+    kanban[column.name] = tasksResult.rows.map((task: Record<string, unknown>) => (
+      serializeKanbanTask(task, { descriptionFallback: '' })
+    ));
   }
 
   // Also include column metadata
@@ -1639,6 +1680,12 @@ app.get('/api/kanban', asyncHandler(async (req: Request, res: Response) => {
  *         description: Column not found
  */
 app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) => {
+  const readOnlyField = getReadOnlyTaskTimestampField(req.body);
+  if (readOnlyField) {
+    res.status(400).json({ error: `${readOnlyField} is read-only and cannot be set explicitly` });
+    return;
+  }
+
   const { columnName, title, description, priority = 'medium', assignedTo, tags = [] } = req.body;
 
   if (!columnName || !title) {
@@ -1678,18 +1725,7 @@ app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) =
   );
 
   const task = result.rows[0];
-  res.status(201).json({
-    id: task.id,
-    taskId: task.task_id,
-    title: task.title,
-    description: task.description,
-    priority: task.priority,
-    assignedTo: task.assigned_to,
-    tags: task.tags || [],
-    position: task.position,
-    createdAt: task.created_at,
-    updatedAt: task.updated_at
-  });
+  res.status(201).json(serializeKanbanTask(task));
 }));
 
 /**
@@ -1729,6 +1765,12 @@ app.post('/api/kanban/tasks', asyncHandler(async (req: Request, res: Response) =
  *         description: Task not found
  */
 app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response) => {
+  const readOnlyField = getReadOnlyTaskTimestampField(req.body);
+  if (readOnlyField) {
+    res.status(400).json({ error: `${readOnlyField} is read-only and cannot be set explicitly` });
+    return;
+  }
+
   const { id } = req.params;
   const { columnName, title, description, priority, assignedTo, tags, position, targetTaskId, insertAfter } = req.body;
 
@@ -1819,16 +1861,7 @@ app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response
       if (refreshedResult.rows.length > 0) {
         const refreshedTask = refreshedResult.rows[0];
         res.json({
-          id: refreshedTask.id,
-          taskId: refreshedTask.task_id,
-          title: refreshedTask.title,
-          description: refreshedTask.description,
-          priority: refreshedTask.priority,
-          assignedTo: refreshedTask.assigned_to,
-          tags: refreshedTask.tags || [],
-          position: refreshedTask.position,
-          createdAt: refreshedTask.created_at,
-          updatedAt: refreshedTask.updated_at,
+          ...serializeKanbanTask(refreshedTask),
           rebalanced: true
         });
         return;
@@ -1837,16 +1870,7 @@ app.put('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Response
   }
 
   res.json({
-    id: task.id,
-    taskId: task.task_id,
-    title: task.title,
-    description: task.description,
-    priority: task.priority,
-    assignedTo: task.assigned_to,
-    tags: task.tags || [],
-    position: task.position,
-    createdAt: task.created_at,
-    updatedAt: task.updated_at,
+    ...serializeKanbanTask(task),
     rebalanced: false
   });
 }));
@@ -1982,7 +2006,7 @@ app.delete('/api/kanban/tasks/:id', asyncHandler(async (req: Request, res: Respo
     return;
   }
 
-  res.json({ success: true, deleted: result.rows[0] });
+  res.json({ success: true, deleted: serializeKanbanTask(result.rows[0]) });
 }));
 
 /**

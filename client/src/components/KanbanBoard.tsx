@@ -53,6 +53,13 @@ const getPriorityColor = (priority: string): string => {
   }
 };
 
+const formatTaskDate = (value: string | undefined, includeTime = false): string => {
+  if (!value) return 'N/A';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'N/A';
+  return includeTime ? parsed.toLocaleString() : parsed.toLocaleDateString();
+};
+
 // ─── Sortable Card ───────────────────────────────────────────────────────────
 
 interface SortableCardProps {
@@ -108,6 +115,12 @@ function CardContent({ task }: { task: KanbanCardTask }) {
       {task.description && (
         <div className="kanban-card-desc">{task.description}</div>
       )}
+      <div className="kanban-card-meta">
+        <div className="kanban-card-meta-row">
+          <span className="kanban-card-meta-label">Updated</span>
+          <span className="kanban-card-meta-value">{formatTaskDate(task.updatedAt || task.createdAt)}</span>
+        </div>
+      </div>
       <div className="kanban-card-footer">
         {task.assignedTo && (
           <span className="kanban-card-assignee">{'\u{1F464}'} {task.assignedTo}</span>
@@ -202,6 +215,7 @@ const normalizeTasksByColumn = (rawTasks: Record<string, KanbanCardTask[]> | und
     const columnTasks = Array.isArray(rawTasks?.[column.name]) ? rawTasks[column.name] : [];
     normalized[column.name] = columnTasks.map((task) => ({
       ...task,
+      updatedAt: task.updatedAt || task.createdAt,
       columnName: column.name,
     }));
   }
@@ -904,6 +918,22 @@ function KanbanBoard({
                   placeholder="e.g. bug, feature, urgent"
                 />
               </div>
+
+              {editingTask && (
+                <div className="form-group">
+                  <label>Task Metadata</label>
+                  <div className="task-readonly-meta" data-testid="task-readonly-metadata">
+                    <div className="task-readonly-meta-row">
+                      <span className="task-readonly-meta-label">Created</span>
+                      <span className="task-readonly-meta-value">{formatTaskDate(editingTask.createdAt, true)}</span>
+                    </div>
+                    <div className="task-readonly-meta-row">
+                      <span className="task-readonly-meta-label">Updated</span>
+                      <span className="task-readonly-meta-value">{formatTaskDate(editingTask.updatedAt || editingTask.createdAt, true)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="modal-form-actions">
                 <div className="modal-form-actions-left">
