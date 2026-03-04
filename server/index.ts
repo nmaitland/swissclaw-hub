@@ -2442,7 +2442,7 @@ async function resetTestDb(): Promise<void> {
 
   // Seed test admin user for backward compatibility using current auth env values.
   const seedUsername = AUTH_USERNAME || 'admin';
-  const seedPassword = AUTH_PASSWORD || 'changeme123';
+  const seedPassword = AUTH_PASSWORD || 'test-only-default';
   const passwordHash = await bcrypt.hash(seedPassword, 10);
   await pool.query(
     `INSERT INTO users (id, email, name, password_hash, role, created_at, updated_at)
