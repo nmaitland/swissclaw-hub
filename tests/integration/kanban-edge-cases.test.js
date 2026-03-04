@@ -44,6 +44,20 @@ describe('Kanban API edge cases', () => {
       expect(response.body.error).toMatch(/required/i);
     });
 
+    it('returns 400 when read-only timestamp fields are provided', async () => {
+      const response = await request(app)
+        .post('/api/kanban/tasks')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          columnName: 'todo',
+          title: 'Task with disallowed timestamp',
+          createdAt: new Date().toISOString(),
+        })
+        .expect(400);
+
+      expect(response.body.error).toMatch(/read-only/i);
+    });
+
     it('creates task with default priority when not specified', async () => {
       const response = await request(app)
         .post('/api/kanban/tasks')
@@ -55,6 +69,8 @@ describe('Kanban API edge cases', () => {
         .expect(201);
 
       expect(response.body.priority).toBe('medium');
+      expect(response.body).toHaveProperty('createdAt');
+      expect(response.body).toHaveProperty('updatedAt');
     });
 
     it('creates task with empty tags when not specified', async () => {
@@ -162,6 +178,16 @@ describe('Kanban API edge cases', () => {
       const updatedAt = new Date(response.body.updatedAt);
       expect(updatedAt.getTime()).toBeGreaterThanOrEqual(before.getTime() - 5000);
     });
+
+    it('returns 400 when updating read-only timestamp fields', async () => {
+      const response = await request(app)
+        .put(`/api/kanban/tasks/${taskId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ updatedAt: new Date().toISOString() })
+        .expect(400);
+
+      expect(response.body.error).toMatch(/read-only/i);
+    });
   });
 
   describe('DELETE /api/kanban/tasks/:id', () => {
@@ -179,6 +205,10 @@ describe('Kanban API edge cases', () => {
 
       expect(response.body.success).toBe(true);
       expect(response.body.deleted).toBeDefined();
+      expect(response.body.deleted).toHaveProperty('createdAt');
+      expect(response.body.deleted).toHaveProperty('updatedAt');
+      expect(response.body.deleted).not.toHaveProperty('created_at');
+      expect(response.body.deleted).not.toHaveProperty('updated_at');
     });
 
     it('task no longer appears in listing after deletion', async () => {

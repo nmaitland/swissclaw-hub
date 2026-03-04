@@ -33,8 +33,8 @@ const options: swaggerJsdoc.Options = {
             attachmentCount: { type: 'integer' },
             commentCount: { type: 'integer' },
             position: { type: 'integer' },
-            createdAt: { type: 'string', format: 'date-time' },
-            updatedAt: { type: 'string', format: 'date-time' },
+            createdAt: { type: 'string', format: 'date-time', readOnly: true },
+            updatedAt: { type: 'string', format: 'date-time', readOnly: true },
           },
         },
         KanbanColumn: {
