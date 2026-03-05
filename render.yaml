@@ -13,7 +13,7 @@ services:
           name: swissclaw-hub-db
           property: connectionString
       - key: CLIENT_URL
-        value: https://swissclaw.hydeabbey.net
+        sync: false
       - key: AUTH_USERNAME
         sync: false
       - key: AUTH_PASSWORD

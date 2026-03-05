@@ -5,7 +5,10 @@ import { config } from 'dotenv';
 
 config({ override: false });
 
-export const HUB_URL = process.env.SWISSCLAW_HUB_URL || 'https://swissclaw.hydeabbey.net';
+if (!process.env.SWISSCLAW_HUB_URL) {
+  throw new Error('SWISSCLAW_HUB_URL must be set (e.g. https://your-instance.onrender.com)');
+}
+export const HUB_URL = process.env.SWISSCLAW_HUB_URL;
 export const HUB_TOKEN_FILE = path.join(os.homedir(), '.swissclaw-token');
 const HUB_TOKEN_LOCK_FILE = `${HUB_TOKEN_FILE}.lock`;
 const LOCK_TIMEOUT_MS = 30_000;
