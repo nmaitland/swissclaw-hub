@@ -9,7 +9,7 @@
 ## swissclaw-hub Resources
 
 - Web service name: `swissclaw-hub`
-- Web URL: `https://your-instance.onrender.com`
+- Web URL: set via `SWISSCLAW_HUB_URL` env var
 - Postgres name: `swissclaw-hub-db`
 
 ## Common Commands

@@ -10,7 +10,7 @@ A shared web interface for Neil and SwissClaw to communicate and collaborate.
 | **Platform** | Render (Pro plan) |
 | **Web Service** | swissclaw-hub |
 | **Region** | Oregon (US West) |
-| **URL** | https://your-instance.onrender.com/ |
+| **URL** | Set via Render dashboard |
 
 ## Deployment
 

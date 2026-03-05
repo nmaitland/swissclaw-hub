@@ -92,3 +92,4 @@ curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
 - Historical data may be moved to cold storage (S3) for cost efficiency
 - Use `UNION ALL` to combine hot and cold storage data for complete results
 - Query API is read-only; use other APIs for writing
+- Connection verified working (2026-02-09) — ClickHouse HTTP API on port 443 (HTTPS)
