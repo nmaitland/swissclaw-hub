@@ -2,8 +2,6 @@
 
 A shared web interface for Neil and SwissClaw to communicate, collaborate, and track activities.
 
-**Live:** https://your-instance.example.com
-
 ## Project Structure
 
 ```
