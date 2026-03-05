@@ -10,7 +10,7 @@ A shared web interface for operators and assistants to communicate and collabora
 | **Platform** | a cloud platform |
 | **Web Service** | swissclaw-hub |
 | **Region** | Oregon (US West) |
-| **URL** | https://your-instance.onrender.com/ |
+| **URL** | Set via Render dashboard |
 
 ## Deployment
 

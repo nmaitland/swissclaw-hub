@@ -1,6 +1,6 @@
 # Chat Endpoints
 
-Base URL: `https://your-instance.onrender.com`
+Base URL: `https://<your-instance>.onrender.com`
 
 ## Authentication
 
@@ -54,7 +54,7 @@ Behavior:
 Acknowledgment example:
 
 ```bash
-curl -X PUT "https://your-instance.onrender.com/api/service/messages/123/state" \
+curl -X PUT "https://<your-instance>.onrender.com/api/service/messages/123/state" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"state":"received"}'
