@@ -218,14 +218,16 @@ The repository includes two script entrypoints:
 Examples:
 
 ```bash
-# Generic Hub API CLI
-npx ts-node scripts/hub-api.ts chat send --message "Hello" --sender "MyBot"
-npx ts-node scripts/hub-api.ts status set --state active --task "Running checks" --last-active "$(date -Iseconds)"
-npx ts-node scripts/hub-api.ts activities list --limit 20 --json
+# Generic Hub API CLI (compiled, faster startup)
+npm run -s hub-api -- chat send --message "Hello" --sender "MyBot"
+npm run -s hub-api -- status set --state active --task "Running checks" --last-active "$(date -Iseconds)"
+npm run -s hub-api -- activities list --limit 20 --json
 
 # Bridge daemon
 npx ts-node scripts/chat-bridge-webhook.ts
 ```
+
+For Kanban operations in the main workspace, prefer `source ../kanban/api-helper.sh` and the `kanban_*` helpers. Direct CLI usage requires explicit env/auth setup.
 
 Token persistence remains at `~/.swissclaw-token`.
 

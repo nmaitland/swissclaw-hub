@@ -5,7 +5,8 @@ import { getStringFlag, hasFlag, parseArgs } from './lib/args';
 import { printOutput } from './lib/output';
 
 const usage = (): string => `
-Usage: npx ts-node scripts/hub-api.ts <group> <command> [options]
+Usage: npm run -s hub-api -- <group> <command> [options]
+       (dev) npx ts-node scripts/hub-api.ts <group> <command> [options]
 
 Groups and commands:
   auth login [--force]
