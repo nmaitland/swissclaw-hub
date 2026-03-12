@@ -9,6 +9,8 @@ yarn-error.log*
 /server/dist
 client/dist
 dist/server
+dist/scripts
+
 *.tsbuildinfo
 
 # Environment variables
