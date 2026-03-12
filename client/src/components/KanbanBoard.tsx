@@ -83,6 +83,15 @@ function SortableCard({ task, onClick }: SortableCardProps) {
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const activateCard = () => onClick(task);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      activateCard();
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -90,7 +99,11 @@ function SortableCard({ task, onClick }: SortableCardProps) {
       {...attributes}
       {...listeners}
       className={`kanban-card ${isDragging ? 'dragging' : ''}`}
-      onClick={() => onClick(task)}
+      onClick={activateCard}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open task ${task.taskId}: ${task.title}`}
+      onKeyDown={handleKeyDown}
     >
       <CardContent task={task} />
     </div>
@@ -157,9 +170,11 @@ function KanbanColumn({ col, tasks, totalInColumn, onTaskClick, onAddClick }: Ka
         <span className="kanban-column-title">{col.displayName}</span>
         <span className="kanban-column-count">{totalInColumn}</span>
         <button
+          type="button"
           className="kanban-add-btn"
           onClick={() => onAddClick(col.name)}
           title="Add task"
+          aria-label={`Add task to ${col.displayName}`}
         >
           +
         </button>
@@ -806,7 +821,7 @@ function KanbanBoard({
           <div className="modal-content delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>Confirm Delete</h3>
-              <button className="modal-close" onClick={() => setShowDeleteConfirm(false)}>
+              <button type="button" className="modal-close" onClick={() => setShowDeleteConfirm(false)} aria-label="Close delete confirmation">
                 {'\u00D7'}
               </button>
             </div>
@@ -845,7 +860,7 @@ function KanbanBoard({
               <h3>
                 {editingTask ? 'Edit Task' : `Add Task to ${COLUMNS.find((c) => c.name === addColumnName)?.displayName}`}
               </h3>
-              <button className="modal-close" onClick={closeAddModal}>
+              <button type="button" className="modal-close" onClick={closeAddModal} aria-label="Close task form">
                 {'\u00D7'}
               </button>
             </div>
@@ -944,9 +959,13 @@ function KanbanBoard({
                           type="button"
                           className="task-copy-id-btn"
                           onClick={() => handleCopyTaskId(editingTask.taskId)}
+                          aria-label={`Copy task ID ${editingTask.taskId}`}
                         >
                           {copiedTaskId === editingTask.taskId ? 'Copied' : 'Copy'}
                         </button>
+                        <span className="sr-only" aria-live="polite">
+                          {copiedTaskId === editingTask.taskId ? `Task ID ${editingTask.taskId} copied to clipboard` : ''}
+                        </span>
                       </div>
                     </div>
                     <div className="task-readonly-meta-row">
