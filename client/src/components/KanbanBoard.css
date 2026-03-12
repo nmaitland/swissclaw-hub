@@ -517,6 +517,12 @@
   cursor: grabbing;
 }
 
+.kanban-card:focus-visible {
+  outline: 2px solid #ff4500;
+  outline-offset: 2px;
+  border-color: #ff6b35;
+}
+
 .kanban-card.dragging {
   opacity: 0.4;
   border-color: #ff4500;
@@ -1121,6 +1127,32 @@
 
 .btn-submit:hover {
   background: #ff6b35;
+}
+
+.kanban-add-btn:focus-visible,
+.modal-close:focus-visible,
+.task-copy-id-btn:focus-visible,
+.btn-cancel:focus-visible,
+.btn-submit:focus-visible,
+.btn-delete:focus-visible,
+.kanban-mobile-nav-btn:focus-visible,
+.kanban-mobile-pill:focus-visible,
+.kanban-filter-chip:focus-visible,
+.kanban-search-clear:focus-visible {
+  outline: 2px solid #ff6b35;
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ─── Scrollbars ──────────────────────────────────────────────────────── */

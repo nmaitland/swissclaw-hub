@@ -376,6 +376,23 @@ describe('KanbanBoard Component', () => {
     });
   });
 
+  it('opens task detail modal with keyboard Enter on a focused task card', async () => {
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockKanbanResponse,
+    });
+
+    render(<KanbanBoard />);
+
+    const card = await screen.findByRole('button', { name: /Open task TASK-001: Fix login bug/ });
+    card.focus();
+    fireEvent.keyDown(card, { key: 'Enter', code: 'Enter' });
+
+    await waitFor(() => {
+      expect(screen.getByText('Edit Task')).toBeInTheDocument();
+    });
+  });
+
   it('initializes state dropdown from task column when API task objects omit columnName', async () => {
     const responseWithoutColumnName = {
       ...mockKanbanResponse,
