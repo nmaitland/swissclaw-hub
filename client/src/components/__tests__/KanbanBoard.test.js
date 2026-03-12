@@ -369,6 +369,8 @@ describe('KanbanBoard Component', () => {
       expect(screen.getByDisplayValue('Fix login bug')).toBeInTheDocument();
       expect(screen.getByDisplayValue('Users cannot login with special chars')).toBeInTheDocument();
       expect(screen.getByTestId('task-readonly-metadata')).toBeInTheDocument();
+      expect(screen.getAllByText('Task ID').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('TASK-001').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Created').length).toBeGreaterThan(0);
       expect(screen.getAllByText('Updated').length).toBeGreaterThan(0);
     });

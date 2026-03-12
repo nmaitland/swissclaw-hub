@@ -1036,6 +1036,31 @@
   text-align: right;
 }
 
+.task-readonly-meta-id-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.task-id-value {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.task-copy-id-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.task-copy-id-btn:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
