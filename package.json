@@ -17,6 +17,8 @@
     "server:dev": "nodemon --exec ts-node server/index.ts",
 
     "server:build": "tsc -p tsconfig.json",
+    "hub-api": "node dist/scripts/hub-api.js",
+    "hub-api:dev": "ts-node scripts/hub-api.ts",
 
     "client": "cd client && npm start",
 
