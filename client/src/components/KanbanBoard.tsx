@@ -242,6 +242,7 @@ function KanbanBoard({
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [editingTask, setEditingTask] = useState<KanbanCardTask | null>(null);
+  const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
 
   // Search & filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -611,10 +612,22 @@ function KanbanBoard({
     setShowAddModal(true);
   };
 
+  const handleCopyTaskId = async (taskId: string) => {
+    try {
+      await navigator.clipboard.writeText(taskId);
+      setCopiedTaskId(taskId);
+      window.setTimeout(() => setCopiedTaskId((current) => (current === taskId ? null : current)), 1500);
+    } catch (err) {
+      console.error('Copy task ID failed:', err);
+      alert('Could not copy task ID to clipboard');
+    }
+  };
+
   const closeAddModal = () => {
     setShowAddModal(false);
     setNewTask({ title: '', description: '', priority: 'medium', assignedTo: '', tags: '' });
     setEditingTask(null);
+    setCopiedTaskId(null);
   };
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Render Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -923,6 +936,19 @@ function KanbanBoard({
                 <div className="form-group">
                   <label>Task Metadata</label>
                   <div className="task-readonly-meta" data-testid="task-readonly-metadata">
+                    <div className="task-readonly-meta-row">
+                      <span className="task-readonly-meta-label">Task ID</span>
+                      <div className="task-readonly-meta-id-actions">
+                        <span className="task-readonly-meta-value task-id-value">{editingTask.taskId}</span>
+                        <button
+                          type="button"
+                          className="task-copy-id-btn"
+                          onClick={() => handleCopyTaskId(editingTask.taskId)}
+                        >
+                          {copiedTaskId === editingTask.taskId ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
                     <div className="task-readonly-meta-row">
                       <span className="task-readonly-meta-label">Created</span>
                       <span className="task-readonly-meta-value">{formatTaskDate(editingTask.createdAt, true)}</span>
