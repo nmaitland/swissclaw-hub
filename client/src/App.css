@@ -912,3 +912,56 @@ body.panel-resizing {
   font-family: monospace;
   font-size: 0.7rem;
 }
+
+.usage-history-section {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 69, 0, 0.2);
+}
+
+.usage-history-section h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: #e5e7eb;
+}
+
+.usage-history-loading {
+  color: #9ca3af;
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.usage-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+.usage-history-table th {
+  text-align: left;
+  color: #9ca3af;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 69, 0, 0.15);
+}
+
+.usage-history-table td {
+  padding: 0.2rem 0.5rem;
+  color: #d1d5db;
+}
+
+.usage-history-table tbody tr:hover {
+  background: rgba(255, 69, 0, 0.08);
+}
+
+.usage-history-total {
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.usage-history-total td {
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 69, 0, 0.2);
+  color: #e5e7eb;
+}
