@@ -35,7 +35,8 @@ Client tests:
 ```
 client/src/
 ├── __tests__/
-│   └── App.test.js                    # App component tests
+│   ├── App.test.js                    # App component tests, including install-banner behavior
+│   └── index.test.js                  # Client entry tests for service worker registration and manifest wiring
 └── components/__tests__/
     └── KanbanBoard.test.js            # KanbanBoard component tests
 ```
@@ -55,6 +56,8 @@ client/src/
    ```bash
    npm run db:migrate:test
    ```
+
+   If local backend development points at this Docker Postgres instance through `DATABASE_URL`, set `DB_SSL=false` before starting the server. The container does not support TLS.
 
 3. (Optional) Run seeders for test data:
 
@@ -136,6 +139,24 @@ npm run test:watch
 ```bash
 npm run test:client
 ```
+
+Equivalent direct client commands:
+
+```bash
+npm --prefix client test -- --runInBand --watchAll=false
+npm --prefix client run build
+```
+
+### Manual PWA checks
+
+After starting the backend and client locally:
+
+1. Open `http://localhost:3000` in Chrome.
+2. In DevTools `Application > Manifest`, verify the manifest loads and icons resolve.
+3. In `Application > Service Workers`, verify `/service-worker.js` is registered.
+4. Verify the in-app install banner can appear in supported Chrome sessions.
+5. In DevTools `Network`, switch to Offline and refresh to verify the offline fallback page is served.
+6. Return online and verify the normal app shell loads again.
 
 ## Backend test strategy
 
