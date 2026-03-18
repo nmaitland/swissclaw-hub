@@ -134,6 +134,15 @@ const mockKanbanData = {
 describe('App Component', () => {
   let windowEventHandlers;
   let mediaQueryListeners;
+  const setMatchMediaState = ({ mobile = false, standalone = false } = {}) => {
+    mediaQueryListeners = new Map();
+    window.matchMedia = jest.fn().mockImplementation((query) => {
+      if (!mediaQueryListeners.has(query)) {
+        mediaQueryListeners.set(query, createMatchMediaMock({ mobile, standalone })(query));
+      }
+      return mediaQueryListeners.get(query);
+    });
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -141,12 +150,7 @@ describe('App Component', () => {
     mediaQueryListeners = new Map();
     // Mock console.error to suppress warnings
     jest.spyOn(console, 'error').mockImplementation(() => {});
-    window.matchMedia = jest.fn().mockImplementation((query) => {
-      if (!mediaQueryListeners.has(query)) {
-        mediaQueryListeners.set(query, createMatchMediaMock()(query));
-      }
-      return mediaQueryListeners.get(query);
-    });
+    setMatchMediaState();
     window.addEventListener = jest.fn((event, handler) => {
       windowEventHandlers.set(event, handler);
     });
@@ -329,7 +333,28 @@ describe('App Component', () => {
     });
   });
 
-  it('shows an install banner after beforeinstallprompt fires and can dismiss it', async () => {
+  it('does not show the install banner on desktop after beforeinstallprompt fires', async () => {
+    const preventDefault = jest.fn();
+
+    render(<App />);
+
+    const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
+    expect(beforeInstallPromptHandler).toEqual(expect.any(Function));
+
+    await act(async () => {
+      beforeInstallPromptHandler({
+        preventDefault,
+        prompt: jest.fn(),
+        userChoice: Promise.resolve({ outcome: 'dismissed', platform: 'web' }),
+      });
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(screen.queryByLabelText('Install app banner')).not.toBeInTheDocument();
+  });
+
+  it('shows an install banner on mobile after beforeinstallprompt fires and can dismiss it', async () => {
+    setMatchMediaState({ mobile: true });
     const preventDefault = jest.fn();
 
     render(<App />);
@@ -356,7 +381,8 @@ describe('App Component', () => {
     });
   });
 
-  it('prompts for install and hides the banner after acceptance', async () => {
+  it('prompts for install on mobile and hides the banner after acceptance', async () => {
+    setMatchMediaState({ mobile: true });
     const prompt = jest.fn().mockResolvedValue(undefined);
 
     render(<App />);
@@ -401,6 +427,7 @@ describe('App Component', () => {
   });
 
   it('hides the install banner after the appinstalled event fires', async () => {
+    setMatchMediaState({ mobile: true });
     render(<App />);
 
     const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
@@ -424,6 +451,7 @@ describe('App Component', () => {
   });
 
   it('hides the install banner when standalone display mode becomes active', async () => {
+    setMatchMediaState({ mobile: true });
     render(<App />);
 
     const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
