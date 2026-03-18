@@ -68,6 +68,24 @@ const getStandaloneDisplayMode = (): boolean => {
   return isIosStandalone || isStandaloneMatch;
 };
 
+const getActivitySender = (activity: Activity): string | null => {
+  return activity.sender || (
+    typeof activity.metadata?.sender === 'string' ? activity.metadata.sender : null
+  );
+};
+
+const getActivitySenderVariant = (sender: string | null): 'swissclaw' | 'user' | 'system' => {
+  if (!sender) {
+    return 'system';
+  }
+
+  const normalizedSender = sender.trim().toLowerCase();
+  if (normalizedSender === 'swissclaw' || normalizedSender === 'swiss claw') {
+    return 'swissclaw';
+  }
+
+  return 'user';
+};
 
 function App() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -665,9 +683,9 @@ function App() {
             {activities.map((activity, i) => {
               const activityId = String(activity.id || `${activity.created_at}-${i}`);
               const isExpanded = expandedActivityId === activityId;
-              const activitySender = activity.sender || (
-                typeof activity.metadata?.sender === 'string' ? activity.metadata.sender : null
-              );
+              const activitySender = getActivitySender(activity);
+              const activitySenderLabel = activitySender || 'System';
+              const activitySenderVariant = getActivitySenderVariant(activitySender);
               const activityDetails = (
                 activitySender && activity.description.startsWith(`${activitySender}: `)
                   ? activity.description.slice(activitySender.length + 2)
@@ -677,7 +695,7 @@ function App() {
               return (
                 <div
                   key={activityId}
-                  className={`activity-item ${isExpanded ? 'expanded' : ''}`}
+                  className={`activity-item activity-item-${activitySenderVariant} ${isExpanded ? 'expanded' : ''}`}
                   onClick={() => setExpandedActivityId(isExpanded ? null : activityId)}
                   role="button"
                   tabIndex={0}
@@ -692,7 +710,12 @@ function App() {
                   <span className="activity-time">
                     {new Date(activity.created_at || (activity as any).timestamp).toLocaleTimeString()}
                   </span>
-                  <span className="activity-text">{activityDetails}</span>
+                  <div className="activity-main">
+                    <span className={`activity-sender activity-sender-${activitySenderVariant}`}>
+                      {activitySenderLabel}
+                    </span>
+                    <span className="activity-text">{activityDetails}</span>
+                  </div>
 
                   {isExpanded && (
                     <div className="activity-inline-details">
@@ -702,7 +725,7 @@ function App() {
                       </div>
                       <div className="detail-row">
                         <span className="detail-label">Sender:</span>
-                        <span className="detail-value">{activitySender || 'N/A'}</span>
+                        <span className="detail-value">{activitySenderLabel}</span>
                       </div>
                       <div className="detail-row">
                         <span className="detail-label">Time:</span>
