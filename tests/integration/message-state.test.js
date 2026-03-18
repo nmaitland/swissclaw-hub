@@ -75,7 +75,7 @@ describe('Message State API (real server)', () => {
     });
 
     it('accepts non-received state values and returns claimed=true', async () => {
-      const states = ['processing', 'thinking', 'responded'];
+      const states = ['processing', 'done', 'failed', 'not-sent'];
 
       for (const state of states) {
         const messageId = await createMessage();
@@ -105,6 +105,17 @@ describe('Message State API (real server)', () => {
         .set('Authorization', `Bearer ${authToken}`)
         .send({ state: 'invalid-state' })
         .expect(400);
+    });
+
+    it('rejects removed legacy state values', async () => {
+      const messageId = await createMessage();
+      for (const state of ['thinking', 'responded']) {
+        await request(app)
+          .put(`/api/service/messages/${messageId}/state`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .send({ state })
+          .expect(400);
+      }
     });
 
     it('rejects missing state', async () => {

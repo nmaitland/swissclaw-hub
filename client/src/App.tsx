@@ -461,11 +461,13 @@ function App() {
                   <div className="chat-message-header">
                     <span className="chat-sender">
                       {msg.sender}
-                      {msg.sender === 'operator' && messageStates[msg.id] && messageStates[msg.id] !== 'responded' && (
+                      {msg.sender === 'operator' && messageStates[msg.id] && (
                         <span className={`message-state message-state-${messageStates[msg.id]}`}>
                           {messageStates[msg.id] === 'received' && ' \u2713'}
                           {messageStates[msg.id] === 'processing' && ' \u2699\uFE0F'}
-                          {messageStates[msg.id] === 'thinking' && ' ...'}
+                          {messageStates[msg.id] === 'done' && ' \u2705'}
+                          {messageStates[msg.id] === 'failed' && ' \u274C'}
+                          {messageStates[msg.id] === 'not-sent' && ' \u26A0\uFE0F'}
                         </span>
                       )}
                     </span>

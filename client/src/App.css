@@ -82,9 +82,16 @@
   animation: spin 1s linear infinite;
 }
 
-.message-state-thinking {
+.message-state-done {
+  color: #4ade80;
+}
+
+.message-state-failed {
+  color: #ef4444;
+}
+
+.message-state-not-sent {
   color: #f59e0b;
-  animation: pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes spin {

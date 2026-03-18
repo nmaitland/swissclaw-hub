@@ -1116,7 +1116,7 @@ app.put('/api/service/status', asyncHandler(async (req: Request, res: Response) 
  *             properties:
  *               state:
  *                 type: string
- *                 enum: [received, processing, thinking, responded]
+ *                 enum: [received, processing, done, failed, not-sent]
  *                 description: The processing state of the message
  *     responses:
  *       200:
@@ -1160,9 +1160,9 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
   const { state } = req.body;
 
   // Validate state
-  const validStates = ['received', 'processing', 'thinking', 'responded'];
+  const validStates = ['received', 'processing', 'done', 'failed', 'not-sent'];
   if (!validStates.includes(state)) {
-    res.status(400).json({ error: 'Invalid state. Must be one of: received, processing, thinking, responded' });
+    res.status(400).json({ error: 'Invalid state. Must be one of: received, processing, done, failed, not-sent' });
     return;
   }
 
