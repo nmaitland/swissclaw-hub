@@ -11,6 +11,9 @@ import type {
   ModelUsageCostType,
   ModelUsageSnapshot
 } from './types';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import ReactMarkdown from 'react-markdown';
+const Markdown = ReactMarkdown as React.FC<{ children: string }>;
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
@@ -476,7 +479,7 @@ function App() {
                       {new Date(msg.created_at).toLocaleTimeString()}
                     </span>
                   </div>
-                  <span className="chat-text">{msg.content}</span>
+                  <span className="chat-text"><Markdown>{msg.content}</Markdown></span>
                 </div>
               ))
             )}
