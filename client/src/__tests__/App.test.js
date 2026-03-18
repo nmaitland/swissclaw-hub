@@ -117,7 +117,7 @@ const mockMessagesData = [
 
 const mockActivitiesData = {
   activities: [
-    { id: '1', description: 'Deployed v2', created_at: '2024-01-01T00:00:00Z', type: 'deployment', metadata: {} },
+    { id: '1', description: 'Deployed v2', created_at: '2024-01-01T00:00:00Z', type: 'deployment', sender: 'Swissclaw', metadata: {} },
   ],
   hasMore: false,
 };
@@ -478,7 +478,59 @@ describe('App Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Deployed v2')).toBeInTheDocument();
+      expect(screen.getByText('Swissclaw')).toBeInTheDocument();
     });
+  });
+
+  it('styles swissclaw and user activity rows differently', async () => {
+    const senderActivitiesData = {
+      activities: [
+        {
+          id: '1',
+          type: 'chat',
+          sender: 'Swissclaw',
+          description: 'Reviewed the queue',
+          created_at: '2024-01-01T01:00:00Z',
+          metadata: {},
+        },
+        {
+          id: '2',
+          type: 'chat',
+          sender: 'Neil',
+          description: 'Queued follow-up',
+          created_at: '2024-01-01T00:59:00Z',
+          metadata: {},
+        },
+      ],
+      hasMore: false,
+    };
+
+    fetch.mockImplementation((url) => {
+      if (typeof url === 'string' && url.includes('/api/status')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockStatusData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/messages')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockMessagesData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/activities')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(senderActivitiesData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/kanban')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(mockKanbanData) });
+      }
+      if (typeof url === 'string' && url.includes('/api/build')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ buildDate: '2026-02-15T06:53:46.312Z', commit: 'abc123' }) });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    });
+
+    render(<App />);
+
+    const swissclawActivity = await screen.findByRole('button', { name: /Swissclaw Reviewed the queue/i });
+    const neilActivity = await screen.findByRole('button', { name: /Neil Queued follow-up/i });
+
+    expect(swissclawActivity).toHaveClass('activity-item-swissclaw');
+    expect(neilActivity).toHaveClass('activity-item-user');
   });
 
   it('shows multiline activity descriptions in inline expanded details', async () => {
@@ -532,7 +584,7 @@ describe('App Component', () => {
       expect(detailDescription.textContent).toContain('Third line');
       expect(detailDescription.textContent).toContain('\n');
       expect(screen.getByText('Sender:')).toBeInTheDocument();
-      expect(screen.getByText('Swissclaw')).toBeInTheDocument();
+      expect(screen.getAllByText('Swissclaw')).toHaveLength(2);
     });
   });
 
