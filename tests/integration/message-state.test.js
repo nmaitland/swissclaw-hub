@@ -75,7 +75,7 @@ describe('Message State API (real server)', () => {
     });
 
     it('accepts non-received state values and returns claimed=true', async () => {
-      const states = ['processing', 'done', 'failed', 'not-sent'];
+      const states = ['processing', 'done', 'failed', 'not-sent', 'timeout'];
 
       for (const state of states) {
         const messageId = await createMessage();

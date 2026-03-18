@@ -245,10 +245,10 @@ server.tool(
 
 server.tool(
   'update_message_state',
-  'Update the processing state of a chat message (received, processing, done, failed, not-sent)',
+  'Update the processing state of a chat message (received, processing, done, failed, not-sent, timeout)',
   {
     messageId: z.string().describe('The message ID to update'),
-    state: z.enum(['received', 'processing', 'done', 'failed', 'not-sent']).describe('The new processing state'),
+    state: z.enum(['received', 'processing', 'done', 'failed', 'not-sent', 'timeout']).describe('The new processing state'),
   },
   async ({ messageId, state }) => {
     const data = await api(`/api/service/messages/${messageId}/state`, {

@@ -468,6 +468,7 @@ function App() {
                           {messageStates[msg.id] === 'done' && ' \u2705'}
                           {messageStates[msg.id] === 'failed' && ' \u274C'}
                           {messageStates[msg.id] === 'not-sent' && ' \u26A0\uFE0F'}
+                          {messageStates[msg.id] === 'timeout' && ' \u23F1\uFE0F'}
                         </span>
                       )}
                     </span>

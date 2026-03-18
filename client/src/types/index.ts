@@ -126,7 +126,7 @@ export interface ChatMessage {
   created_at: string;
 }
 
-export type MessageProcessingState = 'received' | 'processing' | 'done' | 'failed' | 'not-sent';
+export type MessageProcessingState = 'received' | 'processing' | 'done' | 'failed' | 'not-sent' | 'timeout';
 
 export interface MessageStateUpdate {
   messageId: string;
