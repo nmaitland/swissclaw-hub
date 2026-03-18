@@ -116,36 +116,44 @@
   align-items: stretch;
 }
 
+.top-panels-header {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.top-panels-collapsed {
+  grid-template-columns: 1fr;
+}
+
+.top-panels-collapsed .top-panels-header {
+  grid-column: 1;
+}
+
 .workspace-panels {
   flex: 1;
   height: 100%;
   max-height: 100%;
   min-height: 420px;
   display: grid;
-  grid-template-rows:
-    calc((1 - var(--chat-panel-ratio, 0.35)) * (100% - 10px))
-    10px
-    calc(var(--chat-panel-ratio, 0.35) * (100% - 10px));
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
 }
 
 .workspace-panels > .kanban-panel-wrap {
   grid-row: 1;
 }
 
-.workspace-panels > .panel-splitter {
+.workspace-panels > .chat-panel {
   grid-row: 2;
 }
 
-.workspace-panels > .chat-panel {
-  grid-row: 3;
-}
-
 .workspace-panels.kanban-collapsed {
-  grid-template-rows: auto 0 minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .workspace-panels.chat-collapsed {
-  grid-template-rows: minmax(0, 1fr) 0 auto;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .kanban-panel-wrap {
@@ -177,35 +185,6 @@
   min-height: 0;
   max-height: none;
   height: 100%;
-}
-
-.panel-splitter {
-  flex: 0 0 10px;
-  height: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: row-resize;
-  user-select: none;
-  background: rgba(255, 69, 0, 0.04);
-  border-top: 1px solid rgba(255, 69, 0, 0.15);
-  border-bottom: 1px solid rgba(255, 69, 0, 0.15);
-}
-
-.panel-splitter:focus-visible {
-  outline: 2px solid #3b82f6;
-  outline-offset: -2px;
-}
-
-.panel-splitter.dragging {
-  background: rgba(255, 69, 0, 0.12);
-}
-
-.panel-splitter-grip {
-  width: 40px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 69, 0, 0.5);
 }
 
 .workspace-panels .panel.chat-panel {
@@ -252,11 +231,6 @@
   border-color: #ff4500;
   color: #ff6b35;
   background: rgba(255, 69, 0, 0.17);
-}
-
-body.panel-resizing {
-  cursor: row-resize;
-  user-select: none;
 }
 
 .panel {

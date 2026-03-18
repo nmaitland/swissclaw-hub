@@ -14,13 +14,7 @@ import type {
 import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
-const DESKTOP_CHAT_RATIO_KEY = 'hub.chatPanelRatio.v1';
 const MOBILE_VIEW_MODE_KEY = 'hub.mobileViewMode.v1';
-const DEFAULT_DESKTOP_CHAT_RATIO = 0.35;
-const KANBAN_MIN_PX = 280;
-const CHAT_MIN_PX = 220;
-const SPLITTER_HEIGHT_PX = 10;
-const SPLITTER_KEYBOARD_STEP = 0.02;
 
 type MobileViewMode = 'status' | 'activities' | 'kanban' | 'chat';
 const MOBILE_VIEW_MODES: Array<{ key: MobileViewMode; label: string }> = [
@@ -29,37 +23,6 @@ const MOBILE_VIEW_MODES: Array<{ key: MobileViewMode; label: string }> = [
   { key: 'kanban', label: 'Kanban' },
   { key: 'chat', label: 'Chat' },
 ];
-
-const clamp = (value: number, min: number, max: number): number => {
-  return Math.min(Math.max(value, min), max);
-};
-
-const getRatioBounds = (containerHeight: number): { min: number; max: number } => {
-  const usableHeight = Math.max(containerHeight - SPLITTER_HEIGHT_PX, 1);
-  const min = CHAT_MIN_PX / usableHeight;
-  const max = 1 - KANBAN_MIN_PX / usableHeight;
-
-  if (min <= max) {
-    return { min, max };
-  }
-
-  // Extremely short viewports cannot satisfy both panel minimums at once.
-  return { min: 0.2, max: 0.8 };
-};
-
-const readPersistedDesktopChatRatio = (): number => {
-  try {
-    const raw = localStorage.getItem(DESKTOP_CHAT_RATIO_KEY);
-    const parsed = raw ? Number.parseFloat(raw) : Number.NaN;
-    if (Number.isFinite(parsed)) {
-      return clamp(parsed, 0.2, 0.8);
-    }
-  } catch {
-    // Ignore storage read failures and use defaults.
-  }
-
-  return DEFAULT_DESKTOP_CHAT_RATIO;
-};
 
 const readPersistedMobileViewMode = (): MobileViewMode => {
   try {
@@ -108,14 +71,12 @@ function App() {
 
   // Message processing states
   const [messageStates, setMessageStates] = useState<Record<string, MessageProcessingState>>({});
-  const workspacePanelsRef = useRef<HTMLDivElement>(null);
-  const [chatRatioDesktop, setChatRatioDesktop] = useState<number>(readPersistedDesktopChatRatio);
   const [mobileViewMode, setMobileViewMode] = useState<MobileViewMode>(readPersistedMobileViewMode);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(getMobileLayoutMatches);
-  const [isResizingPanels, setIsResizingPanels] = useState(false);
   const [isModelUsageModalOpen, setIsModelUsageModalOpen] = useState(false);
   const [usageHistory, setUsageHistory] = useState<ModelUsageSnapshot[] | null>(null);
   const [isLoadingUsageHistory, setIsLoadingUsageHistory] = useState(false);
+  const [isTopPanelsCollapsed, setIsTopPanelsCollapsed] = useState(false);
   const [isKanbanCollapsedDesktop, setIsKanbanCollapsedDesktop] = useState(false);
   const [isChatCollapsedDesktop, setIsChatCollapsedDesktop] = useState(false);
 
@@ -376,30 +337,11 @@ function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(DESKTOP_CHAT_RATIO_KEY, chatRatioDesktop.toString());
-    } catch {
-      // Ignore storage write failures.
-    }
-  }, [chatRatioDesktop]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem(MOBILE_VIEW_MODE_KEY, mobileViewMode);
     } catch {
       // Ignore storage write failures.
     }
   }, [mobileViewMode]);
-
-  useEffect(() => {
-    const body = document.body;
-    if (isResizingPanels) {
-      body.classList.add('panel-resizing');
-      return () => body.classList.remove('panel-resizing');
-    }
-
-    body.classList.remove('panel-resizing');
-    return undefined;
-  }, [isResizingPanels]);
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -432,86 +374,12 @@ function App() {
     return costs.find((entry) => entry.type === type)?.amount || 0;
   };
 
-  const getWorkspacePanelsHeight = useCallback((): number => {
-    return workspacePanelsRef.current?.getBoundingClientRect().height || Math.max(window.innerHeight * 0.6, 1);
-  }, []);
-
-  const clampDesktopRatioToBounds = useCallback((ratio: number, containerHeight: number): number => {
-    const bounds = getRatioBounds(containerHeight);
-    return clamp(ratio, bounds.min, bounds.max);
-  }, []);
-
-  const setDesktopRatioFromPointer = useCallback((clientY: number) => {
-    const wrapper = workspacePanelsRef.current;
-    if (!wrapper) return;
-
-    const rect = wrapper.getBoundingClientRect();
-    const usableHeight = Math.max(rect.height - SPLITTER_HEIGHT_PX, 1);
-    const desiredChatHeight = rect.bottom - clientY;
-    const desiredRatio = desiredChatHeight / usableHeight;
-
-    setChatRatioDesktop(clampDesktopRatioToBounds(desiredRatio, rect.height));
-  }, [clampDesktopRatioToBounds]);
-
-  const handleSplitterPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isMobileLayout || isKanbanCollapsedDesktop || isChatCollapsedDesktop) return;
-
-    event.preventDefault();
-    setIsResizingPanels(true);
-    setDesktopRatioFromPointer(event.clientY);
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      setDesktopRatioFromPointer(moveEvent.clientY);
-    };
-
-    const stopResize = () => {
-      setIsResizingPanels(false);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', stopResize);
-      window.removeEventListener('pointercancel', stopResize);
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', stopResize);
-    window.addEventListener('pointercancel', stopResize);
-  };
-
-  const handleSplitterKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (isMobileLayout || isKanbanCollapsedDesktop || isChatCollapsedDesktop) return;
-
-    const containerHeight = getWorkspacePanelsHeight();
-    const bounds = getRatioBounds(containerHeight);
-    let nextRatio: number | null = null;
-
-    if (event.key === 'ArrowUp') {
-      nextRatio = chatRatioDesktop - SPLITTER_KEYBOARD_STEP;
-    } else if (event.key === 'ArrowDown') {
-      nextRatio = chatRatioDesktop + SPLITTER_KEYBOARD_STEP;
-    } else if (event.key === 'Home') {
-      nextRatio = bounds.min;
-    } else if (event.key === 'End') {
-      nextRatio = bounds.max;
-    }
-
-    if (nextRatio !== null) {
-      event.preventDefault();
-      setChatRatioDesktop(clamp(nextRatio, bounds.min, bounds.max));
-    }
-  };
-
-  useEffect(() => {
-    const clampToCurrentLayout = () => {
-      const containerHeight = getWorkspacePanelsHeight();
-      setChatRatioDesktop((prev) => clampDesktopRatioToBounds(prev, containerHeight));
-    };
-
-    clampToCurrentLayout();
-    window.addEventListener('resize', clampToCurrentLayout);
-    return () => window.removeEventListener('resize', clampToCurrentLayout);
-  }, [clampDesktopRatioToBounds, getWorkspacePanelsHeight]);
-
   const handleSelectMobileViewMode = (mode: MobileViewMode) => {
     setMobileViewMode(mode);
+  };
+
+  const toggleTopPanelsCollapse = () => {
+    setIsTopPanelsCollapsed((prev) => !prev);
   };
 
   const toggleKanbanPanelCollapse = () => {
@@ -533,11 +401,6 @@ function App() {
       return next;
     });
   };
-
-  const activeChatRatio = chatRatioDesktop;
-  const workspacePanelsStyle = {
-    ['--chat-panel-ratio' as const]: activeChatRatio,
-  } as React.CSSProperties;
 
   const workspacePanelsClassName = `workspace-panels${isKanbanCollapsedDesktop ? ' kanban-collapsed' : ''}${isChatCollapsedDesktop ? ' chat-collapsed' : ''}`;
 
@@ -901,18 +764,33 @@ function App() {
         )}
 
         {(!isMobileLayout || mobileViewMode === 'status' || mobileViewMode === 'activities') && (
-          <section className={`top-panels ${isMobileLayout ? 'mobile-active-panel' : ''}`}>
-            {(!isMobileLayout || mobileViewMode === 'status') && renderStatusPanel()}
-            {(!isMobileLayout || mobileViewMode === 'activities') && renderActivitiesPanel()}
+          <section className={`top-panels ${isTopPanelsCollapsed && !isMobileLayout ? 'top-panels-collapsed' : ''} ${isMobileLayout ? 'mobile-active-panel' : ''}`}>
+            {!isMobileLayout && (
+              <div className="top-panels-header">
+                <button
+                  type="button"
+                  className="panel-collapse-btn"
+                  onClick={toggleTopPanelsCollapse}
+                  aria-expanded={!isTopPanelsCollapsed}
+                  aria-label={`${isTopPanelsCollapsed ? 'Expand' : 'Collapse'} status and activities`}
+                >
+                  {isTopPanelsCollapsed ? 'Expand Status & Activities' : 'Collapse'}
+                </button>
+              </div>
+            )}
+            {(!isTopPanelsCollapsed || isMobileLayout) && (
+              <>
+                {(!isMobileLayout || mobileViewMode === 'status') && renderStatusPanel()}
+                {(!isMobileLayout || mobileViewMode === 'activities') && renderActivitiesPanel()}
+              </>
+            )}
           </section>
         )}
 
         {!isMobileLayout && (
           <section
             className={workspacePanelsClassName}
-            ref={workspacePanelsRef}
             data-testid="workspace-panels"
-            style={workspacePanelsStyle}
           >
             <div className={`kanban-panel-wrap ${isKanbanCollapsedDesktop ? 'collapsed' : ''}`.trim()}>
               <KanbanBoard
@@ -921,24 +799,6 @@ function App() {
                 onToggleCollapse={toggleKanbanPanelCollapse}
               />
             </div>
-
-            {!isKanbanCollapsedDesktop && !isChatCollapsedDesktop && (
-              <div
-                className={`panel-splitter ${isResizingPanels ? 'dragging' : ''}`}
-                role="separator"
-                aria-label="Resize Kanban and Chat panels"
-                aria-orientation="horizontal"
-                aria-valuemin={20}
-                aria-valuemax={80}
-                aria-valuenow={Math.round(activeChatRatio * 100)}
-                tabIndex={0}
-                onPointerDown={handleSplitterPointerDown}
-                onKeyDown={handleSplitterKeyDown}
-                data-testid="kanban-chat-splitter"
-              >
-                <span className="panel-splitter-grip" aria-hidden="true" />
-              </div>
-            )}
 
             {renderChatPanel('', false, {
               collapsed: isChatCollapsedDesktop,
