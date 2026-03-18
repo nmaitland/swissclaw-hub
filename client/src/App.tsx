@@ -479,7 +479,7 @@ function App() {
                       {new Date(msg.created_at).toLocaleTimeString()}
                     </span>
                   </div>
-                  <span className="chat-text"><Markdown>{msg.content}</Markdown></span>
+                  <span className="chat-text"><Markdown>{msg.content.replace(/\n/g, '  \n')}</Markdown></span>
                 </div>
               ))
             )}
