@@ -52,6 +52,7 @@ tests/
 - Real-time status dashboard with WebSocket updates
 - Interactive chat with Socket.io
 - Drag-and-drop kanban board with search and priority filtering
+- PWA-ready mobile web shell with install prompt support and offline fallback page
 - Activity feed with timestamps
 - Session-based authentication with CSRF protection
 - PostgreSQL database with raw SQL (no ORM at runtime)
@@ -134,6 +135,11 @@ cp .env.example .env
 # Edit .env with your database URL and credentials
 ```
 
+For the local Docker Postgres test instance on `localhost`, also set:
+```bash
+DB_SSL=false
+```
+
 3. Set up the database (see Database Setup above)
 
 4. Start development server:
@@ -166,6 +172,24 @@ npm run test:client
 # Stop test database
 docker-compose -f docker-compose.test.yml down
 ```
+
+### PWA / mobile web checks
+
+The client now includes a web manifest, service worker registration, install-banner logic, and an offline fallback page.
+
+Local verification:
+```bash
+# Client build and unit tests
+npm --prefix client run build
+npm --prefix client test -- --runInBand --watchAll=false
+```
+
+Manual browser verification in Chrome:
+- open `http://localhost:3000`
+- check `Application > Manifest`
+- check `Application > Service Workers`
+- verify the install banner can appear on supported Chrome sessions
+- switch DevTools Network to Offline and refresh to verify the offline fallback page
 
 ## API Documentation
 

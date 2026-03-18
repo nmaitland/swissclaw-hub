@@ -19,6 +19,11 @@ import './App.css';
 const API_URL = process.env.REACT_APP_API_URL || '';
 const MOBILE_VIEW_MODE_KEY = 'hub.mobileViewMode.v1';
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
+
 type MobileViewMode = 'status' | 'activities' | 'kanban' | 'chat';
 const MOBILE_VIEW_MODES: Array<{ key: MobileViewMode; label: string }> = [
   { key: 'status', label: 'Status' },
@@ -48,6 +53,19 @@ const getMobileLayoutMatches = (): boolean => {
 
 const getAuthToken = (): string | null => {
   return localStorage.getItem('authToken');
+};
+
+const getStandaloneDisplayMode = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  const isIosStandalone = nav.standalone === true;
+  const isStandaloneMatch = typeof window.matchMedia === 'function' &&
+    window.matchMedia('(display-mode: standalone)').matches;
+
+  return isIosStandalone || isStandaloneMatch;
 };
 
 
@@ -82,6 +100,9 @@ function App() {
   const [isTopPanelsCollapsed, setIsTopPanelsCollapsed] = useState(false);
   const [isKanbanCollapsedDesktop, setIsKanbanCollapsedDesktop] = useState(false);
   const [isChatCollapsedDesktop, setIsChatCollapsedDesktop] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstallPromptVisible, setIsInstallPromptVisible] = useState(false);
+  const [isStandaloneMode, setIsStandaloneMode] = useState<boolean>(getStandaloneDisplayMode);
 
   // Fetch 30-day usage history when modal opens
   useEffect(() => {
@@ -339,6 +360,59 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEvent);
+      setIsInstallPromptVisible(!getStandaloneDisplayMode());
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPromptEvent(null);
+      setIsInstallPromptVisible(false);
+      setIsStandaloneMode(true);
+    };
+
+    const standaloneMediaQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(display-mode: standalone)')
+      : null;
+
+    const handleStandaloneChange = (event: MediaQueryListEvent) => {
+      setIsStandaloneMode(event.matches || getStandaloneDisplayMode());
+      if (event.matches) {
+        setIsInstallPromptVisible(false);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    if (standaloneMediaQuery) {
+      if (typeof standaloneMediaQuery.addEventListener === 'function') {
+        standaloneMediaQuery.addEventListener('change', handleStandaloneChange);
+      } else {
+        standaloneMediaQuery.addListener(handleStandaloneChange);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+
+      if (standaloneMediaQuery) {
+        if (typeof standaloneMediaQuery.removeEventListener === 'function') {
+          standaloneMediaQuery.removeEventListener('change', handleStandaloneChange);
+        } else {
+          standaloneMediaQuery.removeListener(handleStandaloneChange);
+        }
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     try {
       localStorage.setItem(MOBILE_VIEW_MODE_KEY, mobileViewMode);
     } catch {
@@ -403,6 +477,21 @@ function App() {
       }
       return next;
     });
+  };
+
+  const handleInstallApp = async () => {
+    if (!installPromptEvent) {
+      return;
+    }
+
+    await installPromptEvent.prompt();
+    const choice = await installPromptEvent.userChoice;
+
+    if (choice.outcome === 'accepted') {
+      setIsInstallPromptVisible(false);
+    }
+
+    setInstallPromptEvent(null);
   };
 
   const workspacePanelsClassName = `workspace-panels${isKanbanCollapsedDesktop ? ' kanban-collapsed' : ''}${isChatCollapsedDesktop ? ' chat-collapsed' : ''}`;
@@ -752,6 +841,27 @@ function App() {
           <span className="version">{new Date(buildInfo.buildDate).toLocaleDateString()}</span>
         </div>
       </header>
+
+      {!isStandaloneMode && isInstallPromptVisible && (
+        <section className="install-banner" aria-label="Install app banner">
+          <div className="install-banner-copy">
+            <strong>Install Swissclaw Hub</strong>
+            <span>Keep it on your home screen and launch it in a cleaner app-style view on mobile.</span>
+          </div>
+          <div className="install-banner-actions">
+            <button type="button" className="install-banner-primary" onClick={handleInstallApp}>
+              Install
+            </button>
+            <button
+              type="button"
+              className="install-banner-secondary"
+              onClick={() => setIsInstallPromptVisible(false)}
+            >
+              Not now
+            </button>
+          </div>
+        </section>
+      )}
 
             <main className="main unified">
         {isMobileLayout && (
