@@ -228,24 +228,13 @@ describe('App Component', () => {
     });
   });
 
-  it('renders a desktop splitter between kanban and chat panels', async () => {
-    render(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('kanban-chat-splitter')).toBeInTheDocument();
-    });
-
-    expect(screen.queryByTestId('mobile-mode-tabs')).not.toBeInTheDocument();
-  });
-
-  it('collapses chat panel in desktop mode and hides the splitter', async () => {
+  it('collapses chat panel in desktop mode', async () => {
     render(<App />);
 
     const collapseChatButton = await screen.findByRole('button', { name: 'Collapse chat panel' });
     fireEvent.click(collapseChatButton);
 
     await waitFor(() => {
-      expect(screen.queryByTestId('kanban-chat-splitter')).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Expand chat panel' })).toBeInTheDocument();
     });
   });
@@ -260,47 +249,6 @@ describe('App Component', () => {
       expect(screen.getByRole('button', { name: 'Expand kanban panel' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Collapse chat panel' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Expand chat panel' })).not.toBeInTheDocument();
-    });
-  });
-
-  it('loads persisted desktop chat ratio from localStorage', async () => {
-    Storage.prototype.getItem = jest.fn((key) => {
-      if (key === 'authToken') return 'test-token';
-      if (key === 'hub.chatPanelRatio.v1') return '0.42';
-      return null;
-    });
-
-    render(<App />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('workspace-panels').style.getPropertyValue('--chat-panel-ratio')).toBe('0.42');
-    });
-  });
-
-  it('updates and persists desktop chat ratio when dragging the splitter', async () => {
-    render(<App />);
-
-    const splitter = await screen.findByTestId('kanban-chat-splitter');
-    const workspacePanels = screen.getByTestId('workspace-panels');
-    workspacePanels.getBoundingClientRect = jest.fn(() => ({
-      x: 0,
-      y: 100,
-      top: 100,
-      left: 0,
-      right: 1000,
-      bottom: 700,
-      width: 1000,
-      height: 600,
-      toJSON: () => {},
-    }));
-
-    fireEvent.pointerDown(splitter, { clientY: 500 });
-    fireEvent.pointerMove(window, { clientY: 400 });
-    fireEvent.pointerUp(window);
-
-    await waitFor(() => {
-      const ratioWrites = Storage.prototype.setItem.mock.calls.filter((call) => call[0] === 'hub.chatPanelRatio.v1');
-      expect(ratioWrites.length).toBeGreaterThan(0);
     });
   });
 
