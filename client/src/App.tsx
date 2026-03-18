@@ -865,7 +865,7 @@ function App() {
         </div>
       </header>
 
-      {!isStandaloneMode && isInstallPromptVisible && (
+      {!isStandaloneMode && isMobileLayout && isInstallPromptVisible && (
         <section className="install-banner" aria-label="Install app banner">
           <div className="install-banner-copy">
             <strong>Install Swissclaw Hub</strong>
