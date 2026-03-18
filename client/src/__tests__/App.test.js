@@ -60,6 +60,17 @@ const createMatchMediaResult = (matches = false) => ({
   dispatchEvent: jest.fn(),
 });
 
+const createMatchMediaMock = ({ mobile = false, standalone = false } = {}) => jest.fn().mockImplementation((query) => ({
+  matches: query === '(max-width: 768px)' ? mobile : query === '(display-mode: standalone)' ? standalone : false,
+  media: query,
+  onchange: null,
+  addEventListener: jest.fn(),
+  removeEventListener: jest.fn(),
+  addListener: jest.fn(),
+  removeListener: jest.fn(),
+  dispatchEvent: jest.fn(),
+}));
+
 const mockStatusData = {
   state: 'active',
   currentTask: 'Building Swissclaw Hub',
@@ -121,11 +132,27 @@ const mockKanbanData = {
 };
 
 describe('App Component', () => {
+  let windowEventHandlers;
+  let mediaQueryListeners;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    windowEventHandlers = new Map();
+    mediaQueryListeners = new Map();
     // Mock console.error to suppress warnings
     jest.spyOn(console, 'error').mockImplementation(() => {});
-    window.matchMedia = jest.fn().mockImplementation(() => createMatchMediaResult(false));
+    window.matchMedia = jest.fn().mockImplementation((query) => {
+      if (!mediaQueryListeners.has(query)) {
+        mediaQueryListeners.set(query, createMatchMediaMock()(query));
+      }
+      return mediaQueryListeners.get(query);
+    });
+    window.addEventListener = jest.fn((event, handler) => {
+      windowEventHandlers.set(event, handler);
+    });
+    window.removeEventListener = jest.fn((event) => {
+      windowEventHandlers.delete(event);
+    });
     // Mock localStorage
     Storage.prototype.getItem = jest.fn((key) => {
       if (key === 'authToken') return 'test-token';
@@ -300,6 +327,150 @@ describe('App Component', () => {
       expect(screen.getByTestId('mobile-kanban-panel')).toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: /Status/ })).not.toBeInTheDocument();
     });
+  });
+
+  it('shows an install banner after beforeinstallprompt fires and can dismiss it', async () => {
+    const preventDefault = jest.fn();
+
+    render(<App />);
+
+    const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
+    expect(beforeInstallPromptHandler).toEqual(expect.any(Function));
+
+    await act(async () => {
+      beforeInstallPromptHandler({
+        preventDefault,
+        prompt: jest.fn(),
+        userChoice: Promise.resolve({ outcome: 'dismissed', platform: 'web' }),
+      });
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Install' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Not now' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Install app banner')).not.toBeInTheDocument();
+    });
+  });
+
+  it('prompts for install and hides the banner after acceptance', async () => {
+    const prompt = jest.fn().mockResolvedValue(undefined);
+
+    render(<App />);
+
+    const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
+
+    await act(async () => {
+      beforeInstallPromptHandler({
+        preventDefault: jest.fn(),
+        prompt,
+        userChoice: Promise.resolve({ outcome: 'accepted', platform: 'web' }),
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    });
+
+    expect(prompt).toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Install app banner')).not.toBeInTheDocument();
+    });
+  });
+
+  it('does not show the install banner when already in standalone display mode', async () => {
+    window.matchMedia = createMatchMediaMock({ standalone: true });
+
+    render(<App />);
+
+    const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
+
+    await act(async () => {
+      beforeInstallPromptHandler({
+        preventDefault: jest.fn(),
+        prompt: jest.fn(),
+        userChoice: Promise.resolve({ outcome: 'dismissed', platform: 'web' }),
+      });
+    });
+
+    expect(screen.queryByLabelText('Install app banner')).not.toBeInTheDocument();
+  });
+
+  it('hides the install banner after the appinstalled event fires', async () => {
+    render(<App />);
+
+    const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
+    const appInstalledHandler = windowEventHandlers.get('appinstalled');
+
+    await act(async () => {
+      beforeInstallPromptHandler({
+        preventDefault: jest.fn(),
+        prompt: jest.fn(),
+        userChoice: Promise.resolve({ outcome: 'dismissed', platform: 'web' }),
+      });
+    });
+
+    expect(screen.getByLabelText('Install app banner')).toBeInTheDocument();
+
+    await act(async () => {
+      appInstalledHandler();
+    });
+
+    expect(screen.queryByLabelText('Install app banner')).not.toBeInTheDocument();
+  });
+
+  it('hides the install banner when standalone display mode becomes active', async () => {
+    render(<App />);
+
+    const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
+
+    await act(async () => {
+      beforeInstallPromptHandler({
+        preventDefault: jest.fn(),
+        prompt: jest.fn(),
+        userChoice: Promise.resolve({ outcome: 'dismissed', platform: 'web' }),
+      });
+    });
+
+    expect(screen.getByLabelText('Install app banner')).toBeInTheDocument();
+
+    const standaloneMedia = mediaQueryListeners.get('(display-mode: standalone)');
+    expect(standaloneMedia).toBeTruthy();
+
+    await waitFor(() => {
+      expect(standaloneMedia.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+    });
+
+    await act(async () => {
+      standaloneMedia.addEventListener.mock.calls[0][1]({ matches: true });
+    });
+
+    expect(screen.queryByLabelText('Install app banner')).not.toBeInTheDocument();
+  });
+
+  it('treats iOS standalone mode as installed', async () => {
+    Object.defineProperty(window.navigator, 'standalone', {
+      configurable: true,
+      value: true,
+    });
+
+    render(<App />);
+
+    const beforeInstallPromptHandler = windowEventHandlers.get('beforeinstallprompt');
+
+    await act(async () => {
+      beforeInstallPromptHandler({
+        preventDefault: jest.fn(),
+        prompt: jest.fn(),
+        userChoice: Promise.resolve({ outcome: 'dismissed', platform: 'web' }),
+      });
+    });
+
+    expect(screen.queryByLabelText('Install app banner')).not.toBeInTheDocument();
   });
 
   it('displays recent activities', async () => {

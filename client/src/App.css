@@ -1,5 +1,12 @@
 /* App.css - Swissclaw Hub Styles */
 
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+  background: #0a0a0a;
+  color: #e0e0e0;
+}
+
 .app {
   height: 100vh;
   min-height: 100vh;
@@ -17,6 +24,64 @@
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid rgba(255, 69, 0, 0.3);
+}
+
+.install-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 69, 0, 0.22);
+  background:
+    linear-gradient(135deg, rgba(255, 69, 0, 0.16), rgba(255, 107, 53, 0.06)),
+    rgba(9, 10, 20, 0.9);
+}
+
+.install-banner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.install-banner-copy strong {
+  color: #ffe1d2;
+  font-size: 0.92rem;
+}
+
+.install-banner-copy span {
+  color: #c6cedd;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.install-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.install-banner-primary,
+.install-banner-secondary {
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.install-banner-primary {
+  border: none;
+  background: linear-gradient(135deg, #ff4500, #ff6b35);
+  color: #fff;
+}
+
+.install-banner-secondary {
+  border: 1px solid rgba(255, 69, 0, 0.28);
+  background: rgba(0, 0, 0, 0.25);
+  color: #ffd3be;
 }
 
 .header h1 {
@@ -564,6 +629,22 @@
 
   .main.unified {
     gap: 0.85rem;
+  }
+
+  .install-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 0.8rem 0.85rem;
+  }
+
+  .install-banner-actions {
+    width: 100%;
+  }
+
+  .install-banner-primary,
+  .install-banner-secondary {
+    flex: 1 1 0;
+    text-align: center;
   }
 
   .top-panels {
