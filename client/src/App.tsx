@@ -242,6 +242,17 @@ function App() {
           }
           return next;
         });
+
+        // Hydrate message processing states from DB
+        const states: Record<string, MessageProcessingState> = {};
+        for (const msg of messageData) {
+          if (msg.processing_state) {
+            states[msg.id] = msg.processing_state;
+          }
+        }
+        if (Object.keys(states).length > 0) {
+          setMessageStates((prev) => ({ ...prev, ...states }));
+        }
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
