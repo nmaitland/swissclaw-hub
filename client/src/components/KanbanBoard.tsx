@@ -110,6 +110,32 @@ function SortableCard({ task, onClick }: SortableCardProps) {
   );
 }
 
+// ─── Static Card (mobile — no drag, just tappable) ──────────────────────────
+
+function StaticCard({ task, onClick }: SortableCardProps) {
+  const activateCard = () => onClick(task);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      activateCard();
+    }
+  };
+
+  return (
+    <div
+      className="kanban-card"
+      onClick={activateCard}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open task ${task.taskId}: ${task.title}`}
+      onKeyDown={handleKeyDown}
+    >
+      <CardContent task={task} />
+    </div>
+  );
+}
+
 // ─── Card Content (shared between normal and drag overlay) ───────────────────
 
 function CardContent({ task }: { task: KanbanCardTask }) {
@@ -158,9 +184,10 @@ interface KanbanColumnProps {
   totalInColumn: number;
   onTaskClick: (task: KanbanCardTask) => void;
   onAddClick: (columnName: ColumnName) => void;
+  isMobileLayout?: boolean;
 }
 
-function KanbanColumn({ col, tasks, totalInColumn, onTaskClick, onAddClick }: KanbanColumnProps) {
+function KanbanColumn({ col, tasks, totalInColumn, onTaskClick, onAddClick, isMobileLayout }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `column-${col.name}` });
 
   return (
@@ -192,13 +219,15 @@ function KanbanColumn({ col, tasks, totalInColumn, onTaskClick, onAddClick }: Ka
         strategy={verticalListSortingStrategy}
       >
         <div ref={setNodeRef} className="kanban-column-content" data-column={col.name}>
-          {tasks.map((task) => (
-            <SortableCard key={task.id} task={task} onClick={onTaskClick} />
-          ))}
+          {tasks.map((task) =>
+            isMobileLayout
+              ? <StaticCard key={task.id} task={task} onClick={onTaskClick} />
+              : <SortableCard key={task.id} task={task} onClick={onTaskClick} />
+          )}
           {tasks.length === 0 && (
             <div className="kanban-empty-drop">
               <span className="kanban-empty-icon">{col.emoji}</span>
-              <span>Drop tasks here</span>
+              <span>{isMobileLayout ? 'No tasks' : 'Drop tasks here'}</span>
             </div>
           )}
         </div>
@@ -269,9 +298,10 @@ function KanbanBoard({
   // Drag state
   const [activeTask, setActiveTask] = useState<KanbanCardTask | null>(null);
 
-  const sensors = useSensors(
+  const desktopSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
+  const noSensors = useSensors();
 
   // ─── Data Fetching ───────────────────────────────────────────────────
 
@@ -788,7 +818,7 @@ function KanbanBoard({
 
       {/* Kanban Board with DnD */}
       <DndContext
-        sensors={sensors}
+        sensors={isMobileLayout ? noSensors : desktopSensors}
         collisionDetection={closestCorners}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -802,6 +832,7 @@ function KanbanBoard({
               totalInColumn={(tasks[col.name] || []).length}
               onTaskClick={handleTaskClick}
               onAddClick={openAddModal}
+              isMobileLayout={isMobileLayout}
             />
           ))}
         </div>
