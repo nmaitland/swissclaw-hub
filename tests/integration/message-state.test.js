@@ -134,5 +134,70 @@ describe('Message State API (real server)', () => {
         .send({ state: 'received' })
         .expect(404);
     });
+
+    it('allows cancel from processing state', async () => {
+      const messageId = await createMessage();
+      await request(app)
+        .put(`/api/service/messages/${messageId}/state`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'processing' })
+        .expect(200);
+
+      const response = await request(app)
+        .put(`/api/service/messages/${messageId}/state`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'cancelled' })
+        .expect(200);
+
+      expect(response.body.state).toBe('cancelled');
+    });
+
+    it('allows cancel from received state', async () => {
+      const messageId = await createMessage();
+      await request(app)
+        .put(`/api/service/messages/${messageId}/state`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'received' })
+        .expect(200);
+
+      const response = await request(app)
+        .put(`/api/service/messages/${messageId}/state`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'cancelled' })
+        .expect(200);
+
+      expect(response.body.state).toBe('cancelled');
+    });
+
+    it('rejects cancel for message already in done state', async () => {
+      const messageId = await createMessage();
+      await request(app)
+        .put(`/api/service/messages/${messageId}/state`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'done' })
+        .expect(200);
+
+      const response = await request(app)
+        .put(`/api/service/messages/${messageId}/state`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'cancelled' })
+        .expect(409);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.currentState).toBe('done');
+    });
+
+    it('rejects cancel for message with no processing state', async () => {
+      const messageId = await createMessage();
+
+      const response = await request(app)
+        .put(`/api/service/messages/${messageId}/state`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ state: 'cancelled' })
+        .expect(409);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.currentState).toBeNull();
+    });
   });
 });

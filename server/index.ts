@@ -1160,10 +1160,30 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
   const { state } = req.body;
 
   // Validate state
-  const validStates = ['received', 'processing', 'done', 'failed', 'not-sent', 'timeout'];
+  const validStates = ['received', 'processing', 'done', 'failed', 'not-sent', 'timeout', 'cancelled'];
   if (!validStates.includes(state)) {
-    res.status(400).json({ error: 'Invalid state. Must be one of: received, processing, done, failed, not-sent, timeout' });
+    res.status(400).json({ error: 'Invalid state. Must be one of: received, processing, done, failed, not-sent, timeout, cancelled' });
     return;
+  }
+
+  // Cancel is only valid from received or processing states
+  if (state === 'cancelled') {
+    const currentResult = await pool.query(
+      'SELECT processing_state FROM messages WHERE id = $1',
+      [messageId]
+    );
+    if (currentResult.rows.length === 0) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    const currentState = currentResult.rows[0].processing_state;
+    if (currentState !== 'received' && currentState !== 'processing') {
+      res.status(409).json({
+        error: `Cannot cancel message in '${currentState}' state`,
+        currentState,
+      });
+      return;
+    }
   }
 
   if (state === 'received') {
@@ -2213,6 +2233,35 @@ io.on('connection', (socket: Socket) => {
     } catch (err) {
       logger.error({ err, socketId: socket.id }, 'Socket message error');
       socket.emit('error', { message: 'Failed to send message' });
+    }
+  });
+
+  socket.on('cancel-message', async (data: unknown) => {
+    try {
+      if (!data || typeof data !== 'object' || !('messageId' in data)) return;
+      const messageId = (data as { messageId: number }).messageId;
+      if (!messageId) return;
+
+      // Atomic: only cancel from received or processing states
+      const result = await pool.query(
+        `UPDATE messages
+         SET processing_state = 'cancelled', updated_at = NOW()
+         WHERE id = $1 AND processing_state IN ('received', 'processing')
+         RETURNING id, sender, updated_at`,
+        [messageId]
+      );
+
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
+        io.emit('message-state', {
+          messageId,
+          state: 'cancelled',
+          sender: row.sender,
+          updatedAt: new Date(row.updated_at).toISOString(),
+        });
+      }
+    } catch (err) {
+      logger.error({ err, socketId: socket.id }, 'Cancel message error');
     }
   });
 
