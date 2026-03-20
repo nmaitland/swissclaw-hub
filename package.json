@@ -94,7 +94,7 @@
 
     "express": "^4.18.2",
 
-    "express-rate-limit": "^7.1.5",
+    "express-rate-limit": "^8.0.2",
 
     "helmet": "^7.1.0",
 
@@ -102,7 +102,7 @@
 
     "pino": "^10.3.1",
 
-    "sequelize": "^6.37.7",
+    "sequelize": "^6.37.8",
 
     "sequelize-cli": "^6.6.5",
 
