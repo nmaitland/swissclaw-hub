@@ -124,6 +124,7 @@ export interface ChatMessage {
   sender: string;
   content: string;
   created_at: string;
+  processing_state?: MessageProcessingState | null;
 }
 
 export type MessageProcessingState = 'received' | 'processing' | 'done' | 'failed' | 'not-sent' | 'timeout';
