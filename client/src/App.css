@@ -163,6 +163,29 @@ body {
   color: #f59e0b;
 }
 
+.message-state-cancelled {
+  color: #9ca3af;
+}
+
+.cancel-message-btn {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0 0.4rem;
+  font-size: 0.65rem;
+  line-height: 1.4;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.cancel-message-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

@@ -590,7 +590,18 @@ function App() {
                           {messageStates[msg.id] === 'failed' && ' \u274C'}
                           {messageStates[msg.id] === 'not-sent' && ' \u26A0\uFE0F'}
                           {messageStates[msg.id] === 'timeout' && ' \u23F1\uFE0F'}
+                          {messageStates[msg.id] === 'cancelled' && ' \u2718'}
                         </span>
+                      )}
+                      {msg.sender === 'operator' &&
+                        (messageStates[msg.id] === 'processing' || messageStates[msg.id] === 'received') && (
+                        <button
+                          className="cancel-message-btn"
+                          onClick={() => socket?.emit('cancel-message', { messageId: msg.id })}
+                          title="Cancel processing"
+                        >
+                          Cancel
+                        </button>
                       )}
                     </span>
                     <span className="chat-time">
