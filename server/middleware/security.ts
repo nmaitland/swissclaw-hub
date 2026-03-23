@@ -28,6 +28,9 @@ const securityHeaders = helmet({
     includeSubDomains: true,
     preload: true,
   },
+  referrerPolicy: {
+    policy: 'strict-origin-when-cross-origin',
+  },
 });
 
 // General rate limiting (for unauthenticated requests)
