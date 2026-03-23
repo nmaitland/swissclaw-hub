@@ -1,4 +1,4 @@
-const { validateInput, generateToken, csrfProtection } = require('../../server/middleware/auth');
+const { validateInput, generateToken, csrfProtection, requireRole } = require('../../server/middleware/auth');
 
 describe('generateToken', () => {
   it('returns a 64-character hex string', () => {
@@ -163,5 +163,50 @@ describe('csrfProtection', () => {
     middleware(req, res, next);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({ error: 'CSRF token missing' });
+  });
+});
+
+describe('requireRole', () => {
+  let res;
+  let next;
+
+  beforeEach(() => {
+    next = jest.fn();
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+  });
+
+  it('allows request when user role matches', () => {
+    const middleware = requireRole('admin');
+    const req = { user: { role: 'admin' } };
+    middleware(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('allows request when user role is in the allowed list', () => {
+    const middleware = requireRole('admin', 'editor');
+    const req = { user: { role: 'editor' } };
+    middleware(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('returns 403 when role does not match', () => {
+    const middleware = requireRole('admin');
+    const req = { user: { role: 'user' } };
+    middleware(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Insufficient permissions' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when no user on request', () => {
+    const middleware = requireRole('admin');
+    const req = {};
+    middleware(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
   });
 });
