@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import KanbanBoard from './components/KanbanBoard';
+import UserManagement from './components/UserManagement';
 import type {
   Activity,
   ChatMessage,
@@ -9,7 +10,8 @@ import type {
   MessageProcessingState,
   MessageStateUpdate,
   ModelUsageCostType,
-  ModelUsageSnapshot
+  ModelUsageSnapshot,
+  User,
 } from './types';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import ReactMarkdown from 'react-markdown';
@@ -121,6 +123,8 @@ function App() {
   const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallPromptVisible, setIsInstallPromptVisible] = useState(false);
   const [isStandaloneMode, setIsStandaloneMode] = useState<boolean>(getStandaloneDisplayMode);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
 
   // Fetch 30-day usage history when modal opens
   useEffect(() => {
@@ -150,12 +154,22 @@ function App() {
     return () => { cancelled = true; };
   }, [isModelUsageModalOpen]);
 
-  // Check auth on mount
+  // Check auth on mount and fetch current user
   useEffect(() => {
     const token = getAuthToken();
     if (!token && window.location.pathname !== '/login') {
       window.location.assign('/login');
       return;
+    }
+    if (token) {
+      fetch(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.user) setCurrentUser(data.user);
+        })
+        .catch(() => { /* ignore */ });
     }
   }, []);
 
@@ -457,7 +471,7 @@ function App() {
   const sendCurrentMessage = () => {
     if (!inputMessage.trim()) return;
 
-    const msg = { sender: 'operator', content: inputMessage.trim() };
+    const msg = { sender: currentUser?.name || 'Unknown', content: inputMessage.trim() };
 
     if (socket?.connected) {
       socket.emit('message', msg);
@@ -577,12 +591,12 @@ function App() {
               orderedMessages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`chat-message ${msg.sender === 'operator' ? 'chat-operator' : 'chat-swissclaw'}`}
+                  className={`chat-message ${msg.sender === currentUser?.name ? 'chat-operator' : 'chat-swissclaw'}`}
                 >
                   <div className="chat-message-header">
                     <span className="chat-sender">
                       {msg.sender}
-                      {msg.sender === 'operator' && messageStates[msg.id] && (
+                      {msg.sender === currentUser?.name && messageStates[msg.id] && (
                         <span className={`message-state message-state-${messageStates[msg.id]}`}>
                           {messageStates[msg.id] === 'received' && ' \u2713'}
                           {messageStates[msg.id] === 'processing' && ' \u2699\uFE0F'}
@@ -593,7 +607,7 @@ function App() {
                           {messageStates[msg.id] === 'cancelled' && ' \u2718'}
                         </span>
                       )}
-                      {msg.sender === 'operator' &&
+                      {msg.sender === currentUser?.name &&
                         (messageStates[msg.id] === 'processing' || messageStates[msg.id] === 'received') && (
                         <button
                           className="cancel-message-btn"
@@ -879,6 +893,32 @@ function App() {
       <header className="header">
         <h1>{'\u{1F980}'} Swissclaw Hub</h1>
         <div className="header-status">
+          {currentUser?.role === 'admin' && (
+            <button
+              className="header-admin-btn"
+              onClick={() => setIsUserManagementOpen(true)}
+              title="Manage Users"
+            >
+              Users
+            </button>
+          )}
+          <button
+            className="header-logout-btn"
+            onClick={async () => {
+              const token = getAuthToken();
+              if (token) {
+                await fetch('/auth/logout', {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}` },
+                }).catch(() => {});
+              }
+              localStorage.removeItem('authToken');
+              window.location.assign('/login');
+            }}
+            title="Log out"
+          >
+            Logout
+          </button>
           <span
             className="indicator"
             style={{ background: socket?.connected ? '#4ade80' : '#ef4444' }}
@@ -980,6 +1020,12 @@ function App() {
       </main>
 
       {renderModelUsageModal()}
+
+      <UserManagement
+        isOpen={isUserManagementOpen}
+        onClose={() => setIsUserManagementOpen(false)}
+        currentUserId={currentUser?.id}
+      />
 
       <footer className="footer">
         <p>

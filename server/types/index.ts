@@ -10,6 +10,9 @@ export interface UserRow {
   created_at: Date;
   updated_at: Date;
   last_login: Date | null;
+  failed_login_attempts: number;
+  locked_until: Date | null;
+  google_id: string | null;
 }
 
 export interface SessionRow {
