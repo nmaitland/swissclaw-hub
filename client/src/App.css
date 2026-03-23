@@ -115,6 +115,23 @@ body {
   background: rgba(255, 69, 0, 0.2);
 }
 
+.header-logout-btn {
+  padding: 0.28rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #9ca3af;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.header-logout-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
 .version {
   font-size: 0.75rem;
   color: #6b7280;

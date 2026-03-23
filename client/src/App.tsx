@@ -902,6 +902,23 @@ function App() {
               Users
             </button>
           )}
+          <button
+            className="header-logout-btn"
+            onClick={async () => {
+              const token = getAuthToken();
+              if (token) {
+                await fetch('/auth/logout', {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${token}` },
+                }).catch(() => {});
+              }
+              localStorage.removeItem('authToken');
+              window.location.assign('/login');
+            }}
+            title="Log out"
+          >
+            Logout
+          </button>
           <span
             className="indicator"
             style={{ background: socket?.connected ? '#4ade80' : '#ef4444' }}
