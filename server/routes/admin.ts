@@ -102,14 +102,21 @@ router.post('/users', async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/admin/users/:id — update user name, role, or googleId
+// PATCH /api/admin/users/:id — update user name, role, password, or googleId
 router.patch('/users/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, role, googleId } = req.body;
+    const { name, role, password, googleId } = req.body;
 
     if (role !== undefined && !['admin', 'user'].includes(role)) {
       res.status(400).json({ error: 'Role must be "admin" or "user"' });
+      return;
+    }
+
+    if (password !== undefined && !validateInput.password(password)) {
+      res.status(400).json({
+        error: 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number',
+      });
       return;
     }
 
@@ -131,6 +138,11 @@ router.patch('/users/:id', async (req: Request<{ id: string }>, res: Response) =
     if (role !== undefined) {
       setClauses.push(`role = $${paramIndex++}`);
       values.push(role);
+    }
+    if (password !== undefined) {
+      const hash = await bcrypt.hash(password, 10);
+      setClauses.push(`password_hash = $${paramIndex++}`);
+      values.push(hash);
     }
     if (googleId !== undefined) {
       setClauses.push(`google_id = $${paramIndex++}`);
@@ -162,6 +174,7 @@ router.patch('/users/:id', async (req: Request<{ id: string }>, res: Response) =
 
     const metadata: Record<string, unknown> = { targetUserId: id };
     if (role !== undefined) metadata.newRole = role;
+    if (password !== undefined) metadata.passwordChanged = true;
     if (googleId !== undefined) metadata.googleIdChanged = true;
 
     await logSecurityEvent(pool, {
@@ -192,8 +205,10 @@ router.delete('/users/:id', async (req: Request<{ id: string }>, res: Response) 
       return;
     }
 
-    // Revoke all sessions first
+    // Revoke all sessions and clean up related records first
     await sessionStore.revokeAllUserSessions(id);
+    await pool.query('DELETE FROM security_logs WHERE user_id = $1', [id]);
+    await pool.query('DELETE FROM sessions WHERE user_id = $1', [id]);
 
     const result = await pool.query(
       'DELETE FROM users WHERE id = $1 RETURNING id, email',

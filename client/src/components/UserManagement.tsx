@@ -49,6 +49,12 @@ export default function UserManagement({ isOpen, onClose, currentUserId }: UserM
   const [showAddForm, setShowAddForm] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  // Inline editing state
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [editingPassword, setEditingPassword] = useState<string | null>(null);
+  const [editPasswordValue, setEditPasswordValue] = useState('');
+
   // Add user form
   const [newEmail, setNewEmail] = useState('');
   const [newName, setNewName] = useState('');
@@ -81,6 +87,8 @@ export default function UserManagement({ isOpen, onClose, currentUserId }: UserM
       fetchUsers();
       setShowAddForm(false);
       setDeleteConfirm(null);
+      setEditingName(null);
+      setEditingPassword(null);
     }
   }, [isOpen, fetchUsers]);
 
@@ -124,21 +132,40 @@ export default function UserManagement({ isOpen, onClose, currentUserId }: UserM
     }
   };
 
-  const handleRoleChange = async (userId: string, role: string) => {
+  const handlePatchUser = async (userId: string, updates: Record<string, string>) => {
     try {
       const res = await fetch(`${API_URL}/api/admin/users/${userId}`, {
         method: 'PATCH',
         headers: authHeaders(),
-        body: JSON.stringify({ role }),
+        body: JSON.stringify(updates),
       });
       if (res.ok) {
         fetchUsers();
+        return true;
       } else {
         const data = await res.json();
-        setError(data.error || 'Failed to update role');
+        setError(data.error || 'Failed to update user');
+        return false;
       }
     } catch {
-      setError('Failed to update role');
+      setError('Failed to update user');
+      return false;
+    }
+  };
+
+  const handleNameSave = async (userId: string) => {
+    const trimmed = editNameValue.trim();
+    if (!trimmed) return;
+    const ok = await handlePatchUser(userId, { name: trimmed });
+    if (ok) setEditingName(null);
+  };
+
+  const handlePasswordSave = async (userId: string) => {
+    if (!editPasswordValue) return;
+    const ok = await handlePatchUser(userId, { password: editPasswordValue });
+    if (ok) {
+      setEditingPassword(null);
+      setEditPasswordValue('');
     }
   };
 
@@ -267,6 +294,7 @@ export default function UserManagement({ isOpen, onClose, currentUserId }: UserM
                     <th>Name</th>
                     <th>Email</th>
                     <th>Role</th>
+                    <th>Password</th>
                     <th>Auth</th>
                     <th>Last Login</th>
                     <th>Status</th>
@@ -276,18 +304,103 @@ export default function UserManagement({ isOpen, onClose, currentUserId }: UserM
                 <tbody>
                   {users.map((user) => (
                     <tr key={user.id} className={isLocked(user) ? 'um-locked-row' : ''}>
-                      <td className="um-name">{user.name}</td>
+                      <td className="um-name">
+                        {editingName === user.id ? (
+                          <span className="um-inline-edit">
+                            <input
+                              className="um-inline-input"
+                              type="text"
+                              value={editNameValue}
+                              onChange={(e) => setEditNameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleNameSave(user.id);
+                                if (e.key === 'Escape') setEditingName(null);
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              className="um-action-btn um-save-btn"
+                              onClick={() => handleNameSave(user.id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="um-action-btn um-cancel-btn"
+                              onClick={() => setEditingName(null)}
+                            >
+                              {'\u00D7'}
+                            </button>
+                          </span>
+                        ) : (
+                          <span
+                            className="um-editable"
+                            onClick={() => {
+                              setEditingName(user.id);
+                              setEditNameValue(user.name);
+                            }}
+                            title="Click to edit"
+                          >
+                            {user.name}
+                          </span>
+                        )}
+                      </td>
                       <td className="um-email">{user.email}</td>
                       <td>
                         <select
                           className={`um-role-select ${user.role === 'admin' ? 'um-role-admin' : ''}`}
                           value={user.role}
-                          onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                          onChange={(e) => handlePatchUser(user.id, { role: e.target.value })}
                           disabled={user.id === currentUserId}
                         >
                           <option value="user">user</option>
                           <option value="admin">admin</option>
                         </select>
+                      </td>
+                      <td>
+                        {editingPassword === user.id ? (
+                          <span className="um-inline-edit">
+                            <input
+                              className="um-inline-input um-password-input"
+                              type="password"
+                              placeholder="New password"
+                              value={editPasswordValue}
+                              onChange={(e) => setEditPasswordValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handlePasswordSave(user.id);
+                                if (e.key === 'Escape') {
+                                  setEditingPassword(null);
+                                  setEditPasswordValue('');
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <button
+                              className="um-action-btn um-save-btn"
+                              onClick={() => handlePasswordSave(user.id)}
+                            >
+                              Save
+                            </button>
+                            <button
+                              className="um-action-btn um-cancel-btn"
+                              onClick={() => {
+                                setEditingPassword(null);
+                                setEditPasswordValue('');
+                              }}
+                            >
+                              {'\u00D7'}
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            className="um-action-btn um-change-pw-btn"
+                            onClick={() => {
+                              setEditingPassword(user.id);
+                              setEditPasswordValue('');
+                            }}
+                          >
+                            Change
+                          </button>
+                        )}
                       </td>
                       <td className="um-auth-method">{getAuthMethod(user)}</td>
                       <td className="um-last-login" title={user.lastLogin || 'Never'}>
