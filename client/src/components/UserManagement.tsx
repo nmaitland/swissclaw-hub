@@ -239,7 +239,7 @@ export default function UserManagement({ isOpen, onClose, currentUserId }: UserM
               <div className="um-form-row">
                 <input
                   type="password"
-                  placeholder="Password (optional if Google ID set)"
+                  placeholder="Password (optional — Google users don't need one)"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                 />
@@ -249,12 +249,6 @@ export default function UserManagement({ isOpen, onClose, currentUserId }: UserM
                 </select>
               </div>
               <div className="um-form-row">
-                <input
-                  type="text"
-                  placeholder="Google ID (optional)"
-                  value={newGoogleId}
-                  onChange={(e) => setNewGoogleId(e.target.value)}
-                />
                 <button type="submit" className="um-submit-btn" disabled={formLoading}>
                   {formLoading ? 'Creating...' : 'Create User'}
                 </button>

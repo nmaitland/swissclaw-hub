@@ -54,10 +54,11 @@ router.post('/users', async (req: Request, res: Response) => {
       return;
     }
 
-    // Password is required unless googleId is provided
-    if (!googleId && (!password || !validateInput.password(password))) {
+    // Validate password if provided, but allow creating users with no password
+    // (they can sign in via Google if their email matches)
+    if (password && !validateInput.password(password)) {
       res.status(400).json({
-        error: 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number (or provide a Google ID)',
+        error: 'Password must be at least 8 characters with 1 uppercase, 1 lowercase, and 1 number',
       });
       return;
     }
