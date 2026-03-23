@@ -236,10 +236,31 @@ const createUserRateLimit = (pool: Pool) => {
   };
 };
 
+// Role-based authorization middleware factory
+// Must be used AFTER requireAuth has attached req.user
+const requireRole = (...allowedRoles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const user = (req as Request & { user?: { role: string } }).user;
+
+    if (!user) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    if (!allowedRoles.includes(user.role)) {
+      res.status(403).json({ error: 'Insufficient permissions' });
+      return;
+    }
+
+    next();
+  };
+};
+
 export {
   SessionStore,
   validateInput,
   csrfProtection,
   createUserRateLimit,
   generateToken,
+  requireRole,
 };

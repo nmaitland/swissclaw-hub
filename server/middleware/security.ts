@@ -12,10 +12,10 @@ const securityHeaders = helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://accounts.google.com"],
       imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "ws:", "wss:"],
-      frameSrc: ["'none'"],
+      connectSrc: ["'self'", "ws:", "wss:", "https://accounts.google.com"],
+      frameSrc: ["https://accounts.google.com"],
       objectSrc: ["'none'"],
       mediaSrc: ["'self'"],
       manifestSrc: ["'self'"],
@@ -27,6 +27,9 @@ const securityHeaders = helmet({
     maxAge: 31536000,
     includeSubDomains: true,
     preload: true,
+  },
+  referrerPolicy: {
+    policy: 'strict-origin-when-cross-origin',
   },
 });
 

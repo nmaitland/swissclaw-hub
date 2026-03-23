@@ -1,9 +1,13 @@
 import express, { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
+import { OAuth2Client } from 'google-auth-library';
 import { SessionStore, validateInput } from '../middleware/auth';
 import { authRateLimit, logSecurityEvent } from '../middleware/security';
 import { pool } from '../config/database';
 import logger from '../lib/logger';
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 const router = express.Router();
 
@@ -83,7 +87,7 @@ router.post('/login', authRateLimit, async (req: Request, res: Response) => {
 
     // Find user in database
     const userResult = await pool.query(
-      'SELECT id, email, name, password_hash, role FROM users WHERE email = $1',
+      'SELECT id, email, name, password_hash, role, failed_login_attempts, locked_until FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
 
@@ -103,6 +107,25 @@ router.post('/login', authRateLimit, async (req: Request, res: Response) => {
 
     const user = userResult.rows[0];
 
+    // Check if account is locked
+    if (user.locked_until && new Date(user.locked_until as string) > new Date()) {
+      const remainingMs = new Date(user.locked_until as string).getTime() - Date.now();
+      const remainingMinutes = Math.ceil(remainingMs / 60000);
+      await logSecurityEvent(pool, {
+        type: 'auth_locked',
+        method: 'POST',
+        path: '/auth/login',
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        userId: user.id,
+        metadata: { reason: 'account_locked', lockedUntil: user.locked_until },
+      });
+      res.status(423).json({
+        error: `Account locked. Try again in ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}.`,
+      });
+      return;
+    }
+
     // For development, allow simple password authentication
     // In production, you should use proper password hashing
     let isValidPassword = false;
@@ -115,18 +138,48 @@ router.post('/login', authRateLimit, async (req: Request, res: Response) => {
     }
 
     if (!isValidPassword) {
+      const MAX_FAILED_ATTEMPTS = 5;
+      const LOCKOUT_DURATION_MINUTES = 15;
+      const newAttempts = ((user.failed_login_attempts as number) || 0) + 1;
+      const shouldLock = newAttempts >= MAX_FAILED_ATTEMPTS;
+      const lockedUntil = shouldLock
+        ? new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000)
+        : null;
+
+      await pool.query(
+        `UPDATE users SET failed_login_attempts = $1, locked_until = $2, updated_at = NOW() WHERE id = $3`,
+        [newAttempts, lockedUntil, user.id]
+      );
+
       await logSecurityEvent(pool, {
-        type: 'auth_failure',
+        type: shouldLock ? 'auth_lockout' : 'auth_failure',
         method: 'POST',
-        path: '/login',
+        path: '/auth/login',
         ip: req.ip,
         userAgent: req.get('User-Agent'),
         userId: user.id,
-        metadata: { reason: 'invalid_password', email },
+        metadata: { reason: 'invalid_password', email, failedAttempts: newAttempts, locked: shouldLock },
       });
 
-      res.status(401).json({ error: 'Invalid credentials' });
+      if (shouldLock) {
+        res.status(423).json({
+          error: `Account locked after ${MAX_FAILED_ATTEMPTS} failed attempts. Try again in ${LOCKOUT_DURATION_MINUTES} minutes.`,
+        });
+      } else {
+        res.status(401).json({
+          error: 'Invalid credentials',
+          remainingAttempts: MAX_FAILED_ATTEMPTS - newAttempts,
+        });
+      }
       return;
+    }
+
+    // Reset failed attempts on successful login
+    if ((user.failed_login_attempts as number) > 0) {
+      await pool.query(
+        'UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1',
+        [user.id]
+      );
     }
 
     // Create session
@@ -446,6 +499,126 @@ router.post('/change-password', async (req: Request, res: Response) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     logger.error({ err: error }, 'Change password error');
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /auth/google — Login with Google ID token
+router.post('/google', authRateLimit, async (req: Request, res: Response) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken || typeof idToken !== 'string') {
+      res.status(400).json({ error: 'Google ID token is required' });
+      return;
+    }
+
+    if (!googleClient || !GOOGLE_CLIENT_ID) {
+      res.status(503).json({ error: 'Google authentication is not configured' });
+      return;
+    }
+
+    // Verify the Google ID token
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: GOOGLE_CLIENT_ID,
+      });
+      payload = ticket.getPayload();
+    } catch {
+      await logSecurityEvent(pool, {
+        type: 'auth_failure',
+        method: 'POST',
+        path: '/auth/google',
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        metadata: { reason: 'invalid_google_token' },
+      });
+      res.status(401).json({ error: 'Invalid Google token' });
+      return;
+    }
+
+    if (!payload || !payload.sub || !payload.email) {
+      res.status(401).json({ error: 'Invalid Google token payload' });
+      return;
+    }
+
+    // Look up user by google_id or email
+    const userResult = await pool.query(
+      `SELECT id, email, name, role, google_id, failed_login_attempts, locked_until
+       FROM users WHERE google_id = $1 OR email = $2`,
+      [payload.sub, payload.email.toLowerCase()]
+    );
+
+    if (userResult.rows.length === 0) {
+      await logSecurityEvent(pool, {
+        type: 'auth_failure',
+        method: 'POST',
+        path: '/auth/google',
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        metadata: { reason: 'user_not_found', googleEmail: payload.email },
+      });
+      res.status(403).json({ error: 'Account not found — contact an admin' });
+      return;
+    }
+
+    const user = userResult.rows[0];
+
+    // Check if account is locked
+    if (user.locked_until && new Date(user.locked_until as string) > new Date()) {
+      const remainingMs = new Date(user.locked_until as string).getTime() - Date.now();
+      const remainingMinutes = Math.ceil(remainingMs / 60000);
+      res.status(423).json({
+        error: `Account locked. Try again in ${remainingMinutes} minute${remainingMinutes === 1 ? '' : 's'}.`,
+      });
+      return;
+    }
+
+    // If user was matched by email but doesn't have google_id yet, associate it
+    if (!user.google_id) {
+      await pool.query(
+        'UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2',
+        [payload.sub, user.id]
+      );
+    }
+
+    // Create session
+    const token = await sessionStore.createSession(
+      user.id,
+      req.get('User-Agent'),
+      req.ip
+    );
+
+    // Update last login and reset failed attempts
+    await pool.query(
+      'UPDATE users SET last_login = NOW(), failed_login_attempts = 0, locked_until = NULL WHERE id = $1',
+      [user.id]
+    );
+
+    await logSecurityEvent(pool, {
+      type: 'auth_success',
+      method: 'POST',
+      path: '/auth/google',
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      userId: user.id,
+      metadata: { provider: 'google', googleEmail: payload.email },
+    });
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Google login error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });

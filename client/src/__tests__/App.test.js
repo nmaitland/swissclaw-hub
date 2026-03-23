@@ -182,6 +182,9 @@ describe('App Component', () => {
       if (typeof url === 'string' && url.includes('/api/build')) {
         return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ buildDate: '2026-02-15T06:53:46.312Z', commit: 'abc123' }) });
       }
+      if (typeof url === 'string' && url.includes('/auth/me')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ user: { id: '1', email: 'neil@example.com', name: 'Neil', role: 'admin' } }) });
+      }
       return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) });
     });
   });
@@ -627,6 +630,9 @@ describe('App Component', () => {
   it('supports multiline chat content and sends on Enter without Shift', async () => {
     mockSocket.connected = true;
     render(<App />);
+
+    // Wait for currentUser to be loaded (admin Users button appears)
+    await screen.findByTitle('Manage Users');
 
     const chatInput = await screen.findByRole('textbox');
     fireEvent.change(chatInput, { target: { value: 'Line 1\nLine 2' } });

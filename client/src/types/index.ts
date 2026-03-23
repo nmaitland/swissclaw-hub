@@ -7,6 +7,19 @@ export interface User {
   lastLogin?: string;
 }
 
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+  lastLogin: string | null;
+  failedLoginAttempts: number;
+  lockedUntil: string | null;
+  googleId: string | null;
+}
+
 export interface Status {
   id: string;
   status: string;
