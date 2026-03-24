@@ -137,6 +137,7 @@ export interface ChatMessage {
   sender: string;
   content: string;
   created_at: string;
+  conversation_id?: string | null;
   processing_state?: MessageProcessingState | null;
 }
 

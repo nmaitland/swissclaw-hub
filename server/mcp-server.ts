@@ -25,6 +25,7 @@ interface BufferedMessage {
   id: number;
   sender: string;
   content: string;
+  conversation_id?: string | null;
   created_at: string;
   received_at: string;
 }
@@ -149,9 +150,14 @@ server.tool(
 server.tool(
   'get_messages',
   'Get recent chat messages (last 50)',
-  {},
-  async () => {
-    const data = await api('/api/messages');
+  {
+    conversationId: z.string().optional().describe('Filter messages by conversation ID (userId:hostname format)'),
+  },
+  async ({ conversationId }) => {
+    const params = new URLSearchParams();
+    if (conversationId) params.append('conversationId', conversationId);
+    const queryString = params.toString();
+    const data = await api(`/api/messages${queryString ? `?${queryString}` : ''}`);
     return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   }
 );
@@ -192,21 +198,22 @@ server.tool(
   {
     content: z.string().describe('The message content to send'),
     sender: z.string().optional().describe('Sender name (default: Swissclaw)'),
+    conversationId: z.string().optional().describe('Conversation ID to route the reply to the correct user (userId:hostname format). Use the conversation_id from the incoming message.'),
   },
-  async ({ content, sender = 'Swissclaw' }) => {
+  async ({ content, sender = 'Swissclaw', conversationId }) => {
     // Try Socket.io first (real-time)
     if (isSocketConnected && socketClient) {
       return new Promise((resolve) => {
-        socketClient!.emit('message', { sender, content }, (_ack: unknown) => {
+        socketClient!.emit('message', { sender, content, conversationId }, (_ack: unknown) => {
           resolve({
-            content: [{ type: 'text', text: JSON.stringify({ success: true, sent_via: 'socket.io', sender, content }) }],
+            content: [{ type: 'text', text: JSON.stringify({ success: true, sent_via: 'socket.io', sender, content, conversationId }) }],
           });
         });
 
         // Timeout fallback if no acknowledgment
         setTimeout(() => {
           resolve({
-            content: [{ type: 'text', text: JSON.stringify({ success: true, sent_via: 'socket.io', sender, content, note: 'No acknowledgment received' }) }],
+            content: [{ type: 'text', text: JSON.stringify({ success: true, sent_via: 'socket.io', sender, content, conversationId, note: 'No acknowledgment received' }) }],
           });
         }, 2000);
       });
@@ -216,7 +223,7 @@ server.tool(
     try {
       const data = await api('/api/service/messages', {
         method: 'POST',
-        body: { sender, content },
+        body: { sender, content, conversationId },
       });
       return { content: [{ type: 'text', text: JSON.stringify(data) }] };
     } catch {
