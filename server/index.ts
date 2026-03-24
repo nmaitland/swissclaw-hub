@@ -1043,7 +1043,7 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
     return;
   }
 
-  const { sender, content } = req.body;
+  const { sender, content, conversationId } = req.body;
 
   if (!sender || typeof sender !== 'string' || sender.length > 50) {
     res.status(400).json({ error: 'Invalid sender' });
@@ -1053,25 +1053,33 @@ app.post('/api/service/messages', asyncHandler(async (req: Request, res: Respons
     res.status(400).json({ error: 'Invalid content' });
     return;
   }
+  if (conversationId !== undefined && (typeof conversationId !== 'string' || conversationId.length > 200)) {
+    res.status(400).json({ error: 'Invalid conversationId' });
+    return;
+  }
 
   const safeSender = sanitizeString(sender);
   const safeContent = sanitizeString(content);
 
   const result = await pool.query(
-    'INSERT INTO messages (sender, content) VALUES ($1, $2) RETURNING *',
-    [safeSender, safeContent]
+    'INSERT INTO messages (sender, content, conversation_id) VALUES ($1, $2, $3) RETURNING *',
+    [safeSender, safeContent, conversationId || null]
   );
 
-  // Broadcast to all connected Socket.io clients
-  io.emit('message', result.rows[0]);
+  const row = result.rows[0];
+  if (conversationId) {
+    io.to(`conv:${conversationId}`).emit('message', row);
+  } else {
+    io.emit('message', row);
+  }
 
   // Also create an activity for the feed
   await pool.query(
     'INSERT INTO activities (type, description, sender, metadata) VALUES ($1, $2, $3, $4)',
-    ['chat', safeContent, safeSender, JSON.stringify({ sender: safeSender, messageId: result.rows[0].id })]
+    ['chat', safeContent, safeSender, JSON.stringify({ sender: safeSender, messageId: row.id })]
   );
 
-  res.json(result.rows[0]);
+  res.json(row);
 }));
 
 /**
@@ -1367,19 +1375,24 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
       `UPDATE messages
        SET processing_state = 'received', updated_at = NOW()
        WHERE id = $1 AND processing_state IS NULL
-       RETURNING id, sender, updated_at`,
+       RETURNING id, sender, conversation_id, updated_at`,
       [messageId]
     );
 
     if (claimResult.rows.length > 0) {
       const claimedMessage = claimResult.rows[0];
       const updatedAt = new Date(claimedMessage.updated_at).toISOString();
-      io.emit('message-state', {
+      const stateUpdate = {
         messageId,
         state: 'received',
         sender: claimedMessage.sender,
         updatedAt,
-      });
+      };
+      if (claimedMessage.conversation_id) {
+        io.to(`conv:${claimedMessage.conversation_id}`).emit('message-state', stateUpdate);
+      } else {
+        io.emit('message-state', stateUpdate);
+      }
       res.json({
         id: messageId,
         state: 'received',
@@ -1414,7 +1427,7 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
     `UPDATE messages
      SET processing_state = $1, updated_at = NOW()
      WHERE id = $2
-     RETURNING id, sender, updated_at`,
+     RETURNING id, sender, conversation_id, updated_at`,
     [state, messageId]
   );
 
@@ -1425,12 +1438,17 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
 
   const updatedMessage = updateResult.rows[0];
   const updatedAt = new Date(updatedMessage.updated_at).toISOString();
-  io.emit('message-state', {
+  const stateUpdate = {
     messageId,
     state,
     sender: updatedMessage.sender,
     updatedAt,
-  });
+  };
+  if (updatedMessage.conversation_id) {
+    io.to(`conv:${updatedMessage.conversation_id}`).emit('message-state', stateUpdate);
+  } else {
+    io.emit('message-state', stateUpdate);
+  }
 
   res.json({
     id: messageId,
@@ -1489,6 +1507,7 @@ const validateMessage = (data: unknown): data is ChatMessageData => {
   if (!msg.content || typeof msg.content !== 'string') return false;
   if ((msg.content as string).length > 5000) return false; // Max 5000 chars
   if ((msg.sender as string).length > 50) return false; // Max 50 chars
+  if (msg.conversationId !== undefined && (typeof msg.conversationId !== 'string' || (msg.conversationId as string).length > 200)) return false;
   return true;
 };
 
@@ -1654,9 +1673,16 @@ app.get('/api/status', asyncHandler(async (req: Request, res: Response) => {
 app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit as string, 10) || 25, 1), 200);
   const before = req.query.before as string | undefined;
+  const conversationId = req.query.conversationId as string | undefined;
 
-  let query = 'SELECT * FROM messages ORDER BY created_at DESC LIMIT $1';
-  let params: (string | number)[] = [limit];
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+  let paramIdx = 1;
+
+  if (conversationId) {
+    conditions.push(`conversation_id = $${paramIdx++}`);
+    params.push(conversationId);
+  }
 
   if (before !== undefined) {
     const beforeTs = parseIsoDateTime(before);
@@ -1664,9 +1690,13 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Invalid before cursor. Must be ISO datetime.' });
       return;
     }
-    query = 'SELECT * FROM messages WHERE created_at < $1 ORDER BY created_at DESC LIMIT $2';
-    params = [beforeTs, limit];
+    conditions.push(`created_at < $${paramIdx++}`);
+    params.push(beforeTs);
   }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const query = `SELECT * FROM messages ${whereClause} ORDER BY created_at DESC LIMIT $${paramIdx}`;
+  params.push(limit);
 
   const result = await pool.query(query, params);
   res.json(result.rows);
@@ -2343,16 +2373,20 @@ io.use(async (socket: Socket, next: (err?: Error) => void) => {
       return next(new Error('Authentication required'));
     }
 
+    const conversationId = socket.handshake.auth?.conversationId as string | undefined;
+
     // First check database-backed sessions
     const session = await sessionStore.validateSession(token);
     if (session) {
       // Attach user info to socket
       socket.data.user = session;
+      socket.data.conversationId = conversationId || null;
       return next();
     }
 
     // Fall back to in-memory sessions (for backward compatibility during transition)
     if (sessions.has(token)) {
+      socket.data.conversationId = conversationId || null;
       return next();
     }
 
@@ -2366,7 +2400,14 @@ io.use(async (socket: Socket, next: (err?: Error) => void) => {
 const messageRateLimits = new Map<string, RateLimitEntry>();
 
 io.on('connection', (socket: Socket) => {
-  logger.info({ socketId: socket.id }, 'Client connected');
+  const conversationId = socket.data.conversationId as string | null;
+  if (conversationId) {
+    socket.join(`conv:${conversationId}`);
+    logger.info({ socketId: socket.id, conversationId }, 'Client connected to conversation');
+  } else {
+    socket.join('agent');
+    logger.info({ socketId: socket.id }, 'Agent connected');
+  }
 
   // Rate limit per socket
   messageRateLimits.set(socket.id, { count: 0, lastReset: Date.now() });
@@ -2397,17 +2438,34 @@ io.on('connection', (socket: Socket) => {
       const authenticatedUser = socket.data.user as SessionInfo | undefined;
       const safeSender = sanitizeString(authenticatedUser?.name || (data as { sender: string }).sender);
       const safeContent = sanitizeString(content);
+
+      // Determine conversationId: from socket.data (client) or message payload (agent reply)
+      const msgConversationId = (socket.data.conversationId as string | null)
+        || (data as unknown as Record<string, unknown>).conversationId as string | undefined
+        || null;
+
       const result = await pool.query(
-        'INSERT INTO messages (sender, content) VALUES ($1, $2) RETURNING *',
-        [safeSender, safeContent]
+        'INSERT INTO messages (sender, content, conversation_id) VALUES ($1, $2, $3) RETURNING *',
+        [safeSender, safeContent, msgConversationId]
       );
 
-      io.emit('message', result.rows[0]);
+      const row = result.rows[0];
+      if (msgConversationId) {
+        // Emit to the conversation room
+        io.to(`conv:${msgConversationId}`).emit('message', row);
+        // If sender is a user (has conversationId on socket), also notify agents
+        if (socket.data.conversationId) {
+          io.to('agent').emit('message', row);
+        }
+      } else {
+        // No conversationId (legacy/fallback) -> broadcast to all
+        io.emit('message', row);
+      }
 
-      // Also emit as activity for the activity feed
+      // Also emit as activity for the activity feed (global)
       const activityResult = await pool.query(
         'INSERT INTO activities (type, description, sender, metadata) VALUES ($1, $2, $3, $4) RETURNING *',
-        ['chat', safeContent, safeSender, JSON.stringify({ sender: safeSender, messageId: result.rows[0].id })]
+        ['chat', safeContent, safeSender, JSON.stringify({ sender: safeSender, messageId: row.id })]
       );
       io.emit('activity', activityResult.rows[0]);
     } catch (err) {
@@ -2427,18 +2485,23 @@ io.on('connection', (socket: Socket) => {
         `UPDATE messages
          SET processing_state = 'cancelled', updated_at = NOW()
          WHERE id = $1 AND processing_state IN ('received', 'processing')
-         RETURNING id, sender, updated_at`,
+         RETURNING id, sender, conversation_id, updated_at`,
         [messageId]
       );
 
       if (result.rows.length > 0) {
         const row = result.rows[0];
-        io.emit('message-state', {
+        const stateUpdate = {
           messageId,
           state: 'cancelled',
           sender: row.sender,
           updatedAt: new Date(row.updated_at).toISOString(),
-        });
+        };
+        if (row.conversation_id) {
+          io.to(`conv:${row.conversation_id}`).emit('message-state', stateUpdate);
+        } else {
+          io.emit('message-state', stateUpdate);
+        }
       }
     } catch (err) {
       logger.error({ err, socketId: socket.id }, 'Cancel message error');
@@ -2703,4 +2766,6 @@ export {
   io,
   pool,
   resetTestDb,
+  validateMessage,
+  sanitizeString,
 };
