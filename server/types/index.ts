@@ -35,6 +35,7 @@ export interface MessageRow {
   id: number;
   sender: string;
   content: string;
+  conversation_id: string | null;
   created_at: Date;
 }
 
@@ -159,6 +160,7 @@ export interface ModelUsageRow {
 export interface ChatMessageData {
   sender: string;
   content: string;
+  conversationId?: string;
 }
 
 // Rate limit tracking
