@@ -124,6 +124,8 @@ function App() {
   const [isInstallPromptVisible, setIsInstallPromptVisible] = useState(false);
   const [isStandaloneMode, setIsStandaloneMode] = useState<boolean>(getStandaloneDisplayMode);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const currentUserRef = useRef<User | null>(null);
+  currentUserRef.current = currentUser;
   const [isUserManagementOpen, setIsUserManagementOpen] = useState(false);
 
   // Fetch 30-day usage history when modal opens
@@ -174,8 +176,11 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!currentUser) return;
+
+    const convId = `${currentUser.id}:${window.location.hostname}`;
     const newSocket = io(API_URL || window.location.origin, {
-      auth: { token: getAuthToken() },
+      auth: { token: getAuthToken(), conversationId: convId },
       transports: ['websocket'],
     });
     setSocket(newSocket);
@@ -221,7 +226,7 @@ function App() {
     return () => {
       newSocket.close();
     };
-  }, []);
+  }, [currentUser]);
 
   const fetchData = async () => {
     const token = getAuthToken();
@@ -238,7 +243,12 @@ function App() {
       const statusData: StatusResponse = await statusRes.json();
       setStatus(statusData);
 
-      const messagesRes = await fetch(`${API_URL}/api/messages?limit=50`, { headers });
+      const user = currentUserRef.current;
+      const convId = user ? `${user.id}:${window.location.hostname}` : '';
+      const messagesUrl = convId
+        ? `${API_URL}/api/messages?limit=50&conversationId=${encodeURIComponent(convId)}`
+        : `${API_URL}/api/messages?limit=50`;
+      const messagesRes = await fetch(messagesUrl, { headers });
       if (messagesRes.ok) {
         const messageData: ChatMessage[] = await messagesRes.json();
         setMessages((prev) => {
