@@ -2766,4 +2766,6 @@ export {
   io,
   pool,
   resetTestDb,
+  validateMessage,
+  sanitizeString,
 };
