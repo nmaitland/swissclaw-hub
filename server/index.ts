@@ -1458,6 +1458,215 @@ app.put('/api/service/messages/:id/state', asyncHandler(async (req: Request, res
   });
 }));
 
+/**
+ * @openapi
+ * /api/service/messages/{id}/reactions:
+ *   post:
+ *     summary: Add a reaction to a message
+ *     description: Add an emoji reaction to a chat message. Authenticated service access required.
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Message ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reactor
+ *               - emoji
+ *             properties:
+ *               reactor:
+ *                 type: string
+ *                 maxLength: 50
+ *                 description: Who is adding the reaction
+ *               emoji:
+ *                 type: string
+ *                 maxLength: 10
+ *                 description: The emoji reaction
+ *     responses:
+ *       201:
+ *         description: Reaction added successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Message not found
+ *       409:
+ *         description: Reaction already exists
+ */
+app.post('/api/service/messages/:id/reactions', asyncHandler(async (req: Request, res: Response) => {
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  const idParam = req.params.id;
+  if (!idParam) {
+    res.status(400).json({ error: 'Message ID is required' });
+    return;
+  }
+  const messageId = parseInt(idParam, 10);
+  const { reactor, emoji } = req.body;
+
+  if (!reactor || typeof reactor !== 'string' || reactor.length > 50) {
+    res.status(400).json({ error: 'Invalid reactor' });
+    return;
+  }
+  if (!emoji || typeof emoji !== 'string' || emoji.length > 10) {
+    res.status(400).json({ error: 'Invalid emoji' });
+    return;
+  }
+
+  // Check message exists
+  const msgCheck = await pool.query('SELECT id, conversation_id FROM messages WHERE id = $1', [messageId]);
+  if (msgCheck.rows.length === 0) {
+    res.status(404).json({ error: 'Message not found' });
+    return;
+  }
+
+  const conversationId = msgCheck.rows[0].conversation_id;
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO message_reactions (message_id, reactor, emoji) VALUES ($1, $2, $3) RETURNING id, message_id, reactor, emoji, created_at',
+      [messageId, sanitizeString(reactor), emoji]
+    );
+
+    const reaction = result.rows[0];
+    const reactionUpdate = {
+      messageId,
+      reactionId: reaction.id,
+      reactor: reaction.reactor,
+      emoji: reaction.emoji,
+      createdAt: new Date(reaction.created_at).toISOString(),
+    };
+
+    if (conversationId) {
+      io.to(`conv:${conversationId}`).emit('reaction', reactionUpdate);
+    } else {
+      io.emit('reaction', reactionUpdate);
+    }
+
+    res.status(201).json(reactionUpdate);
+  } catch (err: any) {
+    if (err.code === '23505') { // Unique constraint violation
+      res.status(409).json({ error: 'Reaction already exists' });
+    } else {
+      throw err;
+    }
+  }
+}));
+
+/**
+ * @openapi
+ * /api/service/messages/{id}/reactions/{emoji}:
+ *   delete:
+ *     summary: Remove a reaction from a message
+ *     description: Remove an emoji reaction from a chat message. Authenticated service access required.
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Message ID
+ *       - in: path
+ *         name: emoji
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The emoji to remove (URL encoded)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reactor
+ *             properties:
+ *               reactor:
+ *                 type: string
+ *                 maxLength: 50
+ *                 description: Who is removing the reaction
+ *     responses:
+ *       200:
+ *         description: Reaction removed successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Reaction not found
+ */
+app.delete('/api/service/messages/:id/reactions/:emoji', asyncHandler(async (req: Request, res: Response) => {
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  const idParam = req.params.id;
+  if (!idParam) {
+    res.status(400).json({ error: 'Message ID is required' });
+    return;
+  }
+  const messageId = parseInt(idParam, 10);
+  const emojiParam = req.params.emoji;
+  if (!emojiParam) {
+    res.status(400).json({ error: 'Emoji is required' });
+    return;
+  }
+  const emoji = decodeURIComponent(emojiParam);
+  const { reactor } = req.body;
+
+  if (!reactor || typeof reactor !== 'string' || reactor.length > 50) {
+    res.status(400).json({ error: 'Invalid reactor' });
+    return;
+  }
+
+  // Get conversation_id for socket emission
+  const msgCheck = await pool.query('SELECT id, conversation_id FROM messages WHERE id = $1', [messageId]);
+  if (msgCheck.rows.length === 0) {
+    res.status(404).json({ error: 'Message not found' });
+    return;
+  }
+
+  const conversationId = msgCheck.rows[0].conversation_id;
+
+  const result = await pool.query(
+    'DELETE FROM message_reactions WHERE message_id = $1 AND reactor = $2 AND emoji = $3 RETURNING id',
+    [messageId, sanitizeString(reactor), emoji]
+  );
+
+  if (result.rows.length === 0) {
+    res.status(404).json({ error: 'Reaction not found' });
+    return;
+  }
+
+  const reactionRemove = {
+    messageId,
+    reactor: sanitizeString(reactor),
+    emoji,
+  };
+
+  if (conversationId) {
+    io.to(`conv:${conversationId}`).emit('reaction-remove', reactionRemove);
+  } else {
+    io.emit('reaction-remove', reactionRemove);
+  }
+
+  res.json(reactionRemove);
+}));
+
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {
@@ -1700,6 +1909,67 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
 
   const result = await pool.query(query, params);
   res.json(result.rows);
+}));
+
+/**
+ * @openapi
+ * /api/messages/{id}/reactions:
+ *   get:
+ *     summary: Get reactions for a message
+ *     description: Retrieve all reactions for a specific message. Requires authentication.
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Message ID
+ *     responses:
+ *       200:
+ *         description: List of reactions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   message_id:
+ *                     type: integer
+ *                   reactor:
+ *                     type: string
+ *                   emoji:
+ *                     type: string
+ *                   created_at:
+ *                     type: string
+ *                     format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Message not found
+ */
+app.get('/api/messages/:id/reactions', asyncHandler(async (req: Request, res: Response) => {
+  const idParam = req.params.id;
+  if (!idParam) {
+    res.status(400).json({ error: 'Message ID is required' });
+    return;
+  }
+  const messageId = parseInt(idParam, 10);
+
+  const result = await pool.query(
+    'SELECT id, message_id, reactor, emoji, created_at FROM message_reactions WHERE message_id = $1 ORDER BY created_at ASC',
+    [messageId]
+  );
+
+  res.json(result.rows.map(row => ({
+    ...row,
+    created_at: new Date(row.created_at).toISOString(),
+  })));
 }));
 
 /**

@@ -198,6 +198,44 @@ Interactive Swagger UI is available at `/api-docs` when the server is running.
 - **Swagger UI:** http://localhost:3001/api-docs
 - **Raw OpenAPI spec:** http://localhost:3001/api-docs.json
 
+### Message Reactions API
+
+The reactions API allows adding, removing, and listing emoji reactions on chat messages.
+
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/service/messages/:id/reactions` | POST | Service | Add a reaction to a message |
+| `/api/service/messages/:id/reactions/:emoji` | DELETE | Service | Remove a reaction from a message |
+| `/api/messages/:id/reactions` | GET | User | List all reactions for a message |
+
+**Add a reaction:**
+```bash
+curl -X POST "https://hub.example.com/api/service/messages/123/reactions" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reactor": "Neil", "emoji": "👍"}'
+```
+
+**Remove a reaction:**
+```bash
+curl -X DELETE "https://hub.example.com/api/service/messages/123/reactions/%F0%9F%91%8D" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reactor": "Neil"}'
+```
+
+**List reactions:**
+```bash
+curl "https://hub.example.com/api/messages/123/reactions" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Constraints:**
+- One reaction per user per emoji per message (unique constraint)
+- Reactor name: max 50 characters
+- Emoji: max 10 characters
+- Duplicate reactions return 409 Conflict
+
 ## MCP Server
 
 An MCP (Model Context Protocol) server is included for AI agent access to the Hub's API. It exposes tools for reading/writing chat messages, managing kanban tasks, updating status, and adding activity events.
