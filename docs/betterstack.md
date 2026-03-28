@@ -4,7 +4,7 @@ Source: BetterStack Logs Query API documentation at https://betterstack.com/docs
 
 ## Overview
 
-BetterStack is configured to receive monitoring information and logs from the Swissclaw Hub on Render.
+BetterStack is configured to receive monitoring information and logs from the application.
 
 ## API Credentials
 
@@ -19,17 +19,17 @@ Set via environment variable `BETTERSTACK_ENDPOINT`.
 
 ### Authentication
 - **Method:** HTTP Basic Auth (Username:Password) via `-u` flag
-- **Source:** BetterStack AI SRE dashboard → MCP and API → Create "Connect ClickHouse HTTP client"
+- **Source:** BetterStack AI SRE dashboard -> MCP and API -> Create "Connect ClickHouse HTTP client"
 - **Security:** Password shown once in flash message, store securely
 
 ### Data Sources
 
 | Source Type | Table Name | Description |
 |-------------|------------|-------------|
-| Logs | `remote(t{ID}_swissclaw-hub_logs)` | Application logs (hot storage) |
-| Historical Logs | `s3Cluster(primary, t{ID}_swissclaw-hub_s3)` | Archived logs (cold storage) |
-| Spans | `remote(t{ID}_swissclaw-hub_spans)` | Tracing data |
-| Metrics | `remote(t{ID}_swissclaw-hub_metrics)` | Aggregated metrics |
+| Logs | `remote(t{ID}_your-app_logs)` | Application logs (hot storage) |
+| Historical Logs | `s3Cluster(primary, t{ID}_your-app_s3)` | Archived logs (cold storage) |
+| Spans | `remote(t{ID}_your-app_spans)` | Tracing data |
+| Metrics | `remote(t{ID}_your-app_metrics)` | Aggregated metrics |
 
 *Replace `{ID}` with actual source ID from BetterStack dashboard*
 
@@ -45,7 +45,7 @@ export SOURCE_ID="<from BetterStack dashboard>"
 curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
   -H 'Content-type: plain/text' \
   -X POST "$BETTERSTACK_ENDPOINT" \
-  -d "SELECT * FROM remote(${SOURCE_ID}_swissclaw_logs) WHERE dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 100 FORMAT Pretty"
+  -d "SELECT * FROM remote(${SOURCE_ID}_your-app_logs) WHERE dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 100 FORMAT Pretty"
 ```
 
 ### Search for Specific Errors
@@ -53,7 +53,7 @@ curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
 curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
   -H 'Content-type: plain/text' \
   -X POST "$BETTERSTACK_ENDPOINT" \
-  -d "SELECT * FROM remote(${SOURCE_ID}_swissclaw_logs) WHERE raw ILIKE '%error%' AND dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 10 FORMAT JSONEachRow"
+  -d "SELECT * FROM remote(${SOURCE_ID}_your-app_logs) WHERE raw ILIKE '%error%' AND dt > now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 10 FORMAT JSONEachRow"
 ```
 
 ## Output Formats
@@ -92,4 +92,3 @@ curl -s -u "$BETTERSTACK_USER:$BETTERSTACK_PASS" \
 - Historical data may be moved to cold storage (S3) for cost efficiency
 - Use `UNION ALL` to combine hot and cold storage data for complete results
 - Query API is read-only; use other APIs for writing
-- Connection verified working (2026-02-09) — ClickHouse HTTP API on port 443 (HTTPS)

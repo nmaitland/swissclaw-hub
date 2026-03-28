@@ -5,6 +5,12 @@ const bcrypt = require('bcrypt');
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
+    // Only seed test users in development/test environments
+    if (process.env.NODE_ENV === 'production') {
+      console.log('Skipping test user seed in production');
+      return;
+    }
+
     // Check if users already exist
     const existingUsers = await queryInterface.sequelize.query(
       `SELECT id FROM users WHERE id IN ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'b1eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', 'c2eebc99-9c0b-4ef8-bb6d-6bb9bd380a13')`,

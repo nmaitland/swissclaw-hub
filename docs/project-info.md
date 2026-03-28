@@ -5,28 +5,11 @@ A shared web interface for Neil and SwissClaw to communicate and collaborate.
 
 ## Hosting
 
-| Detail | Value |
-|--------|-------|
-| **Platform** | Render (Pro plan) |
-| **Web Service** | swissclaw-hub |
-| **Region** | Oregon (US West) |
-| **URL** | Set via Render dashboard |
+Hosted on a cloud platform with auto-deploy from `master` branch. Configuration managed via the hosting provider's dashboard.
 
-## Deployment
-
-### Auto-deploy
-- **Enabled:** Yes
-- **Trigger:** Git commits to `master` branch
+### Build & Start
 - **Build command:** `npm install && cd client && npm install && npm run build && cd .. && npm run build`
 - **Start command:** `npm start`
-
-### Manual deploy
-```bash
-# Force re-deploy via Render API
-curl -X POST \
-  -H "Authorization: Bearer $RENDER_API_KEY" \
-  https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys
-```
 
 ## Architecture
 
@@ -41,17 +24,17 @@ curl -X POST \
 | **Logging** | Pino (structured JSON) |
 | **Testing** | Jest, ts-jest, supertest, React Testing Library |
 | **CI/CD** | GitHub Actions, Codecov |
-| **Monitoring** | BetterStack (see betterstack.md) |
 
 ## Environment
 
 ### Required env vars
 ```
 DATABASE_URL=postgresql://...
-AUTH_USERNAME=admin
-AUTH_PASSWORD=<set_secure_password>
-REACT_APP_API_URL=  # empty for same-origin
+AUTH_USERNAME=<your_username>
+AUTH_PASSWORD=<your_secure_password>
 ```
+
+See `.env.example` for the full list.
 
 ## Versions
 
@@ -68,14 +51,10 @@ REACT_APP_API_URL=  # empty for same-origin
 
 ## Credentials
 
-- **Database:** Stored in Render dashboard (auto-managed)
-- **Auth:** Session-based, cleared on restart
-- **API Key:** Stored in password manager
-- **BetterStack:** Stored in password manager
+All credentials stored securely in the hosting provider's dashboard or a password manager. Never committed to the repository.
 
 ## Monitoring
 
 - **Health endpoint:** `/health`
 - **Build info:** `/api/build`
 - **Status:** `/api/status` (requires auth)
-- **BetterStack:** See [betterstack.md](betterstack.md)

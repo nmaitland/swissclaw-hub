@@ -56,7 +56,7 @@ const getDatabaseConfig = (): DatabaseConfig => {
     user: process.env.DB_USER || process.env.POSTGRES_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_NAME || process.env.DATABASE_URL?.split('/').pop() || 'swissclaw_hub',
-    password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || 'password',
+    password: process.env.DB_PASSWORD || process.env.POSTGRES_PASSWORD || '',
     port: parseInt(process.env.DB_PORT || '5432', 10),
     // If DATABASE_URL is provided, parse it
     ...(process.env.DATABASE_URL && { connectionString: process.env.DATABASE_URL }),
