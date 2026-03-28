@@ -139,13 +139,36 @@ export interface ChatMessage {
   created_at: string;
   conversation_id?: string | null;
   processing_state?: MessageProcessingState | null;
+  reactions?: MessageReaction[];
 }
 
 export type MessageProcessingState = 'received' | 'processing' | 'done' | 'failed' | 'not-sent' | 'timeout' | 'cancelled';
 
+export interface MessageReaction {
+  id: number;
+  message_id: number;
+  reactor: string;
+  emoji: string;
+  created_at: string;
+}
+
 export interface MessageStateUpdate {
   messageId: string;
   state: MessageProcessingState;
+}
+
+export interface ReactionUpdate {
+  messageId: number;
+  reactionId: number;
+  reactor: string;
+  emoji: string;
+  createdAt: string;
+}
+
+export interface ReactionRemove {
+  messageId: number;
+  reactor: string;
+  emoji: string;
 }
 
 export interface BuildInfo {

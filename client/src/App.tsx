@@ -12,6 +12,8 @@ import type {
   ModelUsageCostType,
   ModelUsageSnapshot,
   User,
+  ReactionUpdate,
+  ReactionRemove,
 } from './types';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 import ReactMarkdown from 'react-markdown';
@@ -112,6 +114,7 @@ function App() {
 
   // Message processing states
   const [messageStates, setMessageStates] = useState<Record<string, MessageProcessingState>>({});
+  const [messageReactions, setMessageReactions] = useState<Record<string, ReactionUpdate[]>>({});
   const [mobileViewMode, setMobileViewMode] = useState<MobileViewMode>(readPersistedMobileViewMode);
   const [isMobileLayout, setIsMobileLayout] = useState<boolean>(getMobileLayoutMatches);
   const [isModelUsageModalOpen, setIsModelUsageModalOpen] = useState(false);
@@ -221,6 +224,30 @@ function App() {
 
     newSocket.on('message-state', ({ messageId, state }: MessageStateUpdate) => {
       setMessageStates((prev) => ({ ...prev, [messageId]: state }));
+    });
+
+    newSocket.on('reaction', (update: ReactionUpdate) => {
+      setMessageReactions((prev) => {
+        const messageIdStr = String(update.messageId);
+        const existing = prev[messageIdStr] || [];
+        return {
+          ...prev,
+          [messageIdStr]: [...existing, update],
+        };
+      });
+    });
+
+    newSocket.on('reaction-remove', (remove: ReactionRemove) => {
+      setMessageReactions((prev) => {
+        const messageIdStr = String(remove.messageId);
+        const existing = prev[messageIdStr] || [];
+        return {
+          ...prev,
+          [messageIdStr]: existing.filter(
+            r => !(r.reactor === remove.reactor && r.emoji === remove.emoji)
+          ),
+        };
+      });
     });
 
     return () => {
@@ -633,6 +660,20 @@ function App() {
                     </span>
                   </div>
                   <span className="chat-text"><Markdown>{msg.content.replace(/\n/g, '  \n')}</Markdown></span>
+                  {messageReactions[msg.id] && messageReactions[msg.id].length > 0 && (
+                    <div className="chat-reactions">
+                      {Object.entries(
+                        messageReactions[msg.id].reduce((acc, r) => {
+                          acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)
+                      ).map(([emoji, count]) => (
+                        <span key={emoji} className="chat-reaction" title={emoji}>
+                          {emoji} {count > 1 ? count : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             )}
