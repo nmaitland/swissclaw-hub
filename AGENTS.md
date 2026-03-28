@@ -1,16 +1,16 @@
 # Project Agent Notes
 
-## Render Context
+## Hosting Context
 
 - CLI command: `render`
 - Auth user: configured via `render login`
 - Active workspace: configured via `render workspace`
 
-## swissclaw-hub Resources
+## Resources
 
-- Web service name: `swissclaw-hub`
+- Web service name: set via hosting provider dashboard
 - Web URL: set via `SWISSCLAW_HUB_URL` env var
-- Postgres name: `swissclaw-hub-db`
+- Postgres name: set via hosting provider dashboard
 
 ## Common Commands
 
