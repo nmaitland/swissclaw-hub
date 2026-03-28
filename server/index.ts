@@ -1667,68 +1667,6 @@ app.delete('/api/service/messages/:id/reactions/:emoji', asyncHandler(async (req
   res.json(reactionRemove);
 }));
 
-/**
- * @openapi
- * /api/messages/{id}/reactions:
- *   get:
- *     summary: Get reactions for a message
- *     description: Retrieve all reactions for a specific message. Requires authentication.
- *     tags: [Chat]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: Message ID
- *     responses:
- *       200:
- *         description: List of reactions
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   id:
- *                     type: integer
- *                   message_id:
- *                     type: integer
- *                   reactor:
- *                     type: string
- *                   emoji:
- *                     type: string
- *                   created_at:
- *                     type: string
- *                     format: date-time
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Message not found
- */
-app.get('/api/messages/:id/reactions', asyncHandler(async (req: Request, res: Response) => {
-  // This route is protected by requireAuth middleware (applied to /api)
-  const idParam = req.params.id;
-  if (!idParam) {
-    res.status(400).json({ error: 'Message ID is required' });
-    return;
-  }
-  const messageId = parseInt(idParam, 10);
-
-  const result = await pool.query(
-    'SELECT id, message_id, reactor, emoji, created_at FROM message_reactions WHERE message_id = $1 ORDER BY created_at ASC',
-    [messageId]
-  );
-
-  res.json(result.rows.map(row => ({
-    ...row,
-    created_at: new Date(row.created_at).toISOString(),
-  })));
-}));
-
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
 if (process.env.NODE_ENV === 'production') {
@@ -1971,6 +1909,67 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
 
   const result = await pool.query(query, params);
   res.json(result.rows);
+}));
+
+/**
+ * @openapi
+ * /api/messages/{id}/reactions:
+ *   get:
+ *     summary: Get reactions for a message
+ *     description: Retrieve all reactions for a specific message. Requires authentication.
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Message ID
+ *     responses:
+ *       200:
+ *         description: List of reactions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id:
+ *                     type: integer
+ *                   message_id:
+ *                     type: integer
+ *                   reactor:
+ *                     type: string
+ *                   emoji:
+ *                     type: string
+ *                   created_at:
+ *                     type: string
+ *                     format: date-time
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Message not found
+ */
+app.get('/api/messages/:id/reactions', asyncHandler(async (req: Request, res: Response) => {
+  const idParam = req.params.id;
+  if (!idParam) {
+    res.status(400).json({ error: 'Message ID is required' });
+    return;
+  }
+  const messageId = parseInt(idParam, 10);
+
+  const result = await pool.query(
+    'SELECT id, message_id, reactor, emoji, created_at FROM message_reactions WHERE message_id = $1 ORDER BY created_at ASC',
+    [messageId]
+  );
+
+  res.json(result.rows.map(row => ({
+    ...row,
+    created_at: new Date(row.created_at).toISOString(),
+  })));
 }));
 
 /**
