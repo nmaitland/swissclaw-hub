@@ -1547,13 +1547,13 @@ app.post('/api/service/messages/:id/reactions', asyncHandler(async (req: Request
       reactor: reaction.reactor,
       emoji: reaction.emoji,
       createdAt: new Date(reaction.created_at).toISOString(),
+      conversationId: conversationId || null,
     };
 
     if (conversationId) {
       io.to(`conv:${conversationId}`).emit('reaction', reactionUpdate);
-    } else {
-      io.emit('reaction', reactionUpdate);
     }
+    io.to('agent').emit('reaction', reactionUpdate);
 
     res.status(201).json(reactionUpdate);
   } catch (err: any) {
@@ -1656,13 +1656,13 @@ app.delete('/api/service/messages/:id/reactions/:emoji', asyncHandler(async (req
     messageId,
     reactor: sanitizeString(reactor),
     emoji,
+    conversationId: conversationId || null,
   };
 
   if (conversationId) {
     io.to(`conv:${conversationId}`).emit('reaction-remove', reactionRemove);
-  } else {
-    io.emit('reaction-remove', reactionRemove);
   }
+  io.to('agent').emit('reaction-remove', reactionRemove);
 
   res.json(reactionRemove);
 }));
@@ -1908,7 +1908,27 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
   params.push(limit);
 
   const result = await pool.query(query, params);
-  res.json(result.rows);
+  const messages = result.rows;
+
+  // Batch-fetch reactions for all returned messages
+  if (messages.length > 0) {
+    const messageIds = messages.map((m: { id: number }) => m.id);
+    const reactionsResult = await pool.query(
+      'SELECT id, message_id, reactor, emoji, created_at FROM message_reactions WHERE message_id = ANY($1) ORDER BY created_at ASC',
+      [messageIds]
+    );
+    const reactionsByMessage = new Map<number, { id: number; message_id: number; reactor: string; emoji: string; created_at: string }[]>();
+    for (const row of reactionsResult.rows) {
+      const list = reactionsByMessage.get(row.message_id) || [];
+      list.push({ ...row, created_at: new Date(row.created_at).toISOString() });
+      reactionsByMessage.set(row.message_id, list);
+    }
+    for (const msg of messages) {
+      msg.reactions = reactionsByMessage.get(msg.id) || [];
+    }
+  }
+
+  res.json(messages);
 }));
 
 /**
@@ -1954,6 +1974,11 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
  *         description: Message not found
  */
 app.get('/api/messages/:id/reactions', asyncHandler(async (req: Request, res: Response) => {
+  if (!(await hasServiceAccess(req))) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
   const idParam = req.params.id;
   if (!idParam) {
     res.status(400).json({ error: 'Message ID is required' });
