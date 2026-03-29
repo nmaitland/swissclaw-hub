@@ -12,6 +12,7 @@ import type {
   ModelUsageCostType,
   ModelUsageSnapshot,
   User,
+  MessageReaction,
   ReactionUpdate,
   ReactionRemove,
 } from './types';
@@ -304,6 +305,23 @@ function App() {
         }
         if (Object.keys(states).length > 0) {
           setMessageStates((prev) => ({ ...prev, ...states }));
+        }
+
+        // Hydrate reactions from message data
+        const reactions: Record<string, ReactionUpdate[]> = {};
+        for (const msg of messageData) {
+          if (msg.reactions && msg.reactions.length > 0) {
+            reactions[msg.id] = msg.reactions.map((r: MessageReaction) => ({
+              messageId: r.message_id,
+              reactionId: r.id,
+              reactor: r.reactor,
+              emoji: r.emoji,
+              createdAt: r.created_at,
+            }));
+          }
+        }
+        if (Object.keys(reactions).length > 0) {
+          setMessageReactions((prev) => ({ ...prev, ...reactions }));
         }
       }
     } catch (err) {

@@ -274,4 +274,91 @@ describe('Message Reactions API', () => {
       expect(response.body).toEqual([]);
     });
   });
+
+  describe('POST /api/service/messages/:id/reactions (conversationId)', () => {
+    it('includes conversationId in the response', async () => {
+      const convId = 'test-conv-123';
+      const messageId = await createMessage(convId);
+      const response = await request(app)
+        .post(`/api/service/messages/${messageId}/reactions`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ reactor: 'Neil', emoji: '👍' })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('conversationId', convId);
+    });
+
+    it('includes null conversationId when message has no conversation', async () => {
+      const messageId = await createMessage(null);
+      const response = await request(app)
+        .post(`/api/service/messages/${messageId}/reactions`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ reactor: 'Neil', emoji: '👍' })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('conversationId', null);
+    });
+  });
+
+  describe('GET /api/messages (reactions included)', () => {
+    it('includes reactions array on each message', async () => {
+      const convId = 'reactions-inline-test';
+      const messageId = await createMessage(convId);
+
+      await request(app)
+        .post(`/api/service/messages/${messageId}/reactions`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ reactor: 'Neil', emoji: '👍' });
+
+      await request(app)
+        .post(`/api/service/messages/${messageId}/reactions`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ reactor: 'Fran', emoji: '❤️' });
+
+      const response = await request(app)
+        .get(`/api/messages?conversationId=${encodeURIComponent(convId)}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      const msg = response.body.find(m => m.id === messageId);
+      expect(msg).toBeDefined();
+      expect(msg.reactions).toHaveLength(2);
+      expect(msg.reactions.map(r => r.emoji)).toContain('👍');
+      expect(msg.reactions.map(r => r.emoji)).toContain('❤️');
+    });
+
+    it('includes empty reactions array for messages with no reactions', async () => {
+      const convId = 'no-reactions-test';
+      const messageId = await createMessage(convId);
+
+      const response = await request(app)
+        .get(`/api/messages?conversationId=${encodeURIComponent(convId)}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      const msg = response.body.find(m => m.id === messageId);
+      expect(msg).toBeDefined();
+      expect(msg.reactions).toEqual([]);
+    });
+  });
+
+  describe('DELETE /api/service/messages/:id/reactions/:emoji (conversationId)', () => {
+    it('includes conversationId in the response', async () => {
+      const convId = 'delete-conv-test';
+      const messageId = await createMessage(convId);
+
+      await request(app)
+        .post(`/api/service/messages/${messageId}/reactions`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ reactor: 'Neil', emoji: '👍' });
+
+      const response = await request(app)
+        .delete(`/api/service/messages/${messageId}/reactions/%F0%9F%91%8D`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ reactor: 'Neil' })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('conversationId', convId);
+    });
+  });
 });
