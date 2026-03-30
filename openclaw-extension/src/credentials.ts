@@ -42,7 +42,6 @@ function getProviderPath(): string {
   const OPENCLAW_DIR = path.resolve(path.dirname(__filename), "..", "..", "..");
   cachedProviderPath = path.join(
     OPENCLAW_DIR,
-    "workspace",
     ".openclaw",
     "credentials",
     "swissclaw-hub.ts",
