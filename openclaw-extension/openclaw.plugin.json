@@ -1,0 +1,9 @@
+{
+  "id": "swissclaw-hub",
+  "channels": ["swissclaw-hub"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
