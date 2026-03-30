@@ -236,6 +236,12 @@ curl "https://hub.example.com/api/messages/123/reactions" \
 - Emoji: max 10 characters
 - Duplicate reactions return 409 Conflict
 
+## OpenClaw Channel Extension
+
+An [OpenClaw](https://openclaw.ai) channel plugin is included in [`openclaw-extension/`](openclaw-extension/) for connecting an AI agent directly to the Hub chat via Socket.io.
+
+See [openclaw-extension/README.md](openclaw-extension/README.md) for installation and configuration instructions.
+
 ## MCP Server
 
 An MCP (Model Context Protocol) server is included for AI agent access to the Hub's API. It exposes tools for reading/writing chat messages, managing kanban tasks, updating status, and adding activity events.
