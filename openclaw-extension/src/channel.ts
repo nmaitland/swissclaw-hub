@@ -15,6 +15,12 @@ import type { CoreConfig, HubAccountConfig } from "./types.js";
 const CHANNEL_ID = "swissclaw-hub";
 const DEFAULT_ACCOUNT_ID = "default";
 
+function looksLikeHubConversationId(value: string | undefined | null): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) return false;
+  return /^[0-9a-f-]+:[A-Za-z0-9.-]+$/i.test(trimmed);
+}
+
 type ResolvedHubAccount = {
   accountId: string;
   name: string;
@@ -124,16 +130,18 @@ export const hubPlugin: ChannelPlugin<ResolvedHubAccount> = {
       const normalized = to?.replace(/^hub:/i, "") || "default";
       return { ok: true, to: normalized };
     },
-    sendText: async ({ cfg, text }) => {
+    sendText: async ({ cfg, text, to }) => {
       const result = await sendHubMessage(text, {
         cfg: cfg as CoreConfig,
+        ...(looksLikeHubConversationId(to) ? { conversationId: to } : {}),
       });
       return { channel: CHANNEL_ID, ...result };
     },
-    sendMedia: async ({ cfg, text, mediaUrl }) => {
+    sendMedia: async ({ cfg, text, mediaUrl, to }) => {
       const combined = mediaUrl ? `${text}\n\n${mediaUrl}` : text;
       const result = await sendHubMessage(combined, {
         cfg: cfg as CoreConfig,
+        ...(looksLikeHubConversationId(to) ? { conversationId: to } : {}),
       });
       return { channel: CHANNEL_ID, ...result };
     },

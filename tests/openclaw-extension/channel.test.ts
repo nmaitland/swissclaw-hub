@@ -1,6 +1,7 @@
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { hubPlugin } from '../../openclaw-extension/src/channel';
 import type { CoreConfig } from '../../openclaw-extension/src/types';
+import { sendHubMessage } from '../../openclaw-extension/src/outbound';
 
 jest.mock('../../openclaw-extension/src/gateway', () => ({
   startHubGateway: jest.fn(),
@@ -11,6 +12,8 @@ jest.mock('../../openclaw-extension/src/outbound', () => ({
 }));
 
 beforeEach(() => { jest.clearAllMocks(); });
+
+const mockedSendHubMessage = jest.mocked(sendHubMessage);
 
 const makeConfig = (channelOverrides: Record<string, unknown> = {}): CoreConfig =>
   ({ channels: { 'swissclaw-hub': channelOverrides } } as unknown as CoreConfig);
@@ -115,5 +118,36 @@ describe('hubPlugin outbound.resolveTarget', () => {
   it("returns 'default' when to is empty", () => {
     const result = hubPlugin.outbound!.resolveTarget!({ to: '' } as any);
     expect((result as any).to).toBe('default');
+  });
+});
+
+describe('hubPlugin outbound delivery', () => {
+  it('forwards a Hub conversation id from to when sending text', async () => {
+    mockedSendHubMessage.mockResolvedValue({ ok: true });
+
+    await hubPlugin.outbound!.sendText!({
+      cfg: makeConfig({ url: 'https://hub.example.com' }),
+      text: 'hello',
+      to: '123e4567-e89b-12d3-a456-426614174000:swissclaw.hydeabbey.net',
+    } as any);
+
+    expect(mockedSendHubMessage).toHaveBeenCalledWith('hello', {
+      cfg: makeConfig({ url: 'https://hub.example.com' }),
+      conversationId: '123e4567-e89b-12d3-a456-426614174000:swissclaw.hydeabbey.net',
+    });
+  });
+
+  it('does not treat a plain Hub user target as a conversation id', async () => {
+    mockedSendHubMessage.mockResolvedValue({ ok: true });
+
+    await hubPlugin.outbound!.sendText!({
+      cfg: makeConfig({ url: 'https://hub.example.com' }),
+      text: 'hello',
+      to: 'Neil',
+    } as any);
+
+    expect(mockedSendHubMessage).toHaveBeenCalledWith('hello', {
+      cfg: makeConfig({ url: 'https://hub.example.com' }),
+    });
   });
 });

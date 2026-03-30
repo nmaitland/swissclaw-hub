@@ -225,7 +225,7 @@ export async function startHubGateway(
           MessageSid: pseudoMsg.id,
           Timestamp: new Date(timestamp).getTime(),
           OriginatingChannel: CHANNEL_ID,
-          OriginatingTo: "hub:swissclaw",
+          OriginatingTo: conversationId ?? `hub:${reactor}`,
         });
 
         try {
@@ -355,7 +355,7 @@ export async function startHubGateway(
           MessageSid: String(msg.id),
           Timestamp: new Date(msg.created_at).getTime(),
           OriginatingChannel: CHANNEL_ID,
-          OriginatingTo: "hub:swissclaw",
+          OriginatingTo: msg.conversation_id ?? `hub:${msg.sender}`,
         });
 
         let dispatchFailed = false;
