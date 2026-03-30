@@ -25,7 +25,11 @@
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "types": ["node", "@types/node"]
+    "types": ["node", "@types/node"],
+    "baseUrl": ".",
+    "paths": {
+      "openclaw/plugin-sdk": ["./tests/__mocks__/openclaw-plugin-sdk.ts"]
+    }
   },
   "include": [
     "server/**/*",
@@ -38,6 +42,8 @@
     "dist",
     "coverage",
     "client/node_modules",
-    "client/build"
+    "client/build",
+    "openclaw-extension",
+    "tests/openclaw-extension"
   ]
 }

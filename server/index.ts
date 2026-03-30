@@ -3007,8 +3007,21 @@ if (require.main === module) {
 
 // For integration tests: reset database state
 async function resetTestDb(): Promise<void> {
-  // Truncate tables to reset state for tests (preserve users and sessions for auth)
-  await pool.query('TRUNCATE TABLE kanban_tasks, kanban_columns, messages, activities, model_usage, status, sessions RESTART IDENTITY CASCADE');
+  // Reset all mutable tables so suites do not leak users, sessions, or messages into each other.
+  await pool.query(
+    `TRUNCATE TABLE
+      kanban_tasks,
+      kanban_columns,
+      message_reactions,
+      messages,
+      activities,
+      model_usage,
+      status,
+      security_logs,
+      sessions,
+      users
+     RESTART IDENTITY CASCADE`
+  );
   
   // Re-insert default kanban columns
   await pool.query(`

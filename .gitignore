@@ -10,7 +10,8 @@ yarn-error.log*
 client/dist
 dist/server
 dist/scripts
-
+dist/openclaw-extension
+dist/tests
 *.tsbuildinfo
 
 # Environment variables
