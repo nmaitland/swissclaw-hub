@@ -42,7 +42,9 @@
 
     "test:integration": "jest --testPathPatterns=tests/integration --runInBand --forceExit",
 
-    "test:client": "cd client && npm test",
+    "test:client": "cd client && npx jest",
+    "test:client:ci": "cd client && npx jest --runInBand --watchAll=false",
+    "test:all": "npm run test:with-db && npm run test:client:ci",
 
     "lint": "eslint server/",
 

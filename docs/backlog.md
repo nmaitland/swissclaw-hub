@@ -34,7 +34,7 @@ Features and ideas not yet implemented. See [README.md](../README.md) for what's
 - Activity dashboard with real-time WebSocket updates
 - Interactive chat with Socket.io
 - Drag-and-drop kanban board (@dnd-kit) with search (`Ctrl+K`) and priority filtering
-- 6 columns: Backlog, To Do, In Progress, Review, Done, Waiting for Neil
+- 6 columns: Backlog, To Do, In Progress, Review, Done, Waiting
 - Card detail modal with description and column move buttons
 - Priority color-coded borders with glow effect, column progress bars
 - Session-based authentication with bcrypt, CSRF protection

@@ -282,7 +282,7 @@ server.tool(
   'create_task',
   'Create a new kanban task in a specified column',
   {
-    columnName: z.enum(['backlog', 'todo', 'inProgress', 'review', 'done', 'waiting-for-neil'])
+    columnName: z.enum(['backlog', 'todo', 'inProgress', 'review', 'done', 'waiting'])
       .describe('Column to place the task in'),
     title: z.string().max(200).describe('Task title'),
     description: z.string().optional().describe('Task description'),
@@ -301,7 +301,7 @@ server.tool(
   'Update an existing kanban task — move columns, change title/priority/etc.',
   {
     id: z.number().describe('Task ID (numeric)'),
-    columnName: z.enum(['backlog', 'todo', 'inProgress', 'review', 'done', 'waiting-for-neil'])
+    columnName: z.enum(['backlog', 'todo', 'inProgress', 'review', 'done', 'waiting'])
       .optional().describe('Move to this column'),
     title: z.string().max(200).optional().describe('New title'),
     description: z.string().optional().describe('New description'),

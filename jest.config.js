@@ -7,11 +7,9 @@ module.exports = {
   globals: {
     TextEncoder: require('util').TextEncoder,
     TextDecoder: require('util').TextDecoder,
-    // ts-jest diagnostics disabled — type checking is done separately by tsc in CI
-    'ts-jest': { diagnostics: false },
   },
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
+    '^.+\\.(ts|tsx)$': ['ts-jest', { diagnostics: false }],
     '^.+\\.(js|jsx)$': 'babel-jest',
   },
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx'],

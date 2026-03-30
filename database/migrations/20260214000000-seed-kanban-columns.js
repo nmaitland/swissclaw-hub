@@ -5,7 +5,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     // Check if columns already exist
     const existingColumns = await queryInterface.sequelize.query(
-      `SELECT name FROM kanban_columns WHERE name IN ('backlog', 'todo', 'inProgress', 'review', 'done', 'waiting-for-neil')`,
+      `SELECT name FROM kanban_columns WHERE name IN ('backlog', 'todo', 'inProgress', 'review', 'done', 'waiting')`,
       { type: Sequelize.QueryTypes.SELECT }
     );
 
@@ -53,8 +53,8 @@ module.exports = {
         created_at: new Date()
       },
       {
-        name: 'waiting-for-neil',
-        display_name: 'Waiting for Neil',
+        name: 'waiting',
+        display_name: 'Waiting',
         emoji: '⏸️',
         color: '#ef4444',
         position: 5,
@@ -70,7 +70,7 @@ module.exports = {
   async down(queryInterface, Sequelize) {
     // Remove the seeded columns
     await queryInterface.bulkDelete('kanban_columns', {
-      name: ['backlog', 'todo', 'inProgress', 'review', 'done', 'waiting-for-neil']
+      name: ['backlog', 'todo', 'inProgress', 'review', 'done', 'waiting']
     }, {});
   }
 };

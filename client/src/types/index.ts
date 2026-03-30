@@ -42,7 +42,7 @@ export interface KanbanTask {
 }
 
 // Types matching the actual API response shape from GET /api/kanban
-export type ColumnName = 'backlog' | 'todo' | 'inProgress' | 'review' | 'done' | 'waiting-for-neil';
+export type ColumnName = 'backlog' | 'todo' | 'inProgress' | 'review' | 'done' | 'waiting';
 
 export interface KanbanCardTask {
   id: number | string;
@@ -216,7 +216,7 @@ export interface CreateTaskRequest {
   description?: string;
   priority?: 'low' | 'medium' | 'high';
   assigned_to?: string;
-  column?: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting-for-neil';
+  column?: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting';
   tags?: string[];
 }
 
@@ -225,7 +225,7 @@ export interface UpdateTaskRequest {
   description?: string;
   priority?: 'low' | 'medium' | 'high';
   assigned_to?: string;
-  column?: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting-for-neil';
+  column?: 'backlog' | 'todo' | 'inprogress' | 'review' | 'done' | 'waiting';
   tags?: string[];
 }
 

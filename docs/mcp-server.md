@@ -104,7 +104,7 @@ while (true) {
 | `update_task` | `id`, `columnName?`, `title?`, `description?`, `priority?`, `assignedTo?`, `tags?` | Updates an existing task (move columns, edit fields) |
 | `delete_task` | `id` | Deletes a task by numeric ID |
 
-**Column names:** `backlog`, `todo`, `inProgress`, `review`, `done`, `waiting-for-neil`
+**Column names:** `backlog`, `todo`, `inProgress`, `review`, `done`, `waiting`
 
 **Priority values:** `low`, `medium`, `high`
 

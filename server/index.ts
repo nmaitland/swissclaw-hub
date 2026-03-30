@@ -2950,10 +2950,10 @@ app.post('/api/seed', asyncHandler(async (req: Request, res: Response) => {
       );
     }
 
-    // Seed Waiting for Neil tasks
+    // Seed waiting tasks
     await pool.query(
       'INSERT INTO kanban_tasks (task_id, column_id, title, description, priority, assigned_to, tags, position) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-      [generateTaskId(), columnMap['waiting-for-neil'], 'Review GitHub repo permissions', 'Need access to configure webhooks and secrets', 'medium', 'neil', JSON.stringify(['review', 'infra']), 0]
+      [generateTaskId(), columnMap['waiting'], 'Review GitHub repo permissions', 'Need access to configure webhooks and secrets', 'medium', 'neil', JSON.stringify(['review', 'infra']), 0]
     );
 
     res.json({
@@ -2963,7 +2963,7 @@ app.post('/api/seed', asyncHandler(async (req: Request, res: Response) => {
       inProgress: 1,
       review: 1,
       done: doneTasks.length,
-      waitingForNeil: 1
+      waiting: 1
     });
 }));
 
@@ -3032,7 +3032,7 @@ async function resetTestDb(): Promise<void> {
       ('inProgress', 'In Progress', '\u{1F680}', '#f59e0b', 2),
       ('review', 'Review', '\u{1F440}', '#8b5cf6', 3),
       ('done', 'Done', '\u2705', '#10b981', 4),
-      ('waiting-for-neil', 'Waiting for Neil', '\u23F8\uFE0F', '#ef4444', 5)
+      ('waiting', 'Waiting', '\u23F8\uFE0F', '#ef4444', 5)
     ON CONFLICT (name) DO UPDATE SET
       display_name = EXCLUDED.display_name,
       emoji = EXCLUDED.emoji,

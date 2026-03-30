@@ -94,7 +94,7 @@ jobs:
       run: cd client && npm ci
 
     - name: Run client tests with coverage
-      run: cd client && npx jest --coverage --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=text --forceExit
+      run: npm run test:client -- --coverage --coverageReporters=text-summary --coverageReporters=lcov --coverageReporters=text --runInBand --watchAll=false
       env:
         CI: true
 

@@ -98,9 +98,9 @@ module.exports = {
       },
       {
         task_id: 'TASK-006',
-        column_id: columnMap['waiting-for-neil'],
+        column_id: columnMap['waiting'],
         title: 'Review API documentation',
-        description: 'Neil to review Swagger docs and provide feedback',
+        description: 'Review Swagger docs and provide feedback',
         priority: 'low',
         assigned_to: 'neil',
         tags: JSON.stringify(['docs', 'review']),

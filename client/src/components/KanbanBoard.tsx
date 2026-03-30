@@ -34,7 +34,7 @@ const COLUMNS: (KanbanColumnDef & { special?: boolean })[] = [
   { name: 'inProgress', displayName: 'In Progress', emoji: '\u{1F680}', position: 2 },
   { name: 'review', displayName: 'Review', emoji: '\u{1F440}', position: 3 },
   { name: 'done', displayName: 'Done', emoji: '\u{2705}', position: 4 },
-  { name: 'waiting-for-neil', displayName: 'Waiting for Neil', emoji: '\u{23F8}\u{FE0F}', position: 5, special: true },
+  { name: 'waiting', displayName: 'Waiting', emoji: '\u{23F8}\u{FE0F}', position: 5, special: true },
 ];
 
 const getAuthToken = (): string | null => localStorage.getItem('authToken');

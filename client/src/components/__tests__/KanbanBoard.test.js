@@ -158,7 +158,7 @@ describe('KanbanBoard Component', () => {
       expect(screen.getByText('In Progress')).toBeInTheDocument();
       expect(screen.getByText('Review')).toBeInTheDocument();
       expect(screen.getByText('Done')).toBeInTheDocument();
-      expect(screen.getByText('Waiting for Neil')).toBeInTheDocument();
+      expect(screen.getByText('Waiting')).toBeInTheDocument();
     });
   });
 
@@ -273,7 +273,7 @@ describe('KanbanBoard Component', () => {
 
     await waitFor(() => {
       const dropZones = screen.getAllByText('Drop tasks here');
-      // backlog, review, and waiting-for-neil columns are empty
+      // backlog, review, and waiting columns are empty
       expect(dropZones.length).toBe(3);
     });
   });

@@ -45,6 +45,16 @@ Add the following to your OpenClaw config file:
 
 Alternatively, set the `SWISSCLAW_HUB_URL` environment variable.
 
+## Example Agent Instructions
+
+If you want to give an agent explicit operating guidance for this extension, see the examples in [`examples/`](examples/):
+
+- [`examples/hub-chat.md`](examples/hub-chat.md): real-time chat handling, replies, reactions, and message-state updates
+- [`examples/kanban.md`](examples/kanban.md): task-board workflow and column movement rules
+- [`examples/status.md`](examples/status.md): status panel updates during active work
+
+These are intentionally de-personalised so they can be copied into another workspace and adapted.
+
 ## Authentication
 
 The extension logs in to the Hub using a username and password, then caches the session token at `~/.swissclaw-token`.

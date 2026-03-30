@@ -147,9 +147,17 @@ const closeDatabaseConnection = async (): Promise<void> => {
   }
 };
 
-// Handle process termination
-process.on('SIGINT', closeDatabaseConnection);
-process.on('SIGTERM', closeDatabaseConnection);
+const DATABASE_SIGNAL_HANDLERS_KEY = '__swissclawDbSignalHandlersRegistered';
+const processWithSignalGuard = process as typeof process & {
+  [DATABASE_SIGNAL_HANDLERS_KEY]?: boolean;
+};
+
+// Jest reloads this module across suites, so register process handlers only once.
+if (!processWithSignalGuard[DATABASE_SIGNAL_HANDLERS_KEY]) {
+  process.on('SIGINT', closeDatabaseConnection);
+  process.on('SIGTERM', closeDatabaseConnection);
+  processWithSignalGuard[DATABASE_SIGNAL_HANDLERS_KEY] = true;
+}
 
 export {
   pool,
