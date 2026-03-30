@@ -15,6 +15,7 @@ server/
 â”‚   â”œâ”€â”€ auth.ts             # Session auth, CSRF, rate limiting
 â”‚   â””â”€â”€ security.ts         # Helmet, XSS, audit logging
 â”œâ”€â”€ routes/
+â”‚   â”œâ”€â”€ admin.ts            # Admin user management routes
 â”‚   â””â”€â”€ auth.ts             # Enhanced login/logout/session routes
 â”œâ”€â”€ lib/
 â”‚   â”œâ”€â”€ logger.ts           # Pino structured logging
@@ -76,7 +77,6 @@ tests/
 | **AI Integration** | MCP server (@modelcontextprotocol/sdk) |
 | **Testing** | Jest, ts-jest, supertest, React Testing Library |
 | **CI/CD** | GitHub Actions, Codecov |
-| **Hosting** | a cloud platform |
 
 ## Database Setup
 
@@ -311,7 +311,7 @@ Token persistence remains at `~/.swissclaw-token`.
 
 ## Deployment
 
-Auto-deploys from `master` branch to a cloud platform. See [docs/project-info.md](docs/project-info.md) for hosting details.
+Auto-deploys from `master` branch. See [docs/project-info.md](docs/project-info.md) for hosting details.
 
 The database schema is managed by Sequelize migrations. Migrations run automatically during deployment via the start command (`npm run db:migrate && npm run server`). For local development, run migrations manually:
 
