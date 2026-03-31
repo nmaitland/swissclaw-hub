@@ -268,7 +268,7 @@ An MCP (Model Context Protocol) server is included for AI agent access to the Hu
 npm run mcp
 ```
 
-**Claude Code integration:** The `.mcp.json` file configures the MCP server for use with Claude Code. Set `SWISSCLAW_HUB_URL` and `SWISSCLAW_AUTH_TOKEN` in your local environment for the target Hub instance.
+**Claude Code integration:** The `.mcp.json` file configures the MCP server for use with Claude Code. Set `HUB_URL` and `SWISSCLAW_AUTH_TOKEN` in your local environment for the target Hub instance.
 
 See [docs/mcp-server.md](docs/mcp-server.md) for full documentation.
 

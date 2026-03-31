@@ -560,7 +560,7 @@ describe('App Component', () => {
     const swissclawActivity = await screen.findByRole('button', { name: /Swissclaw Reviewed the queue/i });
     const neilActivity = await screen.findByRole('button', { name: /Neil Queued follow-up/i });
 
-    expect(swissclawActivity).toHaveClass('activity-item-swissclaw');
+    expect(swissclawActivity).toHaveClass('activity-item-assistant');
     expect(neilActivity).toHaveClass('activity-item-user');
   });
 

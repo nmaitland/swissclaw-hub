@@ -24,6 +24,22 @@ import './App.css';
 const API_URL = process.env.REACT_APP_API_URL || '';
 const MOBILE_VIEW_MODE_KEY = 'hub.mobileViewMode.v1';
 
+// Runtime branding config injected by the server into window.__APP_CONFIG__
+interface AppRuntimeConfig {
+  appName: string;
+  appShortName: string;
+  appIcon: string;
+  themeColor: string;
+  githubRepo: string;
+}
+const appCfg: AppRuntimeConfig = (window as unknown as { __APP_CONFIG__?: AppRuntimeConfig }).__APP_CONFIG__ ?? {
+  appName: 'My Hub',
+  appShortName: 'Hub',
+  appIcon: '🚀',
+  themeColor: '#FF4500',
+  githubRepo: '',
+};
+
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
@@ -79,14 +95,15 @@ const getActivitySender = (activity: Activity): string | null => {
   );
 };
 
-const getActivitySenderVariant = (sender: string | null): 'swissclaw' | 'user' | 'system' => {
+const getActivitySenderVariant = (sender: string | null): 'assistant' | 'user' | 'system' => {
   if (!sender) {
     return 'system';
   }
 
   const normalizedSender = sender.trim().toLowerCase();
-  if (normalizedSender === 'swissclaw' || normalizedSender === 'swiss claw') {
-    return 'swissclaw';
+  const appNameNorm = appCfg.appName.trim().toLowerCase();
+  if (normalizedSender === 'swissclaw' || normalizedSender === 'swiss claw' || normalizedSender === appNameNorm) {
+    return 'assistant';
   }
 
   return 'user';
@@ -1048,7 +1065,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>{'\u{1F980}'} Swissclaw Hub</h1>
+        <h1>{appCfg.appIcon} {appCfg.appName}</h1>
         <div className="header-status">
           {currentUser?.role === 'admin' && (
             <button
@@ -1087,7 +1104,7 @@ function App() {
       {!isStandaloneMode && isMobileLayout && isInstallPromptVisible && (
         <section className="install-banner" aria-label="Install app banner">
           <div className="install-banner-copy">
-            <strong>Install Swissclaw Hub</strong>
+            <strong>Install {appCfg.appName}</strong>
             <span>Keep it on your home screen and launch it in a cleaner app-style view on mobile.</span>
           </div>
           <div className="install-banner-actions">
@@ -1186,14 +1203,19 @@ function App() {
 
       <footer className="footer">
         <p>
-          Swissclaw Hub {'\u2014'} Built: {new Date(buildInfo.buildDate).toLocaleString()} {'\u2014'} {'\u{1F980}'} {'\u2014'}{' '}
-          <a
-            href={`https://github.com/nmaitland/swissclaw-hub/commit/${buildInfo.commit}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {buildInfo.commit}
-          </a>
+          {appCfg.appName} {'\u2014'} Built: {new Date(buildInfo.buildDate).toLocaleString()} {'\u2014'} {appCfg.appIcon}
+          {appCfg.githubRepo && (
+            <>
+              {' '}{'\u2014'}{' '}
+              <a
+                href={`https://github.com/${appCfg.githubRepo}/commit/${buildInfo.commit}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {buildInfo.commit}
+              </a>
+            </>
+          )}
         </p>
       </footer>
     </div>

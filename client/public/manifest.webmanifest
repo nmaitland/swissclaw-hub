@@ -1,7 +1,7 @@
 {
-  "name": "Swissclaw Hub",
+  "name": "My Hub",
   "short_name": "Hub",
-  "description": "OpenClaw web hub for chat, kanban, and status.",
+  "description": "Web hub for chat, kanban, and status.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

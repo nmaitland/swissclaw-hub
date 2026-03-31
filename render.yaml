@@ -18,7 +18,24 @@ services:
         sync: false
       - key: AUTH_PASSWORD
         sync: false
+      - key: APP_NAME
+        sync: false
+      - key: APP_SHORT_NAME
+        sync: false
+      - key: APP_DESCRIPTION
+        sync: false
+      - key: APP_ICON_EMOJI
+        sync: false
+      - key: APP_THEME_COLOR
+        sync: false
+      - key: APP_GITHUB_REPO
+        sync: false
+      - key: HUB_URL
+        sync: false
 
+# When forking this repo, rename the service (above) and database (below) to match
+# your own deployment. The name fields are Render resource identifiers — changing
+# them creates new resources, so pick names you intend to keep.
 databases:
   - name: swissclaw-hub-db
     plan: pro

@@ -18,7 +18,7 @@
 ## Resources
 
 - Web service name: set via hosting provider dashboard
-- Web URL: set via `SWISSCLAW_HUB_URL` env var
+- Web URL: set via `HUB_URL` env var
 - Postgres name: set via hosting provider dashboard
 
 ## Common Commands
