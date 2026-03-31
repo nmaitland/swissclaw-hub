@@ -3,7 +3,7 @@ import type { CoreConfig } from "./types.js";
 
 function resolveHubUrl(cfg: CoreConfig): string {
   const hubCfg = cfg.channels?.["swissclaw-hub"];
-  return hubCfg?.url || process.env.SWISSCLAW_HUB_URL || "";
+  return hubCfg?.url || process.env.HUB_URL || "";
 }
 
 export async function sendHubMessage(

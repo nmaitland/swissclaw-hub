@@ -43,7 +43,7 @@ Add the following to your OpenClaw config file:
 }
 ```
 
-Alternatively, set the `SWISSCLAW_HUB_URL` environment variable.
+Alternatively, set the `HUB_URL` environment variable.
 
 ## Example Agent Instructions
 

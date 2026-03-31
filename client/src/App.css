@@ -531,7 +531,7 @@ body {
   text-transform: uppercase;
 }
 
-.activity-sender-swissclaw {
+.activity-sender-assistant {
   color: #fbbf24;
   background: rgba(251, 191, 36, 0.14);
   border-color: rgba(251, 191, 36, 0.35);
@@ -1058,7 +1058,7 @@ body {
   background-color: rgba(255, 255, 255, 0.06);
 }
 
-.activity-item-swissclaw {
+.activity-item-assistant {
   border-left: 2px solid rgba(251, 191, 36, 0.45);
 }
 

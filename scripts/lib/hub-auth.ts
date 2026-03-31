@@ -5,10 +5,10 @@ import { config } from 'dotenv';
 
 config({ override: false });
 
-if (!process.env.SWISSCLAW_HUB_URL) {
-  throw new Error('SWISSCLAW_HUB_URL must be set (e.g. https://your-instance.onrender.com)');
+if (!process.env.HUB_URL) {
+  throw new Error('HUB_URL must be set (e.g. https://your-instance.onrender.com)');
 }
-export const HUB_URL = process.env.SWISSCLAW_HUB_URL;
+export const HUB_URL = process.env.HUB_URL;
 export const HUB_TOKEN_FILE = path.join(os.homedir(), '.swissclaw-token');
 const HUB_TOKEN_LOCK_FILE = `${HUB_TOKEN_FILE}.lock`;
 const LOCK_TIMEOUT_MS = 30_000;
@@ -86,8 +86,8 @@ const withTokenLock = async <T>(fn: () => Promise<T>): Promise<T> => {
 };
 
 export const loadHubToken = (): string | null => {
-  if (process.env.SWISSCLAW_AUTH_TOKEN && process.env.SWISSCLAW_AUTH_TOKEN.trim()) {
-    return process.env.SWISSCLAW_AUTH_TOKEN.trim();
+  if (process.env.HUB_AUTH_TOKEN && process.env.HUB_AUTH_TOKEN.trim()) {
+    return process.env.HUB_AUTH_TOKEN.trim();
   }
 
   try {
@@ -147,8 +147,8 @@ export const loginToHub = async (): Promise<string> => {
 };
 
 export const ensureHubAuth = async (forceLogin: boolean = false): Promise<string> => {
-  if (process.env.SWISSCLAW_AUTH_TOKEN && process.env.SWISSCLAW_AUTH_TOKEN.trim()) {
-    return process.env.SWISSCLAW_AUTH_TOKEN.trim();
+  if (process.env.HUB_AUTH_TOKEN && process.env.HUB_AUTH_TOKEN.trim()) {
+    return process.env.HUB_AUTH_TOKEN.trim();
   }
 
   return withTokenLock(async () => {

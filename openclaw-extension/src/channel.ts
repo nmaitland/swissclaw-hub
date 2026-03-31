@@ -42,7 +42,7 @@ function resolveHubAccount(params: {
     (hubCfg as HubAccountConfig | undefined) ??
     {};
   const url =
-    accountCfg.url || hubCfg?.url || process.env.SWISSCLAW_HUB_URL || "";
+    accountCfg.url || hubCfg?.url || process.env.HUB_URL || "";
 
   return {
     accountId,

@@ -60,7 +60,7 @@ module.exports = {
   development: {
     username: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'password',
-    database: process.env.DB_NAME || 'swissclaw_hub',
+    database: process.env.DB_NAME || 'hub',
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,
     dialect: 'postgres',
@@ -69,7 +69,7 @@ module.exports = {
   test: {
     username: process.env.TEST_DB_USER || 'postgres',
     password: process.env.TEST_DB_PASSWORD || 'password',
-    database: process.env.TEST_DB_NAME || 'swissclaw_hub_test',
+    database: process.env.TEST_DB_NAME || 'hub_test',
     host: process.env.TEST_DB_HOST || 'localhost',
     port: process.env.TEST_DB_PORT || 5433,
     dialect: 'postgres',

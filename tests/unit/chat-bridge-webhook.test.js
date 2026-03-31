@@ -1,4 +1,4 @@
-process.env.SWISSCLAW_HUB_URL = process.env.SWISSCLAW_HUB_URL || 'http://localhost:3000';
+process.env.HUB_URL = process.env.HUB_URL || 'http://localhost:3000';
 const { handleInboundMessage } = require('../../scripts/chat-bridge-webhook');
 
 describe('chat bridge inbound dedupe handling', () => {

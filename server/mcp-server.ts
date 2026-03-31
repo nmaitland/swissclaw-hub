@@ -17,8 +17,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { io, Socket } from 'socket.io-client';
 import { z } from 'zod';
 
-const BASE_URL = process.env.SWISSCLAW_HUB_URL || 'http://localhost:3001';
-const AUTH_TOKEN = process.env.SWISSCLAW_AUTH_TOKEN || '';
+const BASE_URL = process.env.HUB_URL || 'http://localhost:3001';
+const AUTH_TOKEN = process.env.HUB_AUTH_TOKEN || '';
 
 // Message buffer for chat_listen
 interface BufferedMessage {
@@ -50,7 +50,7 @@ async function api(
     headers['Authorization'] = `Bearer ${AUTH_TOKEN}`;
   }
   if (!AUTH_TOKEN) {
-    throw new Error('SWISSCLAW_AUTH_TOKEN is required for authenticated API endpoints.');
+    throw new Error('HUB_AUTH_TOKEN is required for authenticated API endpoints.');
   }
 
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -70,7 +70,7 @@ async function api(
 // Initialize Socket.io client for real-time chat
 function initSocketClient(): void {
   if (!AUTH_TOKEN) {
-    console.error('SWISSCLAW_AUTH_TOKEN not set. Socket.io client cannot connect.');
+    console.error('HUB_AUTH_TOKEN not set. Socket.io client cannot connect.');
     return;
   }
 
@@ -171,7 +171,7 @@ server.tool(
   async ({ since }) => {
     if (!isSocketConnected) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: 'Socket.io not connected. Check SWISSCLAW_AUTH_TOKEN is set and Hub is running.' }) }],
+        content: [{ type: 'text', text: JSON.stringify({ error: 'Socket.io not connected. Check HUB_AUTH_TOKEN is set and Hub is running.' }) }],
       };
     }
 

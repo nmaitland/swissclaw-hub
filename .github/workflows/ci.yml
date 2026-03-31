@@ -22,7 +22,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: swissclaw_hub_test
+          POSTGRES_DB: hub_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -65,7 +65,7 @@ jobs:
         NODE_ENV: test
         TEST_DB_HOST: localhost
         TEST_DB_PORT: 5433
-        TEST_DB_NAME: swissclaw_hub_test
+        TEST_DB_NAME: hub_test
         TEST_DB_USER: postgres
         TEST_DB_PASSWORD: password
 
@@ -76,7 +76,7 @@ jobs:
         CI: true
         TEST_DB_HOST: localhost
         TEST_DB_PORT: 5433
-        TEST_DB_NAME: swissclaw_hub_test
+        TEST_DB_NAME: hub_test
         TEST_DB_USER: postgres
         TEST_DB_PASSWORD: password
       timeout-minutes: 10

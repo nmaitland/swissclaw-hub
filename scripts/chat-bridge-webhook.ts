@@ -216,7 +216,7 @@ export async function handleInboundMessage(
 
 async function daemonMode(hubToken: string, hooksToken: string, client: HubApiClient): Promise<void> {
   let currentClient = client;
-  const usesExplicitAuthToken = Boolean(process.env.SWISSCLAW_AUTH_TOKEN && process.env.SWISSCLAW_AUTH_TOKEN.trim());
+  const usesExplicitAuthToken = Boolean(process.env.HUB_AUTH_TOKEN && process.env.HUB_AUTH_TOKEN.trim());
   let isRefreshingAuth = false;
   let lastAuthRefreshAt = 0;
 
@@ -236,7 +236,7 @@ async function daemonMode(hubToken: string, hooksToken: string, client: HubApiCl
 
     if (usesExplicitAuthToken) {
       console.error(
-        `[${new Date().toISOString()}] ${reason}: auth failed but SWISSCLAW_AUTH_TOKEN is explicitly set; ` +
+        `[${new Date().toISOString()}] ${reason}: auth failed but HUB_AUTH_TOKEN is explicitly set; ` +
         'cannot auto-refresh env token. Update token and restart bridge.'
       );
       return;

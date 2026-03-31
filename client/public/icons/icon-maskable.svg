@@ -11,5 +11,5 @@
   </defs>
   <rect width="512" height="512" rx="132" fill="url(#bg)" />
   <rect x="92" y="92" width="328" height="328" rx="88" fill="url(#panel)" opacity="0.18" />
-  <text x="256" y="306" text-anchor="middle" font-size="214">🦀</text>
+  <text x="256" y="306" text-anchor="middle" font-size="214">🚀</text>
 </svg>

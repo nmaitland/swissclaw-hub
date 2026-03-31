@@ -12,5 +12,5 @@
   <rect width="192" height="192" rx="42" fill="url(#bg)" />
   <rect x="16" y="16" width="160" height="160" rx="34" fill="none" stroke="rgba(255,255,255,0.08)" />
   <circle cx="96" cy="96" r="54" fill="url(#accent)" opacity="0.2" />
-  <text x="96" y="114" text-anchor="middle" font-size="88">🦀</text>
+  <text x="96" y="114" text-anchor="middle" font-size="88">🚀</text>
 </svg>

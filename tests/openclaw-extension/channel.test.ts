@@ -35,12 +35,12 @@ describe('hubPlugin config', () => {
       expect(account.url).toBe('https://hub.example.com');
     });
 
-    it('falls back to SWISSCLAW_HUB_URL env var', () => {
-      process.env.SWISSCLAW_HUB_URL = 'https://env.example.com';
+    it('falls back to HUB_URL env var', () => {
+      process.env.HUB_URL = 'https://env.example.com';
       const account = hubPlugin.config.resolveAccount(makeConfig(), 'default');
       expect(account.url).toBe('https://env.example.com');
       expect(account.configured).toBe(true);
-      delete process.env.SWISSCLAW_HUB_URL;
+      delete process.env.HUB_URL;
     });
 
     it('is enabled by default', () => {

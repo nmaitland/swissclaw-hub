@@ -4,7 +4,7 @@
       "command": "npx",
       "args": ["ts-node", "server/mcp-server.ts"],
       "env": {
-        "SWISSCLAW_HUB_URL": "http://localhost:3001"
+        "HUB_URL": "http://localhost:3001"
       }
     }
   }

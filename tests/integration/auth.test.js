@@ -48,7 +48,6 @@ describe('Auth API (real server)', () => {
         .get('/login')
         .expect(200);
 
-      expect(response.text).toContain('Swissclaw Hub');
       expect(response.text).toContain('loginForm');
     });
   });

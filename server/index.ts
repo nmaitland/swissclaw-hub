@@ -22,6 +22,27 @@ import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo, KanbanTas
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
 
+// App branding config — read once at startup from env vars
+interface AppConfig {
+  appName: string;
+  appShortName: string;
+  appDescription: string;
+  appIcon: string;
+  themeColor: string;
+  githubRepo: string;
+}
+
+function getAppConfig(): AppConfig {
+  return {
+    appName: process.env.APP_NAME || 'My Hub',
+    appShortName: process.env.APP_SHORT_NAME || 'Hub',
+    appDescription: process.env.APP_DESCRIPTION || 'Web hub for chat, kanban, and status',
+    appIcon: process.env.APP_ICON_EMOJI || '🚀',
+    themeColor: process.env.APP_THEME_COLOR || '#FF4500',
+    githubRepo: process.env.APP_GITHUB_REPO || '',
+  };
+}
+
 // Sparse ordering constants
 const POSITION_GAP = 1000000n; // 1 million as BigInt
 const REBALANCE_THRESHOLD = 100n; // Rebalance when gap < 100
@@ -158,13 +179,14 @@ const requireAuth = async (req: Request, res: Response, next: NextFunction): Pro
 
 // Serve login page (defined before body parser, uses raw HTML)
 app.get('/login', (_req: Request, res: Response) => {
+  const { appName, appIcon } = getAppConfig();
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-      <title>Swissclaw Hub - Login</title>
+      <title>${appName} - Login</title>
       <style>
         :root {
           color-scheme: dark;
@@ -379,7 +401,7 @@ app.get('/login', (_req: Request, res: Response) => {
       <div class="login-shell">
         <section class="login-card">
           <div class="login-head">
-            <div class="login-badge"><span>\u{1F980}</span><span>Swissclaw Hub</span></div>
+            <div class="login-badge"><span>${appIcon}</span><span>${appName}</span></div>
             <h1>Welcome back</h1>
             <p class="login-subtitle">Sign in to continue to your shared workspace.</p>
           </div>
@@ -397,7 +419,7 @@ app.get('/login', (_req: Request, res: Response) => {
 
             <button type="submit" id="submitBtn">Log In</button>
             <div id="error" class="error" role="status" aria-live="polite"></div>
-            <p class="login-helper">Use your existing Swissclaw Hub credentials. Session starts immediately after successful login.</p>
+            <p class="login-helper">Use your existing ${appName} credentials. Session starts immediately after successful login.</p>
 
             <div class="google-section" id="googleSection">
               <div class="divider">or</div>
@@ -408,7 +430,7 @@ app.get('/login', (_req: Request, res: Response) => {
             </div>
           </form>
         </section>
-        <p class="login-footer">Secure session auth \u2022 Swissclaw Hub</p>
+        <p class="login-footer">Secure session auth \u2022 ${appName}</p>
       </div>
       <script src="https://accounts.google.com/gsi/client" async defer></script>
       <script>
@@ -575,7 +597,7 @@ const apiLoginRateLimit =
 // API Documentation — Swagger UI (no auth required in dev/test, disabled in production)
 if (process.env.NODE_ENV !== 'production') {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-    customSiteTitle: 'Swissclaw Hub API Docs',
+    customSiteTitle: `${getAppConfig().appName} API Docs`,
   }));
   app.get('/api-docs.json', (_req: Request, res: Response) => {
     res.json(swaggerSpec);
@@ -1666,6 +1688,70 @@ app.delete('/api/service/messages/:id/reactions/:emoji', asyncHandler(async (req
 
   res.json(reactionRemove);
 }));
+
+// Dynamic branding routes — served before express.static so they override static files
+app.get('/manifest.webmanifest', (_req: Request, res: Response) => {
+  const cfg = getAppConfig();
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.json({
+    name: cfg.appName,
+    short_name: cfg.appShortName,
+    description: cfg.appDescription,
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    background_color: '#0a0a0a',
+    theme_color: cfg.themeColor,
+    icons: [
+      { src: '/icons/icon-192.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+      { src: '/icons/icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+    ],
+  });
+});
+
+app.get('/icons/icon-192.svg', (_req: Request, res: Response) => {
+  const { appIcon, themeColor } = getAppConfig();
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#20161a" />
+      <stop offset="100%" stop-color="#0d1220" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${themeColor}" />
+      <stop offset="100%" stop-color="${themeColor}99" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="42" fill="url(#bg)" />
+  <rect x="16" y="16" width="160" height="160" rx="34" fill="none" stroke="rgba(255,255,255,0.08)" />
+  <circle cx="96" cy="96" r="54" fill="url(#accent)" opacity="0.2" />
+  <text x="96" y="114" text-anchor="middle" font-size="88">${appIcon}</text>
+</svg>`);
+});
+
+app.get('/icons/icon-maskable.svg', (_req: Request, res: Response) => {
+  const { appIcon, themeColor } = getAppConfig();
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.send(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#24161d" />
+      <stop offset="100%" stop-color="#0d1324" />
+    </linearGradient>
+    <linearGradient id="panel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${themeColor}" />
+      <stop offset="100%" stop-color="${themeColor}99" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="132" fill="url(#bg)" />
+  <rect x="92" y="92" width="328" height="328" rx="88" fill="url(#panel)" opacity="0.18" />
+  <text x="256" y="306" text-anchor="middle" font-size="214">${appIcon}</text>
+</svg>`);
+});
 
 // Serve static files from React build in production (BEFORE auth middleware)
 // This allows the React app to load so it can handle client-side routing
@@ -2975,9 +3061,18 @@ if (process.env.NODE_ENV === 'production') {
   ) || 'client/dist';
 
   const indexPath = path.join(process.cwd(), clientBuildDir, 'index.html');
-  // Serve React app for any non-API routes
+  // Serve React app for any non-API routes — inject runtime branding config
   app.get('*', (_req: Request, res: Response) => {
-    res.sendFile(indexPath);
+    const cfg = getAppConfig();
+    const configScript = `<script>window.__APP_CONFIG__ = ${JSON.stringify(cfg)};</script>`;
+    let html = fs.readFileSync(indexPath, 'utf8');
+    // Inject config and replace favicon placeholder in the same pass
+    html = html
+      .replace('</head>', `${configScript}\n</head>`)
+      .replace('__APP_ICON__', cfg.appIcon);
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.send(html);
   });
 }
 
@@ -2991,7 +3086,7 @@ const PORT = process.env.PORT || 3001;
 // without opening a real network port.
 if (require.main === module) {
   httpServer.listen(PORT, () => {
-    logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Swissclaw Hub server running');
+    logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, `${getAppConfig().appName} server running`);
   });
 
   // Graceful shutdown

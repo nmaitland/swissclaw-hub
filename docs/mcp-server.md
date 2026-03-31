@@ -25,7 +25,7 @@ The project includes a `.mcp.json` file that configures the MCP server for Claud
       "command": "npx",
       "args": ["ts-node", "server/mcp-server.ts"],
       "env": {
-        "SWISSCLAW_HUB_URL": "http://localhost:3001",
+        "HUB_URL": "http://localhost:3001",
         "SWISSCLAW_AUTH_TOKEN": "your-session-token-here"
       }
     }
@@ -41,7 +41,7 @@ When you open this project in Claude Code, the MCP server is automatically avail
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SWISSCLAW_HUB_URL` | `http://localhost:3001` | Base URL of the running Hub server |
+| `HUB_URL` | `http://localhost:3001` | Base URL of the running Hub server |
 | `SWISSCLAW_AUTH_TOKEN` | _(empty)_ | **Required for chat/tools.** Bearer token for Socket.io and authenticated endpoints |
 
 The Hub server must be running for MCP tools to work. The MCP server calls the Hub's REST API over HTTP and maintains a Socket.io connection for real-time chat.
