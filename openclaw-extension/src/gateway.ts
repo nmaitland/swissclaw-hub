@@ -68,7 +68,7 @@ async function setHubMessageState(
   messageId: string,
   state: string,
 ): Promise<void> {
-  await fetch(`${hubUrl}/api/service/messages/${messageId}/state`, {
+  const res = await fetch(`${hubUrl}/api/service/messages/${messageId}/state`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -76,6 +76,9 @@ async function setHubMessageState(
     },
     body: JSON.stringify({ state }),
   });
+  if (!res.ok) {
+    throw new Error(`Failed to set message state: HTTP ${res.status}`);
+  }
 }
 
 export async function startHubGateway(
@@ -418,18 +421,20 @@ export async function startHubGateway(
                   log.error(
                     `[${ctx.accountId}] send failed: HTTP ${res.status}`,
                   );
+                  return; // Don't mark as delivered on HTTP error
                 }
+                // Only mark delivered on successful response
+                delivered = true;
+                statusSink({ lastOutboundAt: Date.now() });
+                core.channel.activity.record({
+                  channel: CHANNEL_ID,
+                  accountId: ctx.accountId,
+                  direction: "outbound",
+                });
               } catch (sendErr) {
                 log.error(`[${ctx.accountId}] send error: ${sendErr}`);
+                // Don't mark as delivered on exception
               }
-
-              delivered = true;
-              statusSink({ lastOutboundAt: Date.now() });
-              core.channel.activity.record({
-                channel: CHANNEL_ID,
-                accountId: ctx.accountId,
-                direction: "outbound",
-              });
             },
             onRecordError: (err) => {
               log.error(`[${ctx.accountId}] record error: ${err}`);
@@ -461,8 +466,12 @@ export async function startHubGateway(
 
         try {
           await setHubMessageState(hubUrl, token, msg.id, terminalState);
-        } catch {
-          // best-effort
+        } catch (stateErr) {
+          // Log error but don't fail - the message was processed, just state update failed
+          // Stale processing messages will be cleaned up on gateway restart via cleanupStaleProcessing
+          log.error(
+            `[${ctx.accountId}] failed to set terminal state '${terminalState}' for message ${msg.id}: ${stateErr}`,
+          );
         }
       });
 
