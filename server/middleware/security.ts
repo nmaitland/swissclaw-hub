@@ -12,7 +12,7 @@ const securityHeaders = helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      scriptSrc: ["'self'", "https://accounts.google.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "ws:", "wss:", "https://accounts.google.com"],
       frameSrc: ["https://accounts.google.com"],

@@ -3,8 +3,6 @@ import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import cors from 'cors';
 import { Pool, PoolClient } from 'pg';
-import rateLimit from 'express-rate-limit';
-import helmet from 'helmet';
 import { execSync } from 'child_process';
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcrypt';
@@ -15,7 +13,7 @@ import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
 import logger from './lib/logger';
 import { asyncHandler, errorHandler } from './lib/errors';
-import { authRateLimit, logSecurityEvent } from './middleware/security';
+import { securityHeaders, generalRateLimit, authRateLimit, logSecurityEvent, securityErrorHandler } from './middleware/security';
 import { SessionStore, RefreshTokenStore, requireRole } from './middleware/auth';
 import { pool, cleanupExpiredSessions, cleanupExpiredRefreshTokens, cleanupOldSecurityLogs } from './config/database';
 import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo, KanbanTaskRow } from './types';
@@ -546,12 +544,7 @@ app.get('/login', (_req: Request, res: Response) => {
   `);
 });
 
-// Security: Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests, please try again later'
-});
+// Rate limiter imported from middleware/security.ts as generalRateLimit
 
 const io = new Server(httpServer, {
   cors: {
@@ -562,27 +555,8 @@ const io = new Server(httpServer, {
 });
 
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "wss:", "ws:", "https://accounts.google.com"],
-      frameSrc: ["'self'", "https://accounts.google.com"],
-    }
-  },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  },
-  referrerPolicy: {
-    policy: 'strict-origin-when-cross-origin',
-  },
-}));
+// Security middleware (headers, rate limiting, error handling from middleware/security.ts)
+app.use(securityHeaders);
 
 app.use(cors({
   origin: process.env.CLIENT_URL || "http://localhost:3000",
@@ -590,7 +564,7 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '10mb' }));
-app.use(limiter);
+app.use(generalRateLimit);
 
 const apiLoginRateLimit =
   process.env.NODE_ENV === 'test'
@@ -3078,6 +3052,9 @@ if (process.env.NODE_ENV === 'production') {
     res.send(html);
   });
 }
+
+// Security error handler (ValidationError, UnauthorizedError) — before generic handler
+app.use(securityErrorHandler);
 
 // Centralized error handler - must be after all routes
 app.use(errorHandler);
