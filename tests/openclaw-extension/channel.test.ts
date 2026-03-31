@@ -128,12 +128,12 @@ describe('hubPlugin outbound delivery', () => {
     await hubPlugin.outbound!.sendText!({
       cfg: makeConfig({ url: 'https://hub.example.com' }),
       text: 'hello',
-      to: '123e4567-e89b-12d3-a456-426614174000:swissclaw.example.com',
+      to: '123e4567-e89b-12d3-a456-426614174000:hub.example.com',
     } as any);
 
     expect(mockedSendHubMessage).toHaveBeenCalledWith('hello', {
       cfg: makeConfig({ url: 'https://hub.example.com' }),
-      conversationId: '123e4567-e89b-12d3-a456-426614174000:swissclaw.example.com',
+      conversationId: '123e4567-e89b-12d3-a456-426614174000:hub.example.com',
     });
   });
 

@@ -81,12 +81,12 @@ describe('startHubGateway conversation routing', () => {
       sender: 'Neil',
       content: 'Hello',
       created_at: '2026-03-30T12:00:00.000Z',
-      conversation_id: '123e4567-e89b-12d3-a456-426614174000:swissclaw.example.com',
+      conversation_id: '123e4567-e89b-12d3-a456-426614174000:hub.example.com',
     });
 
     expect(finalizeInboundContext).toHaveBeenCalledWith(
       expect.objectContaining({
-        OriginatingTo: '123e4567-e89b-12d3-a456-426614174000:swissclaw.example.com',
+        OriginatingTo: '123e4567-e89b-12d3-a456-426614174000:hub.example.com',
       }),
     );
   });
@@ -101,13 +101,13 @@ describe('startHubGateway conversation routing', () => {
       emoji: '👍',
       reactor: 'Neil',
       messageId: 42,
-      conversationId: '123e4567-e89b-12d3-a456-426614174000:swissclaw.example.com',
+      conversationId: '123e4567-e89b-12d3-a456-426614174000:hub.example.com',
       createdAt: '2026-03-30T12:00:00.000Z',
     });
 
     expect(finalizeInboundContext).toHaveBeenCalledWith(
       expect.objectContaining({
-        OriginatingTo: '123e4567-e89b-12d3-a456-426614174000:swissclaw.example.com',
+        OriginatingTo: '123e4567-e89b-12d3-a456-426614174000:hub.example.com',
       }),
     );
   });
