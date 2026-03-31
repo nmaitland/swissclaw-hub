@@ -98,11 +98,42 @@ export async function startHubGateway(
 
   const hubUrl = account.url;
 
+  // Clean up stale "processing" messages from previous gateway sessions
+  // These occur when the gateway restarts/crashes while processing a message
+  const cleanupStaleProcessing = async (hubUrl: string, token: string): Promise<void> => {
+    try {
+      // Get all messages currently in "processing" state
+      const res = await fetch(`${hubUrl}/api/messages?state=processing&limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        log.warn(`[${ctx.accountId}] failed to fetch processing messages: HTTP ${res.status}`);
+        return;
+      }
+      const messages = await res.json() as Array<{ id: number }>;
+      if (messages.length === 0) return;
+
+      log.info(`[${ctx.accountId}] cleaning up ${messages.length} stale processing messages`);
+      for (const msg of messages) {
+        try {
+          await setHubMessageState(hubUrl, token, String(msg.id), "timeout");
+        } catch {
+          // best-effort - continue cleaning others
+        }
+      }
+    } catch (err) {
+      log.warn(`[${ctx.accountId}] cleanup error: ${err}`);
+    }
+  };
+
   await runPassiveAccountLifecycle({
     abortSignal,
     start: async () => {
       let token = await ensureHubAuth(hubUrl);
       let lastAuthRefresh = 0;
+
+      // Clean up any stale "processing" messages from previous sessions
+      await cleanupStaleProcessing(hubUrl, token);
 
       const socket = io(hubUrl, {
         auth: { token },

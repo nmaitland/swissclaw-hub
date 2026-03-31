@@ -1946,6 +1946,13 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit as string, 10) || 25, 1), 200);
   const before = req.query.before as string | undefined;
   const conversationId = req.query.conversationId as string | undefined;
+  const state = req.query.state as string | undefined;
+
+  const validStates = ['received', 'processing', 'done', 'failed', 'not-sent', 'timeout', 'cancelled'];
+  if (state !== undefined && !validStates.includes(state)) {
+    res.status(400).json({ error: `Invalid state. Must be one of: ${validStates.join(', ')}` });
+    return;
+  }
 
   const conditions: string[] = [];
   const params: (string | number)[] = [];
@@ -1954,6 +1961,11 @@ app.get('/api/messages', asyncHandler(async (req: Request, res: Response) => {
   if (conversationId) {
     conditions.push(`conversation_id = $${paramIdx++}`);
     params.push(conversationId);
+  }
+
+  if (state !== undefined) {
+    conditions.push(`processing_state = $${paramIdx++}`);
+    params.push(state);
   }
 
   if (before !== undefined) {
