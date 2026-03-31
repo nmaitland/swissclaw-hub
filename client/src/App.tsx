@@ -827,10 +827,7 @@ function App() {
       <div className="panel-content status-content">
         <div className="status-header">
           <span className="status-icon">
-            {status?.state === 'active' && '\u{1F980}'}
-            {status?.state === 'busy' && '\u{1F980}'}
-            {status?.state === 'idle' && '\u{1F980}'}
-            {!status?.state && '\u{1F980}'}
+            {appCfg.appIcon}
           </span>
           <span className="status-state">{status?.state || 'idle'}</span>
           <span className="status-updated-inline">
