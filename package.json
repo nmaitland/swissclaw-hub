@@ -92,6 +92,8 @@
 
     "bcrypt": "^6.0.0",
 
+    "@types/cookie-parser": "^1.4.10",
+
     "cookie-parser": "^1.4.7",
 
     "cors": "^2.8.5",
@@ -136,7 +138,7 @@
 
     "@testing-library/user-event": "^14.6.1",
 
-    "@types/cookie-parser": "^1.4.10",
+
 
     "concurrently": "^8.2.0",
 
