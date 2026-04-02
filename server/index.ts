@@ -17,7 +17,7 @@ import { asyncHandler, errorHandler } from './lib/errors';
 import { securityHeaders, generalRateLimit, authRateLimit, logSecurityEvent, securityErrorHandler } from './middleware/security';
 import { SessionStore, RefreshTokenStore, requireRole, csrfProtection } from './middleware/auth';
 import { pool, cleanupExpiredSessions, cleanupExpiredRefreshTokens, cleanupOldSecurityLogs } from './config/database';
-import { AUTH_COOKIE, setAuthCookies } from './lib/cookies';
+import { AUTH_COOKIE, CSRF_COOKIE, setAuthCookies } from './lib/cookies';
 import type { ChatMessageData, RateLimitEntry, BuildInfo, SessionInfo, KanbanTaskRow } from './types';
 import authRouter from './routes/auth';
 import adminRouter from './routes/admin';
@@ -460,6 +460,7 @@ app.get('/login', (_req: Request, res: Response) => {
           try {
             const res = await fetch('/api/login', {
               method: 'POST',
+              credentials: 'omit',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ username, password })
             });
@@ -512,6 +513,7 @@ app.get('/login', (_req: Request, res: Response) => {
             try {
               const res = await fetch('/auth/google', {
                 method: 'POST',
+                credentials: 'omit',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ idToken: response.credential })
               });
@@ -654,8 +656,10 @@ app.post('/api/login', apiLoginRateLimit, asyncHandler(async (req: Request, res:
         userAgent: req.get('User-Agent'),
         metadata: { provider: 'env_fallback' },
       });
-      // No refresh token for env fallback, but set auth cookie for browsers
+      // No refresh token for env fallback, but set auth + CSRF cookies for browsers
+      const csrfToken = randomBytes(32).toString('hex');
       res.cookie(AUTH_COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/', maxAge: 24 * 60 * 60 * 1000 });
+      res.cookie(CSRF_COOKIE, csrfToken, { httpOnly: false, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/', maxAge: 24 * 60 * 60 * 1000 });
       res.json({ token, success: true });
       return;
     }
