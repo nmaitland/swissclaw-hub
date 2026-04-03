@@ -126,6 +126,8 @@
 
     "swagger-ui-express": "^5.0.1",
 
+    "typescript": "^6.0.2",
+
     "uuid": "^9.0.0"
 
   },
@@ -155,8 +157,6 @@
     "ts-jest": "^29.4.9",
 
     "ts-node": "^10.9.2",
-
-    "typescript": "^6.0.2",
 
     "typescript-eslint": "^8.58.0"
 
