@@ -781,9 +781,12 @@ const hasServiceAccess = async (req: Request): Promise<boolean> => {
     ? authHeader.slice(7)
     : null;
 
-  if (bearerToken) {
-    const session = await sessionStore.validateSession(bearerToken);
-    if (session || sessions.has(bearerToken)) {
+  // Accept Bearer token (MCP/scripts) or httpOnly auth cookie (browser UI)
+  const token = bearerToken || req.cookies?.[AUTH_COOKIE];
+
+  if (token) {
+    const session = await sessionStore.validateSession(token);
+    if (session || sessions.has(token)) {
       return true;
     }
   }
