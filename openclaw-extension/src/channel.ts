@@ -1,12 +1,14 @@
-import type { ChannelPlugin } from "openclaw/plugin-sdk";
+import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import {
   buildBaseAccountStatusSnapshot,
   buildBaseChannelStatusSummary,
   collectStatusIssuesFromLastError,
-  jsonResult,
+} from "openclaw/plugin-sdk/status-helpers";
+import {
   readStringParam,
   readBooleanParam,
-} from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/param-readers";
+import { jsonResult } from "openclaw/plugin-sdk";
 
 function createDefaultChannelRuntimeState(accountId: string) {
   return { accountId, connected: false, running: false };

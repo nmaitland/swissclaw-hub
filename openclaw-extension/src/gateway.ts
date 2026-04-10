@@ -4,11 +4,8 @@ import type {
   ChannelLogSink,
   OpenClawConfig,
 } from "openclaw/plugin-sdk";
-import {
-  createAccountStatusSink,
-  dispatchInboundReplyWithBase,
-  runPassiveAccountLifecycle,
-} from "openclaw/plugin-sdk";
+import { createAccountStatusSink, runPassiveAccountLifecycle } from "openclaw/plugin-sdk/channel-lifecycle";
+import { dispatchInboundReplyWithBase } from "openclaw/plugin-sdk/inbound-reply-dispatch";
 import type { OutboundReplyPayload } from "openclaw/plugin-sdk";
 import { ensureHubAuth } from "./auth.js";
 import { getHubRuntime } from "./runtime.js";
