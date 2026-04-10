@@ -3,11 +3,14 @@ import {
   buildBaseAccountStatusSnapshot,
   buildBaseChannelStatusSummary,
   collectStatusIssuesFromLastError,
-  createDefaultChannelRuntimeState,
   jsonResult,
   readStringParam,
   readBooleanParam,
 } from "openclaw/plugin-sdk";
+
+function createDefaultChannelRuntimeState(accountId: string) {
+  return { accountId, connected: false, running: false };
+}
 import { startHubGateway } from "./gateway.js";
 import { sendHubMessage, sendHubReaction } from "./outbound.js";
 import type { CoreConfig, HubAccountConfig } from "./types.js";
