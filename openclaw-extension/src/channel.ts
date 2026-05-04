@@ -8,7 +8,7 @@ import {
   readStringParam,
   readBooleanParam,
 } from "openclaw/plugin-sdk/param-readers";
-import { createRestrictSendersChannelSecurity } from "openclaw/plugin-sdk/channel-security";
+import { createRestrictSendersChannelSecurity } from "openclaw/plugin-sdk/channel-policy";
 import { jsonResult } from "openclaw/plugin-sdk/reply-payload";
 
 function createDefaultChannelRuntimeState(accountId: string) {
