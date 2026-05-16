@@ -3,10 +3,17 @@
   "version": "0.1.0",
   "description": "OpenClaw channel plugin for Swissclaw Hub chat",
   "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
   "dependencies": {
     "socket.io-client": "^4.7.0"
   },
   "openclaw": {
-    "extensions": ["./index.ts"]
+    "extensions": ["./dist/index.js"]
   }
 }

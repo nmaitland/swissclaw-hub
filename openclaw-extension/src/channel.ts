@@ -4,12 +4,10 @@ import {
   buildBaseChannelStatusSummary,
   collectStatusIssuesFromLastError,
 } from "openclaw/plugin-sdk/status-helpers";
-import {
-  readStringParam,
-  readBooleanParam,
-} from "openclaw/plugin-sdk/param-readers";
+import { readStringParam } from "openclaw/plugin-sdk/param-readers";
+import { readBooleanParam } from "openclaw/plugin-sdk/boolean-param";
 import { createRestrictSendersChannelSecurity } from "openclaw/plugin-sdk/channel-policy";
-import { jsonResult } from "openclaw/plugin-sdk/reply-payload";
+import { jsonResult } from "openclaw/plugin-sdk/channel-actions";
 
 function createDefaultChannelRuntimeState(accountId: string) {
   return { accountId, connected: false, running: false };
@@ -95,7 +93,7 @@ export const hubPlugin: ChannelPlugin<ResolvedHubAccount> = {
       looksLikeId: (raw, normalized) => {
         return /^hub:/i.test(raw) || /^[A-Za-z]+$/.test(normalized);
       },
-      resolveTarget: ({ input, normalized }) => {
+      resolveTarget: async ({ input, normalized }) => {
         const to = normalized || input;
         return { to, kind: "user" as const, display: to };
       },
@@ -160,31 +158,12 @@ export const hubPlugin: ChannelPlugin<ResolvedHubAccount> = {
       });
       return { channel: CHANNEL_ID, ...result };
     },
-    sendReaction: async ({ cfg, messageId, emoji }) => {
-      const numericId = parseInt(messageId, 10);
-      if (isNaN(numericId)) {
-        return { channel: CHANNEL_ID, ok: false, error: "Invalid message ID" };
-      }
-      const result = await sendHubReaction(numericId, emoji, {
-        cfg: cfg as CoreConfig,
-      });
-      return { channel: CHANNEL_ID, ...result };
-    },
-    removeReaction: async ({ cfg, messageId, emoji }) => {
-      const numericId = parseInt(messageId, 10);
-      if (isNaN(numericId)) {
-        return { channel: CHANNEL_ID, ok: false, error: "Invalid message ID" };
-      }
-      const result = await sendHubReaction(numericId, emoji, {
-        cfg: cfg as CoreConfig,
-        remove: true,
-      });
-      return { channel: CHANNEL_ID, ...result };
-    },
   },
 
   actions: {
-    listActions: () => ["send", "react"],
+    describeMessageTool: () => ({
+      actions: ["react"],
+    }),
     supportsAction: ({ action }) => action === "react",
     handleAction: async ({ action, params, cfg, toolContext }) => {
       if (action === "react") {

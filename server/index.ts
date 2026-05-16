@@ -1567,8 +1567,13 @@ app.post('/api/service/messages/:id/reactions', asyncHandler(async (req: Request
     io.to('agent').emit('reaction', reactionUpdate);
 
     res.status(201).json(reactionUpdate);
-  } catch (err: any) {
-    if (err.code === '23505') { // Unique constraint violation
+  } catch (err: unknown) {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      err.code === '23505'
+    ) {
       res.status(409).json({ error: 'Reaction already exists' });
     } else {
       throw err;

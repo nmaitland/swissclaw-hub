@@ -1,7 +1,6 @@
 import { io, type Socket } from "socket.io-client";
-import type { ChannelGatewayContext } from "openclaw/plugin-sdk/channel-core";
-import type { ChannelLogSink } from "openclaw/plugin-sdk/logging-core";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-schema";
+import type { ChannelGatewayContext, OpenClawConfig } from "openclaw/plugin-sdk";
+import type { ChannelLogSink } from "openclaw/plugin-sdk/channel-contract";
 import { createAccountStatusSink, runPassiveAccountLifecycle } from "openclaw/plugin-sdk/channel-lifecycle";
 import { dispatchInboundReplyWithBase } from "openclaw/plugin-sdk/inbound-reply-dispatch";
 import type { OutboundReplyPayload } from "openclaw/plugin-sdk/reply-payload";
@@ -250,7 +249,7 @@ export async function startHubGateway(
           cfg: ctx.cfg,
           channel: CHANNEL_ID,
           accountId: ctx.accountId,
-          sessionKey,
+          peer: { kind: "direct", id: conversationId ?? `hub:${reactor}` },
         });
 
         const storePath = core.channel.session.resolveStorePath(
@@ -263,7 +262,7 @@ export async function startHubGateway(
           RawBody: body,
           From: `hub:${reactor}`,
           To: "hub:swissclaw",
-          SessionKey: sessionKey,
+          SessionKey: route.sessionKey,
           AccountId: ctx.accountId,
           ChatType: "direct",
           ConversationLabel: reactor,
@@ -408,7 +407,7 @@ export async function startHubGateway(
             cfg: ctx.cfg,
             channel: CHANNEL_ID,
             accountId: ctx.accountId,
-            sessionKey,
+            peer: { kind: "direct", id: msg.conversation_id ?? senderId },
           });
 
           const storePath = core.channel.session.resolveStorePath(
@@ -421,7 +420,7 @@ export async function startHubGateway(
             RawBody: msg.content,
             From: `hub:${msg.sender}`,
             To: "hub:swissclaw",
-            SessionKey: sessionKey,
+            SessionKey: route.sessionKey,
             AccountId: ctx.accountId,
             ChatType: "direct",
             ConversationLabel: msg.sender,

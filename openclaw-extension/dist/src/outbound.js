@@ -1,0 +1,99 @@
+import { ensureHubAuth, loadHubToken } from "./auth.js";
+function resolveHubUrl(cfg) {
+    const hubCfg = cfg.channels?.["swissclaw-hub"];
+    return hubCfg?.url || process.env.HUB_URL || "";
+}
+export async function sendHubMessage(text, opts) {
+    const hubUrl = resolveHubUrl(opts.cfg);
+    if (!hubUrl) {
+        throw new Error("Hub URL not configured");
+    }
+    const token = loadHubToken() || (await ensureHubAuth(hubUrl));
+    const res = await fetch(`${hubUrl}/api/service/messages`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            sender: "Swissclaw",
+            content: text,
+            ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
+        }),
+    });
+    if (res.status === 401 || res.status === 403) {
+        const freshToken = await ensureHubAuth(hubUrl, true);
+        const retry = await fetch(`${hubUrl}/api/service/messages`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${freshToken}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                sender: "Swissclaw",
+                content: text,
+                ...(opts.conversationId ? { conversationId: opts.conversationId } : {}),
+            }),
+        });
+        if (!retry.ok) {
+            throw new Error(`HTTP ${retry.status}`);
+        }
+        const retryBody = await retry.json().catch(() => ({}));
+        return {
+            messageId: String(retryBody.id ?? Date.now()),
+            conversationId: typeof retryBody.conversationId === "string"
+                ? retryBody.conversationId
+                : opts.conversationId ?? undefined,
+        };
+    }
+    if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+    }
+    const body = await res.json().catch(() => ({}));
+    return {
+        messageId: String(body.id ?? Date.now()),
+        conversationId: typeof body.conversationId === "string"
+            ? body.conversationId
+            : opts.conversationId ?? undefined,
+    };
+}
+export async function sendHubReaction(messageId, emoji, opts) {
+    const hubUrl = resolveHubUrl(opts.cfg);
+    if (!hubUrl) {
+        return { ok: false, error: "Hub URL not configured" };
+    }
+    const token = loadHubToken() || (await ensureHubAuth(hubUrl));
+    const method = opts.remove ? "DELETE" : "POST";
+    const res = await fetch(`${hubUrl}/api/service/messages/${messageId}/reactions`, {
+        method,
+        headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reactor: "Swissclaw", emoji }),
+    });
+    if (res.status === 401 || res.status === 403) {
+        const freshToken = await ensureHubAuth(hubUrl, true);
+        const retry = await fetch(`${hubUrl}/api/service/messages/${messageId}/reactions`, {
+            method,
+            headers: {
+                Authorization: `Bearer ${freshToken}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ reactor: "Swissclaw", emoji }),
+        });
+        if (!retry.ok) {
+            return { ok: false, error: `HTTP ${retry.status}` };
+        }
+        return { ok: true };
+    }
+    if (!res.ok) {
+        if (res.status === 409)
+            return { ok: true }; // already exists
+        if (res.status === 404 && opts.remove)
+            return { ok: true }; // already removed
+        const body = await res.text();
+        return { ok: false, error: `HTTP ${res.status}: ${body}` };
+    }
+    return { ok: true };
+}

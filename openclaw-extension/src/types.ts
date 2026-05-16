@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-schema";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 
 export type HubAccountConfig = {
   name?: string;
