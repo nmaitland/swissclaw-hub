@@ -9,10 +9,10 @@ function resolveHubUrl(cfg: CoreConfig): string {
 export async function sendHubMessage(
   text: string,
   opts: { cfg: CoreConfig; accountId?: string; conversationId?: string | null },
-): Promise<{ ok: boolean; messageId?: string; conversationId?: string; error?: string }> {
+): Promise<{ messageId: string; conversationId?: string }> {
   const hubUrl = resolveHubUrl(opts.cfg);
   if (!hubUrl) {
-    return { ok: false, error: "Hub URL not configured" };
+    throw new Error("Hub URL not configured");
   }
 
   const token = loadHubToken() || (await ensureHubAuth(hubUrl));
@@ -45,11 +45,10 @@ export async function sendHubMessage(
       }),
     });
     if (!retry.ok) {
-      return { ok: false, error: `HTTP ${retry.status}` };
+      throw new Error(`HTTP ${retry.status}`);
     }
     const retryBody = await retry.json().catch(() => ({} as Record<string, unknown>));
     return {
-      ok: true,
       messageId: String((retryBody as { id?: string | number }).id ?? Date.now()),
       conversationId:
         typeof (retryBody as { conversationId?: unknown }).conversationId === "string"
@@ -59,11 +58,10 @@ export async function sendHubMessage(
   }
 
   if (!res.ok) {
-    return { ok: false, error: `HTTP ${res.status}` };
+    throw new Error(`HTTP ${res.status}`);
   }
   const body = await res.json().catch(() => ({} as Record<string, unknown>));
   return {
-    ok: true,
     messageId: String((body as { id?: string | number }).id ?? Date.now()),
     conversationId:
       typeof (body as { conversationId?: unknown }).conversationId === "string"

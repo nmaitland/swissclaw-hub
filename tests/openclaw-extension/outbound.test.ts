@@ -18,15 +18,17 @@ const okResponse = (status: number): Response =>
 beforeEach(() => { jest.clearAllMocks(); });
 
 describe('sendHubMessage', () => {
-  it('returns ok: false when no hub url configured', async () => {
-    const result = await sendHubMessage('hello', { cfg: cfg('') });
-    expect(result).toEqual({ ok: false, error: 'Hub URL not configured' });
+  it('throws when no hub url configured', async () => {
+    await expect(sendHubMessage('hello', { cfg: cfg('') }))
+      .rejects.toThrow('Hub URL not configured');
   });
 
-  it('POSTs and returns ok: true on 200', async () => {
-    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(okResponse(200));
+  it('POSTs and returns messageId on 200', async () => {
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+      { ok: true, status: 200, json: async () => ({ id: '42' }) } as unknown as Response,
+    );
     const result = await sendHubMessage('hello', { cfg: cfg() });
-    expect(result.ok).toBe(true);
+    expect(result.messageId).toBe('42');
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/api/service/messages');
     expect(JSON.parse(init.body as string).content).toBe('hello');
@@ -35,22 +37,32 @@ describe('sendHubMessage', () => {
   it('retries with fresh token on 401', async () => {
     global.fetch = jest.fn<typeof fetch>()
       .mockResolvedValueOnce(okResponse(401))
-      .mockResolvedValueOnce(okResponse(200));
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ id: '99' }) } as unknown as Response);
 
     const result = await sendHubMessage('hello', { cfg: cfg() });
-    expect(result.ok).toBe(true);
+    expect(result.messageId).toBe('99');
     expect(ensureHubAuth).toHaveBeenCalledWith('https://hub.example.com', true);
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it('returns ok: false on non-auth failure', async () => {
+  it('throws on non-auth HTTP failure', async () => {
     global.fetch = jest.fn<typeof fetch>().mockResolvedValue(okResponse(500));
-    const result = await sendHubMessage('hello', { cfg: cfg() });
-    expect(result).toEqual({ ok: false, error: 'HTTP 500' });
+    await expect(sendHubMessage('hello', { cfg: cfg() }))
+      .rejects.toThrow('HTTP 500');
+  });
+
+  it('throws when retry also fails after 401', async () => {
+    global.fetch = jest.fn<typeof fetch>()
+      .mockResolvedValueOnce(okResponse(401))
+      .mockResolvedValueOnce(okResponse(500));
+    await expect(sendHubMessage('hello', { cfg: cfg() }))
+      .rejects.toThrow('HTTP 500');
   });
 
   it('includes conversationId when provided', async () => {
-    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(okResponse(200));
+    global.fetch = jest.fn<typeof fetch>().mockResolvedValue(
+      { ok: true, status: 200, json: async () => ({}) } as unknown as Response,
+    );
     await sendHubMessage('hello', { cfg: cfg(), conversationId: 'conv-1' });
     const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(init.body as string).conversationId).toBe('conv-1');

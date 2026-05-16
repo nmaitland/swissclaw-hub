@@ -123,7 +123,7 @@ describe('hubPlugin outbound.resolveTarget', () => {
 
 describe('hubPlugin outbound delivery', () => {
   it('forwards a Hub conversation id from to when sending text', async () => {
-    mockedSendHubMessage.mockResolvedValue({ ok: true });
+    mockedSendHubMessage.mockResolvedValue({ messageId: '1' });
 
     await hubPlugin.outbound!.sendText!({
       cfg: makeConfig({ url: 'https://hub.example.com' }),
@@ -138,7 +138,7 @@ describe('hubPlugin outbound delivery', () => {
   });
 
   it('does not treat a plain Hub user target as a conversation id', async () => {
-    mockedSendHubMessage.mockResolvedValue({ ok: true });
+    mockedSendHubMessage.mockResolvedValue({ messageId: '2' });
 
     await hubPlugin.outbound!.sendText!({
       cfg: makeConfig({ url: 'https://hub.example.com' }),
