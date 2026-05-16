@@ -6,7 +6,7 @@ function resolveHubUrl(cfg) {
 export async function sendHubMessage(text, opts) {
     const hubUrl = resolveHubUrl(opts.cfg);
     if (!hubUrl) {
-        throw new Error("Hub URL not configured");
+        return { ok: false, error: "Hub URL not configured" };
     }
     const token = loadHubToken() || (await ensureHubAuth(hubUrl));
     const res = await fetch(`${hubUrl}/api/service/messages`, {
@@ -36,10 +36,11 @@ export async function sendHubMessage(text, opts) {
             }),
         });
         if (!retry.ok) {
-            throw new Error(`HTTP ${retry.status}`);
+            return { ok: false, error: `HTTP ${retry.status}` };
         }
         const retryBody = await retry.json().catch(() => ({}));
         return {
+            ok: true,
             messageId: String(retryBody.id ?? Date.now()),
             conversationId: typeof retryBody.conversationId === "string"
                 ? retryBody.conversationId
@@ -47,10 +48,11 @@ export async function sendHubMessage(text, opts) {
         };
     }
     if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        return { ok: false, error: `HTTP ${res.status}` };
     }
     const body = await res.json().catch(() => ({}));
     return {
+        ok: true,
         messageId: String(body.id ?? Date.now()),
         conversationId: typeof body.conversationId === "string"
             ? body.conversationId
