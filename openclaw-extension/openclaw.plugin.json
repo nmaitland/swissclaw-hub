@@ -5,5 +5,66 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {}
+  },
+  "channelConfigs": {
+    "swissclaw-hub": {
+      "label": "Swissclaw Hub",
+      "description": "Swissclaw Hub chat channel",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "URL of the Swissclaw Hub instance"
+          },
+          "dmPolicy": {
+            "type": "string",
+            "enum": ["disabled", "pairing", "allowlist", "open"],
+            "description": "Direct-message policy for Hub chats"
+          },
+          "allowFrom": {
+            "type": "array",
+            "description": "Allowed Hub sender IDs or usernames",
+            "items": {
+              "type": "string"
+            }
+          },
+          "defaultAccount": {
+            "type": "string",
+            "description": "Default Hub account key when multiple accounts are configured"
+          },
+          "accounts": {
+            "type": "object",
+            "description": "Per-account Hub configuration overrides",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "dmPolicy": {
+                  "type": "string",
+                  "enum": ["disabled", "pairing", "allowlist", "open"]
+                },
+                "allowFrom": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

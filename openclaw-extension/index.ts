@@ -1,5 +1,5 @@
-import type { ChannelPlugin, OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
+import { type OpenClawPluginApi, emptyPluginConfigSchema } from "openclaw/plugin-sdk/plugin-entry";
 import { hubPlugin } from "./src/channel.js";
 import { setHubRuntime } from "./src/runtime.js";
 

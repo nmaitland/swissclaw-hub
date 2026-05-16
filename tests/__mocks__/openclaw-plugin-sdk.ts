@@ -69,6 +69,9 @@ export const readBooleanParam = jestApi.fn(
 export const createAccountStatusSink = jestApi.fn(() => jestApi.fn());
 export const dispatchInboundReplyWithBase = jestApi.fn();
 export const runPassiveAccountLifecycle = jestApi.fn();
+export const createRestrictSendersChannelSecurity = jestApi.fn(() => ({
+  resolveDmPolicy: () => ({ policy: "allowlist", allowFrom: [] }),
+}));
 export const createPluginRuntimeStore = jestApi.fn(() => ({
   setRuntime: jestApi.fn(),
   getRuntime: jestApi.fn(),

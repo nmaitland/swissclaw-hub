@@ -40,11 +40,10 @@ describe('Auth API (real server)', () => {
       expect(csrfCookie.toLowerCase()).not.toContain('httponly');
     });
 
-    it('returns 403 when a stale hub_auth cookie is present without a CSRF header', async () => {
-      // Simulate the broken state: hub_auth cookie exists in the browser (httpOnly,
-      // JS cannot clear it) but hub_csrf was already cleared by clearTokens().
-      // The login form uses credentials:'omit' precisely to avoid this scenario;
-      // this test documents that the CSRF middleware correctly rejects such requests.
+    it('succeeds even when a stale hub_auth cookie is present without a CSRF header', async () => {
+      // /api/login is CSRF-exempt: it is a pre-authentication endpoint, so there
+      // is no authenticated session to protect. A stale hub_auth cookie (httpOnly,
+      // JS cannot clear it) must not block a new login attempt.
       const response = await request(app)
         .post('/api/login')
         .set('Cookie', 'hub_auth=stale-token-value')
@@ -53,8 +52,8 @@ describe('Auth API (real server)', () => {
           password: process.env.AUTH_PASSWORD || 'test-only-default',
         });
 
-      expect(response.status).toBe(403);
-      expect(response.body.error).toMatch(/csrf/i);
+      expect(response.status).toBe(200);
+      expect(response.body.token).toBeDefined();
     });
 
     it('returns 401 with invalid credentials', async () => {

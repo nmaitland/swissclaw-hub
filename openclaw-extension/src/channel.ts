@@ -1,13 +1,17 @@
-import type { ChannelPlugin } from "openclaw/plugin-sdk";
+import type { ChannelPlugin } from "openclaw/plugin-sdk/channel-core";
 import {
   buildBaseAccountStatusSnapshot,
   buildBaseChannelStatusSummary,
   collectStatusIssuesFromLastError,
-  createDefaultChannelRuntimeState,
-  jsonResult,
-  readStringParam,
-  readBooleanParam,
-} from "openclaw/plugin-sdk";
+} from "openclaw/plugin-sdk/status-helpers";
+import { readStringParam } from "openclaw/plugin-sdk/param-readers";
+import { readBooleanParam } from "openclaw/plugin-sdk/boolean-param";
+import { createRestrictSendersChannelSecurity } from "openclaw/plugin-sdk/channel-policy";
+import { jsonResult } from "openclaw/plugin-sdk/channel-actions";
+
+function createDefaultChannelRuntimeState(accountId: string) {
+  return { accountId, connected: false, running: false };
+}
 import { startHubGateway } from "./gateway.js";
 import { sendHubMessage, sendHubReaction } from "./outbound.js";
 import type { CoreConfig, HubAccountConfig } from "./types.js";
@@ -55,6 +59,20 @@ function resolveHubAccount(params: {
   };
 }
 
+const hubSecurityAdapter = createRestrictSendersChannelSecurity<ResolvedHubAccount>({
+  channelKey: CHANNEL_ID,
+  resolveDmPolicy: (account) => account.config.dmPolicy,
+  resolveDmAllowFrom: (account) => account.allowFrom,
+  resolveGroupPolicy: () => null,
+  surface: "Swissclaw Hub chats",
+  openScope: "paired users",
+  groupPolicyPath: "channels.swissclaw-hub.groupPolicy",
+  groupAllowFromPath: "channels.swissclaw-hub.groupAllowFrom",
+  defaultDmPolicy: "pairing",
+  allowFromPathSuffix: "allowFrom",
+  policyPathSuffix: "dmPolicy",
+});
+
 export const hubPlugin: ChannelPlugin<ResolvedHubAccount> = {
   id: CHANNEL_ID,
   meta: {
@@ -75,7 +93,7 @@ export const hubPlugin: ChannelPlugin<ResolvedHubAccount> = {
       looksLikeId: (raw, normalized) => {
         return /^hub:/i.test(raw) || /^[A-Za-z]+$/.test(normalized);
       },
-      resolveTarget: ({ input, normalized }) => {
+      resolveTarget: async ({ input, normalized }) => {
         const to = normalized || input;
         return { to, kind: "user" as const, display: to };
       },
@@ -116,12 +134,7 @@ export const hubPlugin: ChannelPlugin<ResolvedHubAccount> = {
     },
   },
 
-  security: {
-    resolveDmPolicy: () => ({
-      policy: "allowlist",
-      allowFrom: [],
-    }),
-  },
+  security: hubSecurityAdapter,
 
   outbound: {
     deliveryMode: "direct",
@@ -145,31 +158,12 @@ export const hubPlugin: ChannelPlugin<ResolvedHubAccount> = {
       });
       return { channel: CHANNEL_ID, ...result };
     },
-    sendReaction: async ({ cfg, messageId, emoji }) => {
-      const numericId = parseInt(messageId, 10);
-      if (isNaN(numericId)) {
-        return { channel: CHANNEL_ID, ok: false, error: "Invalid message ID" };
-      }
-      const result = await sendHubReaction(numericId, emoji, {
-        cfg: cfg as CoreConfig,
-      });
-      return { channel: CHANNEL_ID, ...result };
-    },
-    removeReaction: async ({ cfg, messageId, emoji }) => {
-      const numericId = parseInt(messageId, 10);
-      if (isNaN(numericId)) {
-        return { channel: CHANNEL_ID, ok: false, error: "Invalid message ID" };
-      }
-      const result = await sendHubReaction(numericId, emoji, {
-        cfg: cfg as CoreConfig,
-        remove: true,
-      });
-      return { channel: CHANNEL_ID, ...result };
-    },
   },
 
   actions: {
-    listActions: () => ["send", "react"],
+    describeMessageTool: () => ({
+      actions: ["react"],
+    }),
     supportsAction: ({ action }) => action === "react",
     handleAction: async ({ action, params, cfg, toolContext }) => {
       if (action === "react") {

@@ -102,8 +102,8 @@ describe('hubPlugin messaging.targetResolver', () => {
   });
 
   describe('resolveTarget', () => {
-    it('returns the normalized value as target', () => {
-      const result = resolver.resolveTarget({ input: 'Neil', normalized: 'neil' } as any);
+    it('returns the normalized value as target', async () => {
+      const result = await resolver.resolveTarget({ input: 'Neil', normalized: 'neil' } as any);
       expect(result.to).toBe('neil');
     });
   });

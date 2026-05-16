@@ -2,6 +2,29 @@ const request = require('supertest');
 const { app, pool, resetTestDb } = require('../../server/index');
 const { getAuthToken } = require('../helpers/auth');
 
+/**
+ * Log in and return { cookies, csrfToken } for cookie-based auth tests.
+ * This simulates what the browser does: the server sets httpOnly auth cookie
+ * + readable CSRF cookie; the browser sends both on subsequent requests and
+ * echoes the CSRF value in the X-CSRF-Token header.
+ */
+async function getCookieAuth() {
+  const res = await request(app)
+    .post('/api/login')
+    .send({
+      username: process.env.AUTH_USERNAME || 'admin',
+      password: process.env.AUTH_PASSWORD || 'test-only-default',
+    })
+    .expect(200);
+
+  const setCookies = res.headers['set-cookie'] || [];
+  const csrfCookiePart = setCookies.find((c) => c.startsWith('hub_csrf='));
+  const csrfToken = csrfCookiePart ? csrfCookiePart.split(';')[0].split('=')[1] : null;
+  // Join all Set-Cookie values into a single Cookie header
+  const cookies = setCookies.map((c) => c.split(';')[0]).join('; ');
+  return { cookies, csrfToken };
+}
+
 describe('Message Reactions API', () => {
   let authToken;
 
@@ -359,6 +382,43 @@ describe('Message Reactions API', () => {
         .expect(200);
 
       expect(response.body).toHaveProperty('conversationId', convId);
+    });
+  });
+
+  describe('Cookie-based auth (browser UI)', () => {
+    it('POST /api/service/messages/:id/reactions accepts cookie auth', async () => {
+      const { cookies, csrfToken } = await getCookieAuth();
+      const messageId = await createMessage();
+
+      const response = await request(app)
+        .post(`/api/service/messages/${messageId}/reactions`)
+        .set('Cookie', cookies)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ reactor: 'Neil', emoji: '👍' })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('messageId', messageId);
+      expect(response.body).toHaveProperty('emoji', '👍');
+    });
+
+    it('DELETE /api/service/messages/:id/reactions/:emoji accepts cookie auth', async () => {
+      const { cookies, csrfToken } = await getCookieAuth();
+      const messageId = await createMessage();
+
+      await request(app)
+        .post(`/api/service/messages/${messageId}/reactions`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ reactor: 'Neil', emoji: '👍' });
+
+      const response = await request(app)
+        .delete(`/api/service/messages/${messageId}/reactions/%F0%9F%91%8D`)
+        .set('Cookie', cookies)
+        .set('X-CSRF-Token', csrfToken)
+        .send({ reactor: 'Neil' })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('messageId', messageId);
+      expect(response.body).toHaveProperty('emoji', '👍');
     });
   });
 });

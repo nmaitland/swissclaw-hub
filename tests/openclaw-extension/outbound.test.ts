@@ -13,7 +13,7 @@ const cfg = (url = 'https://hub.example.com'): CoreConfig =>
   ({ channels: { 'swissclaw-hub': { url } } } as unknown as CoreConfig);
 
 const okResponse = (status: number): Response =>
-  ({ ok: status >= 200 && status < 300, status, text: async () => '' } as Response);
+  ({ ok: status >= 200 && status < 300, status, text: async () => '', json: async () => ({}) } as unknown as Response);
 
 beforeEach(() => { jest.clearAllMocks(); });
 

@@ -1,15 +1,9 @@
 import { io, type Socket } from "socket.io-client";
-import type {
-  ChannelGatewayContext,
-  ChannelLogSink,
-  OpenClawConfig,
-} from "openclaw/plugin-sdk";
-import {
-  createAccountStatusSink,
-  dispatchInboundReplyWithBase,
-  runPassiveAccountLifecycle,
-} from "openclaw/plugin-sdk";
-import type { OutboundReplyPayload } from "openclaw/plugin-sdk";
+import type { ChannelGatewayContext, OpenClawConfig } from "openclaw/plugin-sdk";
+import type { ChannelLogSink } from "openclaw/plugin-sdk/channel-contract";
+import { createAccountStatusSink, runPassiveAccountLifecycle } from "openclaw/plugin-sdk/channel-lifecycle";
+import { dispatchInboundReplyWithBase } from "openclaw/plugin-sdk/inbound-reply-dispatch";
+import type { OutboundReplyPayload } from "openclaw/plugin-sdk/reply-payload";
 import { ensureHubAuth } from "./auth.js";
 import { getHubRuntime } from "./runtime.js";
 import type { HubMessage, HubReactionUpdate, HubReactionRemove } from "./types.js";
@@ -193,6 +187,26 @@ export async function startHubGateway(
       // Cancellation tracking for in-flight messages
       const cancelledMessageIds = new Set<string>();
 
+      // Per-session work queue: messages on the same conversation must be
+      // dispatched serially so the second one waits for the first to finish.
+      // Without this, two quickly-arriving messages run dispatch in parallel
+      // and the agent's session lock causes the second to no-op with no reply.
+      const sessionQueues = new Map<string, Promise<void>>();
+      const enqueueSessionWork = (
+        sessionKey: string,
+        work: () => Promise<void>,
+      ): Promise<void> => {
+        const previous = sessionQueues.get(sessionKey) ?? Promise.resolve();
+        const chained = previous.catch(() => {}).then(work);
+        sessionQueues.set(sessionKey, chained);
+        chained.finally(() => {
+          if (sessionQueues.get(sessionKey) === chained) {
+            sessionQueues.delete(sessionKey);
+          }
+        });
+        return chained;
+      };
+
       socket.on("message-state", (update: { messageId: string; state: string }) => {
         if (update.state === "cancelled") {
           cancelledMessageIds.add(String(update.messageId));
@@ -235,7 +249,7 @@ export async function startHubGateway(
           cfg: ctx.cfg,
           channel: CHANNEL_ID,
           accountId: ctx.accountId,
-          sessionKey,
+          peer: { kind: "direct", id: conversationId ?? `hub:${reactor}` },
         });
 
         const storePath = core.channel.session.resolveStorePath(
@@ -248,7 +262,7 @@ export async function startHubGateway(
           RawBody: body,
           From: `hub:${reactor}`,
           To: "hub:swissclaw",
-          SessionKey: sessionKey,
+          SessionKey: route.sessionKey,
           AccountId: ctx.accountId,
           ChatType: "direct",
           ConversationLabel: reactor,
@@ -346,135 +360,164 @@ export async function startHubGateway(
           at: Date.now(),
         });
 
-        // Update processing state on Hub
-        try {
-          await setHubMessageState(hubUrl, token, msg.id, "processing");
-        } catch (stateErr) {
-          log.warn(
-            `[${ctx.accountId}] failed to set processing state: ${stateErr}`,
-          );
-        }
-
-        const senderId = `hub:${msg.sender}`;
         const sessionKey = buildHubSessionKey({
           accountId: ctx.accountId,
           msg,
         });
 
-        const route = core.channel.routing.resolveAgentRoute({
-          cfg: ctx.cfg,
-          channel: CHANNEL_ID,
-          accountId: ctx.accountId,
-          sessionKey,
-        });
-
-        const storePath = core.channel.session.resolveStorePath(
-          (ctx.cfg as any).session?.store,
-          { agentId: route.agentId },
-        );
-
-        const ctxPayload = core.channel.reply.finalizeInboundContext({
-          Body: msg.content,
-          RawBody: msg.content,
-          From: `hub:${msg.sender}`,
-          To: "hub:swissclaw",
-          SessionKey: sessionKey,
-          AccountId: ctx.accountId,
-          ChatType: "direct",
-          ConversationLabel: msg.sender,
-          SenderName: msg.sender,
-          SenderId: senderId,
-          Provider: CHANNEL_ID,
-          Surface: CHANNEL_ID,
-          MessageSid: String(msg.id),
-          Timestamp: new Date(msg.created_at).getTime(),
-          OriginatingChannel: CHANNEL_ID,
-          OriginatingTo: msg.conversation_id ?? `hub:${msg.sender}`,
-        });
-
-        let dispatchFailed = false;
-        let delivered = false;
+        // Claim the message immediately. While the per-session queue holds it,
+        // the UI shows it as "received" (queued). It only flips to "processing"
+        // when its turn comes up in the session queue.
         try {
-          await dispatchInboundReplyWithBase({
-            cfg: ctx.cfg as OpenClawConfig,
-            channel: CHANNEL_ID,
-            accountId: ctx.accountId,
-            route,
-            storePath,
-            ctxPayload,
-            core,
-            deliver: async (payload: OutboundReplyPayload) => {
-              const text = payload.text ?? "";
-              if (!text) return;
-
-              // Skip delivery if message was cancelled
-              if (cancelledMessageIds.has(String(msg.id))) {
-                log.info(
-                  `[${ctx.accountId}] skipping delivery for cancelled message ${msg.id}`,
-                );
-                return;
-              }
-
-              try {
-                const res = await sendToHub(hubUrl, token, text, msg.conversation_id);
-                if (!res.ok) {
-                  log.error(
-                    `[${ctx.accountId}] send failed: HTTP ${res.status}`,
-                  );
-                  return; // Don't mark as delivered on HTTP error
-                }
-                // Only mark delivered on successful response
-                delivered = true;
-                statusSink({ lastOutboundAt: Date.now() });
-                core.channel.activity.record({
-                  channel: CHANNEL_ID,
-                  accountId: ctx.accountId,
-                  direction: "outbound",
-                });
-              } catch (sendErr) {
-                log.error(`[${ctx.accountId}] send error: ${sendErr}`);
-                // Don't mark as delivered on exception
-              }
-            },
-            onRecordError: (err) => {
-              log.error(`[${ctx.accountId}] record error: ${err}`);
-            },
-            onDispatchError: (err) => {
-              log.error(`[${ctx.accountId}] dispatch error: ${err}`);
-            },
-          });
-        } catch (dispatchErr) {
-          dispatchFailed = true;
-          log.error(`[${ctx.accountId}] dispatch failed: ${dispatchErr}`);
-        }
-
-        // Mark terminal state after dispatch
-        // IMPORTANT: Check delivered FIRST - if response was sent, state is "done"
-        // regardless of what happened after (timeout, error, etc.)
-        const isCancelled = cancelledMessageIds.has(String(msg.id));
-        let terminalState: string;
-        if (delivered) {
-          terminalState = "done";
-        } else if (dispatchFailed) {
-          terminalState = "failed";
-        } else if (isCancelled) {
-          terminalState = "cancelled";
-        } else {
-          terminalState = "timeout";
-        }
-
-        // Clean up cancellation tracking
-        cancelledMessageIds.delete(String(msg.id));
-
-        try {
-          await setHubMessageState(hubUrl, token, msg.id, terminalState);
+          await setHubMessageState(hubUrl, token, msg.id, "received");
         } catch (stateErr) {
-          // Log error but don't fail - the message was processed, just state update failed
-          // Stale processing messages will be cleaned up on gateway restart via cleanupStaleProcessing
-          log.error(
-            `[${ctx.accountId}] failed to set terminal state '${terminalState}' for message ${msg.id}: ${stateErr}`,
+          log.warn(
+            `[${ctx.accountId}] failed to set received state: ${stateErr}`,
           );
         }
+
+        await enqueueSessionWork(sessionKey, async () => {
+          // Honour cancellation that happened while queued — skip dispatch entirely.
+          if (cancelledMessageIds.has(String(msg.id))) {
+            log.info(
+              `[${ctx.accountId}] skipping cancelled message ${msg.id} (was queued)`,
+            );
+            cancelledMessageIds.delete(String(msg.id));
+            try {
+              await setHubMessageState(hubUrl, token, msg.id, "cancelled");
+            } catch (stateErr) {
+              log.error(
+                `[${ctx.accountId}] failed to mark queued-cancelled state: ${stateErr}`,
+              );
+            }
+            return;
+          }
+
+          try {
+            await setHubMessageState(hubUrl, token, msg.id, "processing");
+          } catch (stateErr) {
+            log.warn(
+              `[${ctx.accountId}] failed to set processing state: ${stateErr}`,
+            );
+          }
+
+          const senderId = `hub:${msg.sender}`;
+
+          const route = core.channel.routing.resolveAgentRoute({
+            cfg: ctx.cfg,
+            channel: CHANNEL_ID,
+            accountId: ctx.accountId,
+            peer: { kind: "direct", id: msg.conversation_id ?? senderId },
+          });
+
+          const storePath = core.channel.session.resolveStorePath(
+            (ctx.cfg as any).session?.store,
+            { agentId: route.agentId },
+          );
+
+          const ctxPayload = core.channel.reply.finalizeInboundContext({
+            Body: msg.content,
+            RawBody: msg.content,
+            From: `hub:${msg.sender}`,
+            To: "hub:swissclaw",
+            SessionKey: route.sessionKey,
+            AccountId: ctx.accountId,
+            ChatType: "direct",
+            ConversationLabel: msg.sender,
+            SenderName: msg.sender,
+            SenderId: senderId,
+            Provider: CHANNEL_ID,
+            Surface: CHANNEL_ID,
+            MessageSid: String(msg.id),
+            Timestamp: new Date(msg.created_at).getTime(),
+            OriginatingChannel: CHANNEL_ID,
+            OriginatingTo: msg.conversation_id ?? `hub:${msg.sender}`,
+          });
+
+          let dispatchFailed = false;
+          let delivered = false;
+          try {
+            await dispatchInboundReplyWithBase({
+              cfg: ctx.cfg as OpenClawConfig,
+              channel: CHANNEL_ID,
+              accountId: ctx.accountId,
+              route,
+              storePath,
+              ctxPayload,
+              core,
+              deliver: async (payload: OutboundReplyPayload) => {
+                const text = payload.text ?? "";
+                if (!text) return;
+
+                // Skip delivery if message was cancelled
+                if (cancelledMessageIds.has(String(msg.id))) {
+                  log.info(
+                    `[${ctx.accountId}] skipping delivery for cancelled message ${msg.id}`,
+                  );
+                  return;
+                }
+
+                try {
+                  const res = await sendToHub(hubUrl, token, text, msg.conversation_id);
+                  if (!res.ok) {
+                    log.error(
+                      `[${ctx.accountId}] send failed: HTTP ${res.status}`,
+                    );
+                    return; // Don't mark as delivered on HTTP error
+                  }
+                  // Only mark delivered on successful response
+                  delivered = true;
+                  statusSink({ lastOutboundAt: Date.now() });
+                  core.channel.activity.record({
+                    channel: CHANNEL_ID,
+                    accountId: ctx.accountId,
+                    direction: "outbound",
+                  });
+                } catch (sendErr) {
+                  log.error(`[${ctx.accountId}] send error: ${sendErr}`);
+                  // Don't mark as delivered on exception
+                }
+              },
+              onRecordError: (err) => {
+                log.error(`[${ctx.accountId}] record error: ${err}`);
+              },
+              onDispatchError: (err) => {
+                log.error(`[${ctx.accountId}] dispatch error: ${err}`);
+              },
+            });
+          } catch (dispatchErr) {
+            dispatchFailed = true;
+            log.error(`[${ctx.accountId}] dispatch failed: ${dispatchErr}`);
+          }
+
+          // Mark terminal state after dispatch
+          // IMPORTANT: Check delivered FIRST - if response was sent, state is "done"
+          // regardless of what happened after (timeout, error, etc.)
+          const isCancelled = cancelledMessageIds.has(String(msg.id));
+          let terminalState: string;
+          if (delivered) {
+            terminalState = "done";
+          } else if (dispatchFailed) {
+            terminalState = "failed";
+          } else if (isCancelled) {
+            terminalState = "cancelled";
+          } else {
+            terminalState = "timeout";
+          }
+
+          // Clean up cancellation tracking
+          cancelledMessageIds.delete(String(msg.id));
+
+          try {
+            await setHubMessageState(hubUrl, token, msg.id, terminalState);
+          } catch (stateErr) {
+            // Log error but don't fail - the message was processed, just state update failed
+            // Stale processing messages will be cleaned up on gateway restart via cleanupStaleProcessing
+            log.error(
+              `[${ctx.accountId}] failed to set terminal state '${terminalState}' for message ${msg.id}: ${stateErr}`,
+            );
+          }
+        });
       });
 
       return socket;

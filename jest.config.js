@@ -14,7 +14,7 @@ module.exports = {
   },
   moduleFileExtensions: ['js', 'jsx', 'ts', 'tsx'],
   moduleNameMapper: {
-    '^openclaw/plugin-sdk$': '<rootDir>/tests/__mocks__/openclaw-plugin-sdk.ts',
+    '^openclaw/plugin-sdk(/.+)?$': '<rootDir>/tests/__mocks__/openclaw-plugin-sdk.ts',
     // Strip .js extensions so CommonJS Jest can resolve ESM-style imports
     '^(\\.{1,2}/.+)\\.js$': '$1',
   },

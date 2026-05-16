@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { startHubGateway } from '../../openclaw-extension/src/gateway';
-import { dispatchInboundReplyWithBase, runPassiveAccountLifecycle } from 'openclaw/plugin-sdk';
+import { runPassiveAccountLifecycle } from 'openclaw/plugin-sdk/channel-lifecycle';
+import { dispatchInboundReplyWithBase } from 'openclaw/plugin-sdk/inbound-reply-dispatch';
 
 const socketHandlers = new Map<string, (...args: any[]) => any>();
 const socket = {

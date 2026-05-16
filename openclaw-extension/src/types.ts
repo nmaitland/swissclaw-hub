@@ -1,9 +1,10 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk";
+import type { OpenClawConfig } from "openclaw/plugin-sdk/channel-core";
 
 export type HubAccountConfig = {
   name?: string;
   enabled?: boolean;
   url?: string;
+  dmPolicy?: string;
   allowFrom?: string[];
 };
 

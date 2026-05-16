@@ -783,9 +783,12 @@ const hasServiceAccess = async (req: Request): Promise<boolean> => {
     ? authHeader.slice(7)
     : null;
 
-  if (bearerToken) {
-    const session = await sessionStore.validateSession(bearerToken);
-    if (session || sessions.has(bearerToken)) {
+  // Accept Bearer token (MCP/scripts) or httpOnly auth cookie (browser UI)
+  const token = bearerToken || req.cookies?.[AUTH_COOKIE];
+
+  if (token) {
+    const session = await sessionStore.validateSession(token);
+    if (session || sessions.has(token)) {
       return true;
     }
   }
@@ -1566,8 +1569,13 @@ app.post('/api/service/messages/:id/reactions', asyncHandler(async (req: Request
     io.to('agent').emit('reaction', reactionUpdate);
 
     res.status(201).json(reactionUpdate);
-  } catch (err: any) {
-    if (err.code === '23505') { // Unique constraint violation
+  } catch (err: unknown) {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      err.code === '23505'
+    ) {
       res.status(409).json({ error: 'Reaction already exists' });
     } else {
       throw err;

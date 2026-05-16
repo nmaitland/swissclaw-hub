@@ -168,9 +168,20 @@ const validateInput = {
 // not Bearer tokens (MCP/scripts don't use cookies, so CSRF doesn't apply).
 import { CSRF_COOKIE, AUTH_COOKIE } from '../lib/cookies';
 
+// Auth endpoints are pre-authentication — CSRF does not apply.
+const CSRF_EXEMPT_PATHS = new Set(['/api/login', '/auth/login', '/auth/google', '/auth/refresh']);
+
 const csrfProtection = (req: Request, res: Response, next: NextFunction): void => {
   // Safe methods don't need CSRF protection
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    next();
+    return;
+  }
+
+  // Auth endpoints are exempt: you're not yet logged in, so there's no
+  // authenticated session to protect. Also prevents a stale hub_auth cookie
+  // (httpOnly, JS can't clear it) from triggering CSRF enforcement on login.
+  if (CSRF_EXEMPT_PATHS.has(req.path)) {
     next();
     return;
   }
@@ -195,53 +206,6 @@ const csrfProtection = (req: Request, res: Response, next: NextFunction): void =
   }
 
   next();
-};
-
-// Rate limiting per user
-const createUserRateLimit = (pool: Pool) => {
-  const requests = new Map<string, { count: number; resetTime: number }>();
-
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      next(); // Skip rate limiting for unauthenticated requests
-      return;
-    }
-
-    const session = await new SessionStore(pool).validateSession(token);
-    if (!session) {
-      res.status(401).json({ error: 'Invalid session' });
-      return;
-    }
-
-    const userId = session.userId;
-    const now = Date.now();
-    const windowMs = 60 * 1000; // 1 minute
-    const maxRequests = 100; // 100 requests per minute per user
-
-    if (!requests.has(userId)) {
-      requests.set(userId, { count: 0, resetTime: now + windowMs });
-    }
-
-    const userRequests = requests.get(userId)!;
-
-    if (now > userRequests.resetTime) {
-      userRequests.count = 0;
-      userRequests.resetTime = now + windowMs;
-    }
-
-    userRequests.count++;
-
-    if (userRequests.count > maxRequests) {
-      res.status(429).json({
-        error: 'Too many requests',
-        retryAfter: Math.ceil((userRequests.resetTime - now) / 1000)
-      });
-      return;
-    }
-
-    next();
-  };
 };
 
 // Role-based authorization middleware factory
@@ -331,7 +295,6 @@ export {
   RefreshTokenStore,
   validateInput,
   csrfProtection,
-  createUserRateLimit,
   generateToken,
   requireRole,
 };

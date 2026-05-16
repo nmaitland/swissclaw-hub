@@ -21,6 +21,22 @@
 - Web URL: set via `HUB_URL` env var
 - Postgres name: set via hosting provider dashboard
 
+## Bug Fix Workflow
+
+When fixing a bug, follow this sequence:
+
+1. **Create a branch from latest master** — fetch first, then branch from `origin/master`:
+   ```
+   git fetch origin
+   git checkout -b fix/<short-description> origin/master
+   ```
+2. **Write a failing test first** — add an integration test that reproduces the bug and confirm it fails before touching the code
+4. **Implement the fix** — change only what is needed to make the test pass
+5. **Run all tests** — verify no regressions
+3. **Run integration tests with the Docker test DB** — start the container (`docker start hub-test-db` or `docker compose -f docker-compose.test.yml up -d`), then run `npx jest <test-file>`
+6. **Commit, push and open a PR** — `git push -u origin <branch>`, then `gh pr create ...`
+7. **Monitor CI** — watch the GitHub Actions run on the PR; if it fails, investigate and push a fix commit on the same branch before merging
+
 ## Common Commands
 
 ```powershell

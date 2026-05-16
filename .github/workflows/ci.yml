@@ -140,7 +140,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -151,14 +151,14 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+    - name: Install production dependencies only (mirrors Render deploy)
+      run: npm ci --omit=dev
 
     - name: Build server
       run: npm run server:build
 
+    - name: Install client dependencies
+      run: cd client && npm ci
+
     - name: Build client
-      run: |
-        cd client
-        npm ci
-        npm run build
+      run: cd client && npm run build
